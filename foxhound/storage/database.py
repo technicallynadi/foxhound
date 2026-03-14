@@ -352,6 +352,48 @@ class WorkItemStore:
             conn.commit()
             return cursor.rowcount > 0
 
+    def find_by_fingerprint(
+        self, repo_id: str, source_fingerprint: str
+    ) -> WorkItem | None:
+        """Find a work item by its source fingerprint for dedup."""
+        with self.db.connection() as conn:
+            row = conn.execute(
+                "SELECT * FROM work_items WHERE repo_id = ? AND source_fingerprint = ?",
+                (repo_id, source_fingerprint),
+            ).fetchone()
+            if row is None:
+                return None
+            return self._row_to_model(row)
+
+    def list_all(
+        self,
+        state: WorkItemState | None = None,
+        limit: int = 100,
+    ) -> list[WorkItem]:
+        """List all work items with optional state filter."""
+        query = "SELECT * FROM work_items"
+        params: list[Any] = []
+
+        if state is not None:
+            query += " WHERE state = ?"
+            params.append(state.value)
+
+        query += " ORDER BY updated_at DESC LIMIT ?"
+        params.append(limit)
+
+        with self.db.connection() as conn:
+            rows = conn.execute(query, params).fetchall()
+            return [self._row_to_model(row) for row in rows]
+
+    def get_fingerprints(self, repo_id: str) -> set[str]:
+        """Get all source fingerprints for a repo (for dedup)."""
+        with self.db.connection() as conn:
+            rows = conn.execute(
+                "SELECT source_fingerprint FROM work_items WHERE repo_id = ?",
+                (repo_id,),
+            ).fetchall()
+            return {row["source_fingerprint"] for row in rows}
+
     def delete(self, work_item_id: str) -> bool:
         """Delete a work item."""
         with self.db.connection() as conn:
@@ -598,8 +640,24 @@ class EventStore:
     def __init__(self, db: Database) -> None:
         self.db = db
 
+    @staticmethod
+    def _sanitize_payload_for_storage(payload: dict[str, Any]) -> dict[str, Any]:
+        """Redact secrets from event payloads before persisting to DB."""
+        from foxhound.sanitization.pipeline import redact_secrets
+
+        sanitized: dict[str, Any] = {}
+        for key, value in payload.items():
+            if isinstance(value, str):
+                sanitized[key], _ = redact_secrets(value)
+            elif isinstance(value, dict):
+                sanitized[key] = EventStore._sanitize_payload_for_storage(value)
+            else:
+                sanitized[key] = value
+        return sanitized
+
     def save(self, event: EventEnvelope) -> None:
-        """Save an event."""
+        """Save an event with payload redaction."""
+        safe_payload = self._sanitize_payload_for_storage(event.payload)
         with self.db.connection() as conn:
             conn.execute(
                 """
@@ -615,7 +673,7 @@ class EventStore:
                     event.run_id,
                     event.job_id,
                     event.severity.value,
-                    json.dumps(event.payload),
+                    json.dumps(safe_payload),
                     event.timestamp.isoformat(),
                 ),
             )
