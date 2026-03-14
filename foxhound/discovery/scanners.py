@@ -158,20 +158,14 @@ class TodoScanner:
         return results
 
 
-# Patterns for known vulnerable dependency indicators
-VULN_PATTERNS: dict[str, list[re.Pattern[str]]] = {
-    "requirements.txt": [
-        re.compile(r"^(\S+)==(\S+)\s*#\s*(?:CVE|vuln|security)", re.IGNORECASE),
-    ],
-    "pyproject.toml": [
-        re.compile(r'^\s*"?(\S+)"?\s*[><=!]=\s*"?(\S+)"?', re.IGNORECASE),
-    ],
-}
+# Patterns for known vulnerable dependency indicators in requirements files
+VULN_PATTERN = re.compile(
+    r"^(\S+)==(\S+)\s*#\s*(?:CVE|vuln|security)", re.IGNORECASE
+)
 
-LOCKFILE_NAMES = {
+# Requirements file names actually scanned
+REQUIREMENTS_FILE_NAMES = {
     "requirements.txt", "requirements-dev.txt", "requirements-lock.txt",
-    "Pipfile.lock", "poetry.lock", "package-lock.json", "yarn.lock",
-    "Cargo.lock", "Gemfile.lock", "go.sum",
 }
 
 
@@ -181,53 +175,50 @@ class DependencyAlertScanner:
     scanner_name = "dependency_alert_scanner"
 
     def scan(self, repo_path: Path) -> list[ScanResult]:
-        """Scan for dependency-related alerts."""
+        """Scan requirements files for flagged dependencies."""
         results: list[ScanResult] = []
 
-        for lockfile_name in LOCKFILE_NAMES:
-            lockfile = repo_path / lockfile_name
-            if lockfile.is_file():
-                results.extend(self._check_lockfile(lockfile, repo_path))
+        for filename in REQUIREMENTS_FILE_NAMES:
+            req_file = repo_path / filename
+            if req_file.is_file():
+                results.extend(self._check_requirements(req_file, repo_path))
 
         return results
 
-    def _check_lockfile(self, lockfile: Path, repo_path: Path) -> list[ScanResult]:
-        """Check a lockfile for potential dependency issues."""
+    def _check_requirements(self, req_file: Path, repo_path: Path) -> list[ScanResult]:
+        """Check a requirements file for CVE/vulnerability annotations."""
         results: list[ScanResult] = []
-        relative = str(lockfile.relative_to(repo_path))
+        relative = str(req_file.relative_to(repo_path))
 
         try:
-            content = lockfile.read_text(encoding="utf-8", errors="replace")
+            content = req_file.read_text(encoding="utf-8", errors="replace")
         except (OSError, UnicodeDecodeError):
             return results
 
-        # Check for inline CVE/vulnerability comments in requirements files
-        if lockfile.name.startswith("requirements"):
-            for line_num, line in enumerate(content.splitlines(), start=1):
-                for pattern in VULN_PATTERNS.get("requirements.txt", []):
-                    match = pattern.match(line)
-                    if match:
-                        pkg = match.group(1)
-                        ver = match.group(2)
-                        results.append(ScanResult(
-                            source_type="dependency_alert",
-                            title=f"Flagged dependency: {pkg}=={ver}",
-                            description=(
+        for line_num, line in enumerate(content.splitlines(), start=1):
+            match = VULN_PATTERN.match(line)
+            if match:
+                pkg = match.group(1)
+                ver = match.group(2)
+                results.append(ScanResult(
+                    source_type="dependency_alert",
+                    title=f"Flagged dependency: {pkg}=={ver}",
+                    description=(
                         f"Dependency {pkg}=={ver} has a security "
                         f"annotation in {relative}"
                     ),
-                            file_path=relative,
-                            line_number=line_num,
-                            evidence={
-                                "package": pkg,
-                                "version": ver,
-                                "file": relative,
-                                "line": line.strip(),
-                            },
-                            confidence=0.8,
-                            risk=RiskLevel.HIGH,
-                            recipe_name="dependency_update",
-                        ))
+                    file_path=relative,
+                    line_number=line_num,
+                    evidence={
+                        "package": pkg,
+                        "version": ver,
+                        "file": relative,
+                        "line": line.strip(),
+                    },
+                    confidence=0.8,
+                    risk=RiskLevel.HIGH,
+                    recipe_name="dependency_update",
+                ))
 
         return results
 

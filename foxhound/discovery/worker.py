@@ -29,6 +29,7 @@ from foxhound.harness.worker_protocol import (
     WorkerClass,
     WorkerOutput,
 )
+from foxhound.sanitization.pipeline import sanitize_payload
 
 
 class DiscoveryWorker:
@@ -133,13 +134,22 @@ class DiscoveryWorker:
         )
 
     def sanitize_output(self, output: WorkerOutput) -> SanitizedOutput:
-        """Sanitize discovery output — strip any sensitive paths or patterns."""
+        """Sanitize discovery output — redact secrets and dangerous patterns."""
+        sanitized_payload, patterns_found, secrets_redacted = sanitize_payload(
+            output.payload, TrustLevel.SEMI_TRUSTED
+        )
+        redactions: list[str] = []
+        if patterns_found:
+            redactions.extend(patterns_found)
+        if secrets_redacted > 0:
+            redactions.append(f"Redacted {secrets_redacted} potential secret(s)")
+
         return SanitizedOutput(
-            payload=output.payload,
+            payload=sanitized_payload,
             commands_run=output.commands_run,
             files_changed=output.files_changed,
             cost=output.cost,
-            redactions_applied=[],
+            redactions_applied=redactions,
         )
 
     def evaluate_output(self, output: SanitizedOutput) -> EvaluationResult:

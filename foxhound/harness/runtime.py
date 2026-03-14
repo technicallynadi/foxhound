@@ -27,6 +27,7 @@ from foxhound.harness.worker_protocol import (
     WorkerOutput,
     validate_worker_capabilities,
 )
+from foxhound.sanitization.pipeline import redact_secrets
 
 
 def _utc_now() -> datetime:
@@ -257,6 +258,13 @@ class Harness:
             payload={"stage": stage, "worker": worker.worker_name},
         )
 
+    @staticmethod
+    def _safe_error_summary(error: str) -> str:
+        """Produce a redacted error summary safe for event payloads and storage."""
+        truncated = error[:200]
+        redacted, _ = redact_secrets(truncated)
+        return redacted
+
     def _fail_at_stage(
         self,
         stage: str,
@@ -273,6 +281,7 @@ class Harness:
     ) -> HarnessResult:
         """Create a failure result when a stage raises."""
         duration = time.monotonic() - start_time
+        safe_error = self._safe_error_summary(error)
 
         self._event_bus.emit(
             event_type=EventType.RUN_FAILED,
@@ -282,7 +291,7 @@ class Harness:
             repo_id=task.repo_id,
             payload={
                 "stage": stage,
-                "error": error,
+                "error": safe_error,
                 "worker": worker.worker_name,
             },
         )
@@ -290,7 +299,7 @@ class Harness:
         return HarnessResult(
             result_envelope=ResultEnvelope(
                 status=ResultStatus.FAILED,
-                payload={"stage": stage, "error": error},
+                payload={"stage": stage, "error": safe_error},
             ),
             validation=validation or ValidationResult(valid=True),
             context=context,

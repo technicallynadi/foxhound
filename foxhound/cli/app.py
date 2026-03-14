@@ -60,13 +60,15 @@ def init() -> None:
     if not config_path.exists():
         config_path.write_text(
             "# Foxhound configuration\n"
+            "# Set your preferred model for each capability tier.\n"
+            "# See docs for supported providers and models.\n"
             "models:\n"
             "  provider: anthropic\n"
             "  api_key_env: ANTHROPIC_API_KEY\n"
             "  tiers:\n"
-            "    reasoning: claude-sonnet-4-6\n"
-            "    balanced: claude-sonnet-4-6\n"
-            "    fast: claude-haiku-4-5\n"
+            "    reasoning: your-reasoning-model\n"
+            "    balanced: your-balanced-model\n"
+            "    fast: your-fast-model\n"
         )
         console.print(f"[green]Created:[/green] {config_path}")
     else:
@@ -125,15 +127,15 @@ def doctor() -> None:
     config_path = Path.cwd() / CONFIG_NAME
     checks.append(("foxhound.yaml", config_path.exists(), str(config_path)))
 
-    # API keys
+    # API keys (never display key content — presence check only)
     anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
     openai_key = os.environ.get("OPENAI_API_KEY")
     has_key = bool(anthropic_key or openai_key)
     key_detail = []
     if anthropic_key:
-        key_detail.append(f"ANTHROPIC_API_KEY={anthropic_key[:8]}...")
+        key_detail.append("ANTHROPIC_API_KEY=configured")
     if openai_key:
-        key_detail.append(f"OPENAI_API_KEY={openai_key[:8]}...")
+        key_detail.append("OPENAI_API_KEY=configured")
     if not key_detail:
         key_detail.append("No API keys found")
     checks.append(("API key configured", has_key, ", ".join(key_detail)))
@@ -245,23 +247,25 @@ def repo_add(
         raise typer.Exit(code=1)
 
     db = Database(db_path)
-    registry = RepoRegistry(db)
-    repo = registry.register(repo_path)
-    db.close()
+    try:
+        registry = RepoRegistry(db)
+        repo = registry.register(repo_path)
 
-    lang = repo.language_meta.get("primary", "unknown")
-    console.print(f"[green]Registered:[/green] {repo.name} ({lang})")
-    console.print(f"  ID: {repo.repo_id}")
-    console.print(f"  Path: {repo.path}")
-    console.print(f"  Branch: {repo.default_branch}")
+        lang = repo.language_meta.get("primary", "unknown")
+        console.print(f"[green]Registered:[/green] {repo.name} ({lang})")
+        console.print(f"  ID: {repo.repo_id}")
+        console.print(f"  Path: {repo.path}")
+        console.print(f"  Branch: {repo.default_branch}")
 
-    # Ensure .foxhound/ exists in the target repo
-    fh_dir = repo_path / ".foxhound"
-    if not fh_dir.exists():
-        fh_dir.mkdir(parents=True)
-        for subdir in ["artifacts", "recipes", "policies", "cache", "config"]:
-            (fh_dir / subdir).mkdir(exist_ok=True)
-        console.print(f"[green]Created:[/green] {fh_dir}/")
+        # Ensure .foxhound/ exists in the target repo
+        fh_dir = repo_path / ".foxhound"
+        if not fh_dir.exists():
+            fh_dir.mkdir(parents=True)
+            for subdir in ["artifacts", "recipes", "policies", "cache", "config"]:
+                (fh_dir / subdir).mkdir(exist_ok=True)
+            console.print(f"[green]Created:[/green] {fh_dir}/")
+    finally:
+        db.close()
 
 
 @repo_app.command("list")
@@ -276,9 +280,11 @@ def repo_list() -> None:
         raise typer.Exit(code=1)
 
     db = Database(db_path)
-    registry = RepoRegistry(db)
-    repos = registry.list_repos()
-    db.close()
+    try:
+        registry = RepoRegistry(db)
+        repos = registry.list_repos()
+    finally:
+        db.close()
 
     if not repos:
         console.print("[yellow]No repositories registered.[/yellow]")
@@ -337,70 +343,70 @@ def scan(
         raise typer.Exit(code=1)
 
     db = Database(db_path)
-    registry = RepoRegistry(db)
-    repos = registry.list_repos()
+    try:
+        registry = RepoRegistry(db)
+        repos = registry.list_repos()
 
-    # Find repo_id for this path
-    repo_id = None
-    for repo in repos:
-        if Path(repo.path).resolve() == target:
-            repo_id = repo.repo_id
-            break
+        # Find repo_id for this path
+        repo_id = None
+        for repo in repos:
+            if Path(repo.path).resolve() == target:
+                repo_id = repo.repo_id
+                break
 
-    if repo_id is None:
-        # Auto-register if it's a git repo
-        if is_git_repo(target):
-            repo = registry.register(target)
-            repo_id = repo.repo_id
-            console.print(f"[green]Auto-registered:[/green] {repo.name}")
-        else:
-            console.print(
-                "[red]Not a registered repo.[/red] "
-                "Run [cyan]foxhound repo add[/cyan] first."
-            )
-            db.close()
-            raise typer.Exit(code=1)
+        if repo_id is None:
+            # Auto-register if it's a git repo
+            if is_git_repo(target):
+                repo = registry.register(target)
+                repo_id = repo.repo_id
+                console.print(f"[green]Auto-registered:[/green] {repo.name}")
+            else:
+                console.print(
+                    "[red]Not a registered repo.[/red] "
+                    "Run [cyan]foxhound repo add[/cyan] first."
+                )
+                raise typer.Exit(code=1)
 
-    coord = Coordinator(db)
-    known_fps = coord.get_known_fingerprints(repo_id)
+        coord = Coordinator(db)
+        known_fps = coord.get_known_fingerprints(repo_id)
 
-    # Run scanners
-    scanner_reg = ScannerRegistry()
-    scanner_reg.register_defaults()
+        # Run scanners
+        scanner_reg = ScannerRegistry()
+        scanner_reg.register_defaults()
 
-    console.print(f"[cyan]Scanning[/cyan] {target} ...")
-    results = scanner_reg.scan_all(target)
+        console.print(f"[cyan]Scanning[/cyan] {target} ...")
+        results = scanner_reg.scan_all(target)
 
-    # Dedup and save
-    from uuid import uuid4
+        # Dedup and save
+        from uuid import uuid4
 
-    new_count = 0
-    skip_count = 0
-    for result in results:
-        if result.fingerprint in known_fps:
-            skip_count += 1
-            continue
-        known_fps.add(result.fingerprint)
-        wid = f"wi_{uuid4().hex[:12]}"
-        item = scan_result_to_work_item(result, repo_id, wid)
-        coord.save_work_item(item)
-        new_count += 1
+        new_count = 0
+        skip_count = 0
+        for result in results:
+            if result.fingerprint in known_fps:
+                skip_count += 1
+                continue
+            known_fps.add(result.fingerprint)
+            wid = f"wi_{uuid4().hex[:12]}"
+            item = scan_result_to_work_item(result, repo_id, wid)
+            coord.save_work_item(item)
+            new_count += 1
 
-    # Promote discovered → suggested
-    promoted = coord.promote_discovered_to_suggested(repo_id)
+        # Promote discovered → suggested
+        promoted = coord.promote_discovered_to_suggested(repo_id)
 
-    db.close()
-
-    console.print(
-        f"\n[bold green]Scan complete.[/bold green] "
-        f"Found {len(results)} items, {new_count} new, "
-        f"{skip_count} duplicates skipped, {promoted} promoted to suggested."
-    )
-    if new_count > 0:
         console.print(
-            "Run [cyan]foxhound log[/cyan] to see items, "
-            "[cyan]foxhound approve <id>[/cyan] to review."
+            f"\n[bold green]Scan complete.[/bold green] "
+            f"Found {len(results)} items, {new_count} new, "
+            f"{skip_count} duplicates skipped, {promoted} promoted to suggested."
         )
+        if new_count > 0:
+            console.print(
+                "Run [cyan]foxhound log[/cyan] to see items, "
+                "[cyan]foxhound approve <id>[/cyan] to review."
+            )
+    finally:
+        db.close()
 
 
 @app.command()
@@ -425,83 +431,79 @@ def approve(work_item_id: str) -> None:
         raise typer.Exit(code=1)
 
     db = Database(db_path)
-    coord = Coordinator(db)
-    item = coord.get_work_item(work_item_id)
+    try:
+        coord = Coordinator(db)
+        item = coord.get_work_item(work_item_id)
 
-    if item is None:
-        console.print(f"[red]Work item not found:[/red] {work_item_id}")
-        db.close()
-        raise typer.Exit(code=1)
+        if item is None:
+            console.print(f"[red]Work item not found:[/red] {work_item_id}")
+            raise typer.Exit(code=1)
 
-    # Display work item details
-    risk_color = {"low": "green", "medium": "yellow", "high": "red"}.get(
-        item.risk.value, "white"
-    )
-
-    details = (
-        f"[bold]Title:[/bold] {item.title}\n"
-        f"[bold]State:[/bold] {item.state.value}\n"
-        f"[bold]Source:[/bold] {item.source_type}\n"
-        f"[bold]Risk:[/bold] [{risk_color}]{item.risk.value}[/{risk_color}]\n"
-        f"[bold]Confidence:[/bold] {item.confidence:.0%}\n"
-        f"[bold]Recipe:[/bold] {item.recipe_name or 'none'}\n"
-        f"[bold]Files:[/bold] {', '.join(item.likely_files) or 'none'}\n"
-        f"[bold]Description:[/bold] {item.description}"
-    )
-
-    console.print(Panel(details, title=f"Work Item: {work_item_id}", border_style="cyan"))
-
-    # Show evidence
-    if item.evidence:
-        evidence_lines = []
-        for key, value in item.evidence.items():
-            evidence_lines.append(f"  {key}: {value}")
-        console.print(Panel(
-            "\n".join(evidence_lines),
-            title="Evidence",
-            border_style="dim",
-        ))
-
-    # Check if item is in a reviewable state
-    if item.state not in (WorkItemState.SUGGESTED, WorkItemState.BLOCKED):
-        console.print(
-            f"[yellow]Item is in state '{item.state.value}' — "
-            f"only 'suggested' or 'blocked' items can be reviewed.[/yellow]"
+        # Display work item details
+        risk_color = {"low": "green", "medium": "yellow", "high": "red"}.get(
+            item.risk.value, "white"
         )
-        db.close()
-        return
 
-    # Prompt for action
-    action = Prompt.ask(
-        "\nAction",
-        choices=["approve", "reject", "edit", "skip"],
-        default="skip",
-    )
+        details = (
+            f"[bold]Title:[/bold] {item.title}\n"
+            f"[bold]State:[/bold] {item.state.value}\n"
+            f"[bold]Source:[/bold] {item.source_type}\n"
+            f"[bold]Risk:[/bold] [{risk_color}]{item.risk.value}[/{risk_color}]\n"
+            f"[bold]Confidence:[/bold] {item.confidence:.0%}\n"
+            f"[bold]Recipe:[/bold] {item.recipe_name or 'none'}\n"
+            f"[bold]Files:[/bold] {', '.join(item.likely_files) or 'none'}\n"
+            f"[bold]Description:[/bold] {item.description}"
+        )
 
-    if action == "approve":
-        coord.advance_work_item(work_item_id, WorkItemState.APPROVED)
-        console.print("[green]Approved.[/green]")
-    elif action == "reject":
-        coord.advance_work_item(work_item_id, WorkItemState.REJECTED)
-        console.print("[red]Rejected.[/red]")
-    elif action == "edit":
-        new_title = Prompt.ask("New title", default=item.title)
-        if new_title != item.title:
-            from foxhound.core.models import WorkItem
+        console.print(Panel(details, title=f"Work Item: {work_item_id}", border_style="cyan"))
 
-            item_dict = item.model_dump()
-            item_dict["title"] = new_title
-            item_dict["state"] = WorkItemState.EDITED
-            updated = WorkItem(**item_dict)
-            coord.save_work_item(updated)
-            console.print(f"[green]Edited and approved:[/green] {new_title}")
-        else:
+        # Show evidence
+        if item.evidence:
+            evidence_lines = []
+            for key, value in item.evidence.items():
+                evidence_lines.append(f"  {key}: {value}")
+            console.print(Panel(
+                "\n".join(evidence_lines),
+                title="Evidence",
+                border_style="dim",
+            ))
+
+        # Check if item is in a reviewable state
+        if item.state not in (WorkItemState.SUGGESTED, WorkItemState.BLOCKED):
+            console.print(
+                f"[yellow]Item is in state '{item.state.value}' — "
+                f"only 'suggested' or 'blocked' items can be reviewed.[/yellow]"
+            )
+            return
+
+        # Prompt for action
+        action = Prompt.ask(
+            "\nAction",
+            choices=["approve", "reject", "edit", "skip"],
+            default="skip",
+        )
+
+        if action == "approve":
+            coord.advance_work_item(work_item_id, WorkItemState.APPROVED)
+            console.print("[green]Approved.[/green]")
+        elif action == "reject":
+            coord.advance_work_item(work_item_id, WorkItemState.REJECTED)
+            console.print("[red]Rejected.[/red]")
+        elif action == "edit":
+            new_title = Prompt.ask("New title", default=item.title)
             coord.advance_work_item(work_item_id, WorkItemState.EDITED)
-            console.print("[green]Marked as edited.[/green]")
-    else:
-        console.print("[dim]Skipped.[/dim]")
-
-    db.close()
+            if new_title != item.title:
+                updated_item = coord.get_work_item(work_item_id)
+                if updated_item:
+                    updated_item.title = new_title
+                    coord.save_work_item(updated_item)
+                console.print(f"[green]Edited and approved:[/green] {new_title}")
+            else:
+                console.print("[green]Marked as edited.[/green]")
+        else:
+            console.print("[dim]Skipped.[/dim]")
+    finally:
+        db.close()
 
 
 @app.command()
@@ -526,78 +528,77 @@ def log(
         raise typer.Exit(code=1)
 
     db = Database(db_path)
-    coord = Coordinator(db)
+    try:
+        coord = Coordinator(db)
 
-    # Resolve state filter
-    state_filter = None
-    if state:
-        try:
-            state_filter = WorkItemState(state)
-        except ValueError:
-            valid = ", ".join(s.value for s in WorkItemState)
-            console.print(f"[red]Invalid state:[/red] {state}. Valid: {valid}")
-            db.close()
-            raise typer.Exit(code=1)
+        # Resolve state filter
+        state_filter = None
+        if state:
+            try:
+                state_filter = WorkItemState(state)
+            except ValueError:
+                valid = ", ".join(s.value for s in WorkItemState)
+                console.print(f"[red]Invalid state:[/red] {state}. Valid: {valid}")
+                raise typer.Exit(code=1)
 
-    # Resolve repo filter
-    repo_id = None
-    if repo_path:
-        registry = RepoRegistry(db)
-        target = Path(repo_path).resolve()
-        for repo in registry.list_repos():
-            if Path(repo.path).resolve() == target:
-                repo_id = repo.repo_id
-                break
-        if repo_id is None:
-            console.print(f"[red]Repo not found:[/red] {repo_path}")
-            db.close()
-            raise typer.Exit(code=1)
+        # Resolve repo filter
+        repo_id = None
+        if repo_path:
+            registry = RepoRegistry(db)
+            target = Path(repo_path).resolve()
+            for repo in registry.list_repos():
+                if Path(repo.path).resolve() == target:
+                    repo_id = repo.repo_id
+                    break
+            if repo_id is None:
+                console.print(f"[red]Repo not found:[/red] {repo_path}")
+                raise typer.Exit(code=1)
 
-    items = coord.list_work_items(repo_id=repo_id, state=state_filter)
-    items = items[:limit]
+        items = coord.list_work_items(repo_id=repo_id, state=state_filter)
+        items = items[:limit]
 
-    if not items:
-        console.print("[yellow]No work items found.[/yellow]")
+        if not items:
+            console.print("[yellow]No work items found.[/yellow]")
+            return
+
+        table = Table(title="Work Items")
+        table.add_column("ID", style="dim", max_width=16)
+        table.add_column("State", justify="center")
+        table.add_column("Risk", justify="center")
+        table.add_column("Conf", justify="right")
+        table.add_column("Source", max_width=18)
+        table.add_column("Title", max_width=50)
+        table.add_column("Updated")
+
+        state_colors = {
+            "discovered": "blue",
+            "suggested": "cyan",
+            "approved": "green",
+            "edited": "green",
+            "rejected": "red",
+            "blocked": "yellow",
+            "executing": "magenta",
+            "completed": "bold green",
+            "failed": "bold red",
+        }
+        risk_colors = {"low": "green", "medium": "yellow", "high": "red"}
+
+        for item in items:
+            sc = state_colors.get(item.state.value, "white")
+            rc = risk_colors.get(item.risk.value, "white")
+            table.add_row(
+                item.work_item_id[:16],
+                f"[{sc}]{item.state.value}[/{sc}]",
+                f"[{rc}]{item.risk.value}[/{rc}]",
+                f"{item.confidence:.0%}",
+                item.source_type,
+                item.title[:50],
+                item.updated_at.strftime("%Y-%m-%d %H:%M"),
+            )
+
+        console.print(table)
+    finally:
         db.close()
-        return
-
-    table = Table(title="Work Items")
-    table.add_column("ID", style="dim", max_width=16)
-    table.add_column("State", justify="center")
-    table.add_column("Risk", justify="center")
-    table.add_column("Conf", justify="right")
-    table.add_column("Source", max_width=18)
-    table.add_column("Title", max_width=50)
-    table.add_column("Updated")
-
-    state_colors = {
-        "discovered": "blue",
-        "suggested": "cyan",
-        "approved": "green",
-        "edited": "green",
-        "rejected": "red",
-        "blocked": "yellow",
-        "executing": "magenta",
-        "completed": "bold green",
-        "failed": "bold red",
-    }
-    risk_colors = {"low": "green", "medium": "yellow", "high": "red"}
-
-    for item in items:
-        sc = state_colors.get(item.state.value, "white")
-        rc = risk_colors.get(item.risk.value, "white")
-        table.add_row(
-            item.work_item_id[:16],
-            f"[{sc}]{item.state.value}[/{sc}]",
-            f"[{rc}]{item.risk.value}[/{rc}]",
-            f"{item.confidence:.0%}",
-            item.source_type,
-            item.title[:50],
-            item.updated_at.strftime("%Y-%m-%d %H:%M"),
-        )
-
-    console.print(table)
-    db.close()
 
 
 @app.command(name="run")
@@ -624,9 +625,11 @@ def status() -> None:
     from foxhound.storage.database import Database
 
     db = Database(db_path)
-    coord = Coordinator(db)
-    stats = coord.get_queue_stats()
-    db.close()
+    try:
+        coord = Coordinator(db)
+        stats = coord.get_queue_stats()
+    finally:
+        db.close()
 
     table = Table(title="Job Queue Status")
     table.add_column("Status", style="bold")
