@@ -1,15 +1,4 @@
-"""Event bus for typed local pub/sub communication.
-
-This module provides the event bus abstraction that delivers events to the TUI,
-observer, analyzer, and notification sinks. All system actions emit structured
-events through this bus.
-
-Spec References:
-- Engineering Blueprint §1.1 (module 03): Event bus responsibility
-- Engineering Blueprint §4.3: Event model categories
-- Event Schema Spec §2: Event envelope structure
-- Event Schema Spec §8: Event bus flow
-"""
+"""Event bus for typed local pub/sub communication."""
 
 import uuid
 from collections import defaultdict

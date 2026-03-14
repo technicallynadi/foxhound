@@ -1,16 +1,4 @@
-"""Core Pydantic models for Foxhound.
-
-This module defines the canonical data models that form the foundation of Foxhound's
-type system. These models define the core contracts for work items, discovery,
-execution, and provenance tracking.
-
-Spec References:
-- Engineering Blueprint §1.1 (module 01): Core models responsibility
-- DB Schema Spec §3: Database table structure matching model fields
-- Event Schema Spec §2: EventEnvelope structure and required fields
-- Event Schema Spec §5-6: JobEnvelope structure and execution snapshot requirements
-- Spec Pack §1: Primary domain objects
-"""
+"""Core Pydantic models for Foxhound."""
 
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -30,13 +18,7 @@ def _utc_now() -> datetime:
 
 
 class TrustLevel(StrEnum):
-    """Trust tiers enforced at all boundaries.
-
-    From CLAUDE.md Architecture Rules:
-    - trusted: system instructions, approved recipes, user edits
-    - semi_trusted: repo files, CI logs, issue metadata
-    - untrusted: Reddit, articles, reviews, external web content
-    """
+    """Trust tiers enforced at all boundaries."""
 
     TRUSTED = "trusted"
     SEMI_TRUSTED = "semi_trusted"
@@ -142,13 +124,7 @@ class RunState(StrEnum):
 
 
 class ExecutionStrategy(StrEnum):
-    """Execution strategy for jobs.
-
-    From Ralph Integration Spec §2:
-    - one_shot: Single-pass execution
-    - bounded_retry: One-shot with up to 2 retries on failure
-    - ralph_loop: Iterative bounded loop with git-based state persistence
-    """
+    """Execution strategy for jobs."""
 
     ONE_SHOT = "one_shot"
     BOUNDED_RETRY = "bounded_retry"
@@ -183,10 +159,7 @@ class EventSeverity(StrEnum):
 
 
 class EventType(StrEnum):
-    """Core event types emitted by the system.
-
-    From Event Schema Spec §4.
-    """
+    """Core event types emitted by the system."""
 
     # Discovery Events
     WORK_ITEM_DISCOVERED = "WorkItemDiscovered"
@@ -232,10 +205,7 @@ class EventType(StrEnum):
 
 
 class RecipeRef(BaseModel):
-    """Recipe reference with semantic version and content hash.
-
-    From Engineering Blueprint §5.2: Recipes use semantic version + content hash.
-    """
+    """Recipe reference with semantic version and content hash."""
 
     name: str = Field(..., description="Recipe name")
     version: str = Field(..., description="Semantic version (e.g., '1.2.0')")
@@ -246,10 +216,7 @@ class RecipeRef(BaseModel):
 
 
 class PolicyRef(BaseModel):
-    """Policy reference with semantic version and content hash.
-
-    From Engineering Blueprint §5.2: Policies use semantic version + content hash.
-    """
+    """Policy reference with semantic version and content hash."""
 
     name: str = Field(..., description="Policy pack name")
     version: str = Field(..., description="Semantic version (e.g., '1.0.0')")
@@ -267,7 +234,6 @@ class PolicyRef(BaseModel):
 class ExecutionSnapshot(BaseModel):
     """Frozen execution configuration captured at queue time.
 
-    From Event Schema Spec §7: Execution snapshots are immutable.
     Once a job is queued, recipe/policy versions cannot change.
     """
 
@@ -288,12 +254,7 @@ class ExecutionSnapshot(BaseModel):
 
 
 class WorkItem(BaseModel):
-    """Repo-executable task candidate with state tracking.
-
-    From Spec Pack §1: ExecutionWorkItem is a repo-executable task candidate.
-    State flow: discovered -> suggested -> approved|edited|rejected|blocked ->
-                executing -> completed|failed
-    """
+    """Repo-executable task candidate with state tracking."""
 
     work_item_id: str = Field(..., description="Canonical work item ID")
     repo_id: str = Field(..., description="Owning repository ID")
@@ -326,11 +287,7 @@ class WorkItem(BaseModel):
 
 
 class OpportunityDiscoveryItem(BaseModel):
-    """External opportunity candidate from scout (non-executable, evidence-only).
-
-    From Spec Pack §1: OpportunityDiscoveryItem is an external opportunity candidate.
-    Scout items are never executable work directly.
-    """
+    """External opportunity candidate from scout (non-executable, evidence-only)."""
 
     opportunity_id: str = Field(..., description="Unique opportunity identifier")
     title: str = Field(..., description="Human-readable opportunity title")
@@ -374,11 +331,7 @@ class OpportunityDiscoveryItem(BaseModel):
 
 
 class JobEnvelope(BaseModel):
-    """Queued work unit with immutable execution snapshot.
-
-    From Event Schema Spec §5-6: Job envelope contains immutable execution
-    configuration, provenance metadata, and execution instructions.
-    """
+    """Queued work unit with immutable execution snapshot."""
 
     job_id: str = Field(..., description="Unique job identifier")
     work_item_id: str = Field(..., description="Originating work item ID")
@@ -401,10 +354,7 @@ class JobEnvelope(BaseModel):
 
 
 class RunRecord(BaseModel):
-    """Single worker execution record with runtime metadata.
-
-    From Spec Pack §1: RunRecord is a single worker execution record.
-    """
+    """Single worker execution record with runtime metadata."""
 
     run_id: str = Field(..., description="Unique run identifier")
     job_id: str = Field(..., description="Owning job ID")
@@ -435,10 +385,7 @@ class RunRecord(BaseModel):
 
 
 class TaskEnvelope(BaseModel):
-    """Worker task input with frozen recipe/policy/config.
-
-    From DB Schema Spec §6.3: Task envelope requirements.
-    """
+    """Worker task input with frozen recipe/policy/config."""
 
     task_id: str = Field(..., description="Stable task identifier")
     job_id: str = Field(..., description="Owning job ID")
@@ -463,10 +410,7 @@ class TaskEnvelope(BaseModel):
 
 
 class ResultEnvelope(BaseModel):
-    """Worker output with status, payload, confidence, evidence, safety flags, and artifacts.
-
-    From DB Schema Spec §6.4: Result envelope requirements.
-    """
+    """Worker output with status, payload, confidence, evidence, and artifacts."""
 
     status: ResultStatus = Field(..., description="Result status")
     payload: dict[str, Any] = Field(default_factory=dict, description="Worker-specific output")
@@ -495,10 +439,7 @@ class ResultEnvelope(BaseModel):
 
 
 class EventEnvelope(BaseModel):
-    """Structured event with event_id, event_type, timestamp, source_module, and payload.
-
-    From Event Schema Spec §2: All system actions emit structured events.
-    """
+    """Structured event with event_id, event_type, timestamp, source_module, and payload."""
 
     event_id: str = Field(..., description="Unique event identifier")
     event_type: EventType = Field(..., description="Type of event")
@@ -519,10 +460,7 @@ class EventEnvelope(BaseModel):
 
 
 class Manifest(BaseModel):
-    """Canonical provenance record with hashes, versions, sources, commands, outputs.
-
-    From Spec Pack §9 and Ralph Integration Spec §7.
-    """
+    """Canonical provenance record with hashes, versions, sources, commands, outputs."""
 
     manifest_id: str = Field(..., description="Unique manifest identifier")
     run_id: str = Field(..., description="Associated run ID")
