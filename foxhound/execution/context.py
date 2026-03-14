@@ -129,6 +129,17 @@ def _matches_patterns(path_str: str, patterns: list[str]) -> bool:
     return False
 
 
+def _validate_path_safety(full_path: Path, repo_root: Path) -> bool:
+    """Validate that a path is not a symlink and resolves within repo boundary."""
+    if full_path.is_symlink():
+        return False
+    try:
+        resolved = full_path.resolve()
+        return resolved.is_relative_to(repo_root.resolve())
+    except (OSError, ValueError):
+        return False
+
+
 def _compute_context_hash(pack: ContextPack) -> str:
     """Compute a SHA-256 hash of the context pack for provenance."""
     hasher = hashlib.sha256()
@@ -250,6 +261,8 @@ class ContextAssembler:
             if len(selected) >= max_files or total_bytes >= max_bytes:
                 break
             full_path = self._repo_path / rel_path
+            if not _validate_path_safety(full_path, self._repo_path):
+                continue
             cpf = self._try_read_file(full_path, rel_path, exclude_patterns)
             if cpf and total_bytes + cpf.size_bytes <= max_bytes:
                 selected[rel_path] = cpf
@@ -262,6 +275,8 @@ class ContextAssembler:
                 if len(selected) >= max_files or total_bytes >= max_bytes:
                     break
                 if not full_path.is_file():
+                    continue
+                if not _validate_path_safety(full_path, self._repo_path):
                     continue
                 rel_path = str(full_path.relative_to(self._repo_path))
                 if rel_path in selected:
@@ -280,6 +295,9 @@ class ContextAssembler:
         exclude_patterns: list[str],
     ) -> ContextPackFile | None:
         """Try to read a file, applying exclusion and sensitivity checks."""
+        if not _validate_path_safety(full_path, self._repo_path):
+            return None
+
         if not full_path.exists() or not full_path.is_file():
             return None
 

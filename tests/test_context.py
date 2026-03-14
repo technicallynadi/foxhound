@@ -10,6 +10,7 @@ from foxhound.execution.context import (
     ContextPack,
     _is_sensitive_file,
     _matches_patterns,
+    _validate_path_safety,
     save_context_pack,
 )
 from foxhound.recipes.loader import Recipe
@@ -292,3 +293,85 @@ class TestSaveContextPack:
         data = json.loads(path.read_text())
         for f in data.get("files", []):
             assert "content" not in f
+
+
+class TestPathSafety:
+    """Tests for symlink rejection and path traversal prevention."""
+
+    def test_validate_path_safety_normal_file(self, repo_dir: Path) -> None:
+        """Normal files within repo pass validation."""
+        assert _validate_path_safety(repo_dir / "src" / "auth.py", repo_dir)
+
+    def test_validate_path_safety_rejects_symlink(self, repo_dir: Path) -> None:
+        """Symlinks are rejected regardless of target."""
+        target = repo_dir / "src" / "auth.py"
+        link = repo_dir / "src" / "link.py"
+        link.symlink_to(target)
+        assert not _validate_path_safety(link, repo_dir)
+
+    def test_validate_path_safety_rejects_traversal(self, tmp_path: Path) -> None:
+        """Paths resolving outside repo boundary are rejected."""
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        outside = tmp_path / "secret.txt"
+        outside.write_text("secret")
+        assert not _validate_path_safety(repo / ".." / "secret.txt", repo)
+
+    def test_rejects_symlink_in_likely_files(self, repo_dir: Path) -> None:
+        """Symlinks referenced in likely_files are excluded from context pack."""
+        target = repo_dir / "src" / "auth.py"
+        link = repo_dir / "src" / "sneaky_link.py"
+        link.symlink_to(target)
+
+        work_item = _make_work_item(likely_files=["src/sneaky_link.py"])
+        assembler = ContextAssembler(repo_dir)
+        pack = assembler.assemble(work_item)
+
+        paths = [f.path for f in pack.files]
+        assert "src/sneaky_link.py" not in paths
+
+    def test_rejects_symlink_escaping_repo(self, repo_dir: Path, tmp_path: Path) -> None:
+        """Symlinks pointing outside repo are excluded and content not leaked."""
+        outside_file = tmp_path / "secret.txt"
+        outside_file.write_text("TOP SECRET DATA")
+        link = repo_dir / "src" / "escaped.py"
+        link.symlink_to(outside_file)
+
+        work_item = _make_work_item(likely_files=["src/escaped.py"])
+        assembler = ContextAssembler(repo_dir)
+        pack = assembler.assemble(work_item)
+
+        paths = [f.path for f in pack.files]
+        assert "src/escaped.py" not in paths
+        assert not any("TOP SECRET DATA" in f.content for f in pack.files)
+
+    def test_rejects_path_traversal_in_likely_files(
+        self, repo_dir: Path, tmp_path: Path
+    ) -> None:
+        """Path traversal via ../../ in likely_files is rejected."""
+        outside = tmp_path / "passwd"
+        outside.write_text("root:x:0:0")
+
+        work_item = _make_work_item(likely_files=["../../passwd"])
+        assembler = ContextAssembler(repo_dir)
+        pack = assembler.assemble(work_item)
+
+        paths = [f.path for f in pack.files]
+        assert not any("passwd" in p for p in paths)
+
+    def test_rejects_symlink_matched_by_glob(
+        self, repo_dir: Path, tmp_path: Path
+    ) -> None:
+        """Symlinks matched via glob patterns are excluded."""
+        outside_file = tmp_path / "stolen.py"
+        outside_file.write_text("STOLEN CONTENT")
+        link = repo_dir / "src" / "innocent.py"
+        link.symlink_to(outside_file)
+
+        work_item = _make_work_item()
+        assembler = ContextAssembler(repo_dir)
+        pack = assembler.assemble(work_item)
+
+        paths = [f.path for f in pack.files]
+        assert "src/innocent.py" not in paths
+        assert not any("STOLEN CONTENT" in f.content for f in pack.files)
