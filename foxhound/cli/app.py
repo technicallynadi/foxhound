@@ -4,6 +4,7 @@ from pathlib import Path
 
 import typer
 from rich.console import Console
+from rich.markup import escape as rich_escape
 from rich.table import Table
 
 app = typer.Typer(
@@ -58,15 +59,18 @@ def init() -> None:
     # Create default config if missing
     config_path = Path.cwd() / CONFIG_NAME
     if not config_path.exists():
-        from foxhound.adapters.registry import generate_config_yaml
-
-        config_content = (
+        config_path.write_text(
             "# Foxhound configuration\n"
             "# Set your preferred model for each capability tier.\n"
             "# See docs for supported providers and models.\n"
-            + generate_config_yaml("anthropic")
+            "models:\n"
+            "  provider: anthropic\n"
+            "  api_key_env: ANTHROPIC_API_KEY\n"
+            "  tiers:\n"
+            "    reasoning: your-reasoning-model\n"
+            "    balanced: your-balanced-model\n"
+            "    fast: your-fast-model\n"
         )
-        config_path.write_text(config_content)
         console.print(f"[green]Created:[/green] {config_path}")
     else:
         console.print(f"[yellow]Config exists:[/yellow] {config_path}")
@@ -90,11 +94,7 @@ def init() -> None:
 
 
 @app.command()
-def doctor(
-    models: bool = typer.Option(
-        False, "--models", help="Run model connectivity and tier validation."
-    ),
-) -> None:
+def doctor() -> None:
     """Validate environment and configuration."""
     import os
     import sys
@@ -127,33 +127,6 @@ def doctor(
     # Config file
     config_path = Path.cwd() / CONFIG_NAME
     checks.append(("foxhound.yaml", config_path.exists(), str(config_path)))
-
-    # Model configuration validation
-    config_loaded = False
-    if config_path.exists():
-        try:
-            from foxhound.core.config import load_config
-
-            config = load_config(config_path)
-            config_loaded = True
-
-            # Validate tier mappings
-            from foxhound.core.models import ModelTier
-
-            tier_detail = []
-            for tier in ModelTier:
-                model_spec = config.models.tiers.get(tier.value)
-                if model_spec:
-                    tier_detail.append(f"{tier.value}={model_spec}")
-                else:
-                    tier_detail.append(f"{tier.value}=<not set>")
-            checks.append(("Model tiers", bool(config.models.tiers), ", ".join(tier_detail)))
-
-            # Provider configuration
-            providers = list(config.models.providers.keys())
-            checks.append(("Model providers", bool(providers), ", ".join(providers) or "none"))
-        except Exception as e:
-            checks.append(("Model config", False, str(e)))
 
     # API keys (never display key content — presence check only)
     anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
@@ -215,14 +188,6 @@ def doctor(
     except ImportError as e:
         checks.append(("Output processing", False, str(e)))
 
-    # Adapter modules
-    try:
-        importlib.import_module("foxhound.adapters.router")
-        importlib.import_module("foxhound.adapters.registry")
-        checks.append(("Adapter modules", True, "router, registry"))
-    except ImportError as e:
-        checks.append(("Adapter modules", False, str(e)))
-
     # Subdirectories
     for subdir in ["artifacts", "recipes", "policies", "cache", "config"]:
         sub = fh_dir / subdir
@@ -247,114 +212,7 @@ def doctor(
         console.print("\n[bold green]All checks passed.[/bold green]")
     else:
         console.print("\n[bold red]Some checks failed.[/bold red] Fix the issues above.")
-        if not models:
-            raise typer.Exit(code=1)
-
-    # --models: Extended model validation
-    if models:
-        _doctor_models(config if config_loaded else None)
-
-
-def _doctor_models(config: object | None) -> None:
-    """Run model connectivity and tier validation."""
-    from foxhound.adapters.registry import PROVIDER_TIER_SUGGESTIONS
-    from foxhound.adapters.router import ModelRouter
-    from foxhound.core.config import FoxhoundConfig
-    from foxhound.core.models import ModelTier
-
-    console.print("\n[bold]Model Configuration[/bold]")
-
-    if config is None or not isinstance(config, FoxhoundConfig):
-        console.print("  [red]No valid foxhound.yaml found.[/red]")
-        console.print(
-            "  Run [cyan]foxhound init[/cyan] and configure your model tiers."
-        )
         raise typer.Exit(code=1)
-
-    # Show provider info
-    for provider_name, provider_config in config.models.providers.items():
-        console.print(f"  Provider: [cyan]{provider_name}[/cyan]")
-        console.print(f"    API key env: {provider_config.api_key_env}")
-        if provider_config.base_url:
-            console.print(f"    Base URL: {provider_config.base_url}")
-
-    # Initialize router and authenticate
-    router = ModelRouter(config)
-    errors = router.initialize()
-
-    if errors:
-        for error in errors:
-            console.print(f"  [red]{error}[/red]")
-    else:
-        console.print("  [green]All providers authenticated.[/green]")
-
-    # Show tier mappings and check connectivity
-    console.print("\n[bold]Tier Mappings[/bold]")
-    model_checks: list[tuple[str, bool, str]] = []
-    for tier in ModelTier:
-        model_spec = config.models.tiers.get(tier.value, "<not configured>")
-        if router.is_ready() and tier.value in config.models.tiers:
-            try:
-                provider_name, model_id, _adapter = router.resolve(tier)
-                accessible = router.check_model(tier)
-                status = (
-                    "[green]available[/green]"
-                    if accessible
-                    else "[yellow]unreachable[/yellow]"
-                )
-                model_checks.append((tier.value, accessible, f"{provider_name}/{model_id}"))
-                console.print(
-                    f"  {tier.value:>10}: {model_spec} {status}"
-                )
-            except (ValueError, RuntimeError) as e:
-                model_checks.append((tier.value, False, str(e)))
-                console.print(
-                    f"  {tier.value:>10}: {model_spec} [red]error: {e}[/red]"
-                )
-        else:
-            console.print(f"  {tier.value:>10}: {model_spec}")
-
-    # Show suggestions if tiers are missing
-    missing_tiers = [t for t in ModelTier if t.value not in config.models.tiers]
-    if missing_tiers:
-        provider = config.models.provider or (
-            next(iter(config.models.providers)) if config.models.providers else None
-        )
-        if provider and provider in PROVIDER_TIER_SUGGESTIONS:
-            suggestions = PROVIDER_TIER_SUGGESTIONS[provider]
-            console.print("\n[bold]Suggested Mappings[/bold]")
-            for tier in missing_tiers:
-                suggested = suggestions.get(tier.value, "?")
-                console.print(
-                    f"  {tier.value:>10}: [dim]{suggested}[/dim] (suggested for {provider})"
-                )
-
-    # Cost estimates
-    console.print("\n[bold]Estimated Costs[/bold] (per operation)")
-    from foxhound.adapters.provider import TokenUsage
-
-    cost_scenarios = [
-        ("Scout run (20 repos)", ModelTier.FAST,
-         TokenUsage(input_tokens=20000, output_tokens=5000)),
-        ("Execution (one-shot)", ModelTier.BALANCED,
-         TokenUsage(input_tokens=50000, output_tokens=20000)),
-        ("Execution (ralph, 5 iter)", ModelTier.BALANCED,
-         TokenUsage(input_tokens=250000, output_tokens=100000)),
-        ("Code review (reasoning)", ModelTier.REASONING,
-         TokenUsage(input_tokens=30000, output_tokens=10000)),
-    ]
-    for label, tier, usage in cost_scenarios:
-        cost = router.estimate_cost(tier, usage)
-        if cost > 0:
-            console.print(f"  {label:<30} ~${cost:.2f}")
-        else:
-            console.print(f"  {label:<30} [dim]unknown pricing[/dim]")
-
-    all_ok = all(ok for _, ok, _ in model_checks)
-    if model_checks and all_ok:
-        console.print("\n[bold green]All models accessible.[/bold green]")
-    elif model_checks:
-        console.print("\n[bold yellow]Some models could not be reached.[/bold yellow]")
 
 
 repo_app = typer.Typer(
@@ -588,14 +446,14 @@ def approve(work_item_id: str) -> None:
         )
 
         details = (
-            f"[bold]Title:[/bold] {item.title}\n"
+            f"[bold]Title:[/bold] {rich_escape(item.title)}\n"
             f"[bold]State:[/bold] {item.state.value}\n"
-            f"[bold]Source:[/bold] {item.source_type}\n"
+            f"[bold]Source:[/bold] {rich_escape(item.source_type)}\n"
             f"[bold]Risk:[/bold] [{risk_color}]{item.risk.value}[/{risk_color}]\n"
             f"[bold]Confidence:[/bold] {item.confidence:.0%}\n"
-            f"[bold]Recipe:[/bold] {item.recipe_name or 'none'}\n"
-            f"[bold]Files:[/bold] {', '.join(item.likely_files) or 'none'}\n"
-            f"[bold]Description:[/bold] {item.description}"
+            f"[bold]Recipe:[/bold] {rich_escape(item.recipe_name or 'none')}\n"
+            f"[bold]Files:[/bold] {rich_escape(', '.join(item.likely_files) or 'none')}\n"
+            f"[bold]Description:[/bold] {rich_escape(item.description)}"
         )
 
         console.print(Panel(details, title=f"Work Item: {work_item_id}", border_style="cyan"))
@@ -604,7 +462,9 @@ def approve(work_item_id: str) -> None:
         if item.evidence:
             evidence_lines = []
             for key, value in item.evidence.items():
-                evidence_lines.append(f"  {key}: {value}")
+                evidence_lines.append(
+                    f"  {rich_escape(str(key))}: {rich_escape(str(value))}"
+                )
             console.print(Panel(
                 "\n".join(evidence_lines),
                 title="Evidence",
@@ -634,6 +494,13 @@ def approve(work_item_id: str) -> None:
             console.print("[red]Rejected.[/red]")
         elif action == "edit":
             new_title = Prompt.ask("New title", default=item.title)
+            new_title = "".join(c for c in new_title if c >= " " or c == "\n")
+            if len(new_title) > 200:
+                new_title = new_title[:200]
+                console.print("[yellow]Title truncated to 200 characters.[/yellow]")
+            if not new_title.strip():
+                console.print("[red]Title cannot be empty.[/red]")
+                return
             coord.advance_work_item(work_item_id, WorkItemState.EDITED)
             if new_title != item.title:
                 updated_item = coord.get_work_item(work_item_id)

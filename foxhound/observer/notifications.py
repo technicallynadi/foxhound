@@ -44,6 +44,10 @@ EVENT_ROUTING: dict[EventType, NotificationPriority] = {
     EventType.WORKER_SPAWN_APPROVED: NotificationPriority.SUPPRESS,
     EventType.RULE_APPLIED: NotificationPriority.SUPPRESS,
     EventType.WORK_ITEM_DISCOVERED: NotificationPriority.SUPPRESS,
+    # Promotion events
+    EventType.PROMOTION_STARTED: NotificationPriority.SUPPRESS,
+    EventType.PROMOTION_SUCCEEDED: NotificationPriority.DEFAULT,
+    EventType.PROMOTION_FAILED: NotificationPriority.ALWAYS,
 }
 
 
