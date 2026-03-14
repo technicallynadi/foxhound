@@ -6,6 +6,7 @@ output, and produces a result envelope. Execution happens only in
 isolated workspaces created by the workspace manager.
 """
 
+import shlex
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -45,12 +46,20 @@ COMMAND_ALLOWLIST: list[str] = [
     "tsc",
 ]
 
-_SHELL_METACHARACTERS: set[str] = {"&&", "||", ";", "|", ">", "<", "$(", "`"}
+_SHELL_METACHARACTERS: set[str] = {
+    "&&", "||", ";", "|", ">", "<", "$(", "`",
+    "|&", "<(", ">(", "${", "$((", "\n", "\r",
+}
 
 
 def _is_command_allowed(command: str) -> bool:
     """Check if a shell command is in the allowlist with argument validation."""
-    parts = command.strip().split()
+    if any(c in command for c in ("\n", "\r", "\x00")):
+        return False
+    try:
+        parts = shlex.split(command.strip())
+    except ValueError:
+        return False
     if not parts:
         return False
     executable = parts[0]
@@ -203,9 +212,16 @@ class ExecutionWorker:
                 })
                 continue
 
-            result = self._run_validation_command(
-                cmd, self._workspace.workspace_path
-            )
+            try:
+                result = self._run_validation_command(
+                    cmd, self._workspace.workspace_path
+                )
+            except Exception as exc:
+                result = {
+                    "command": cmd,
+                    "passed": False,
+                    "error": f"Unexpected error: {exc}",
+                }
             commands_run.append(cmd)
             validation_results.append(result)
 
@@ -302,8 +318,16 @@ class ExecutionWorker:
     ) -> dict[str, Any]:
         """Run a single validation command and return results."""
         try:
+            parts = shlex.split(command)
+        except ValueError as exc:
+            return {
+                "command": command,
+                "passed": False,
+                "error": f"Invalid command syntax: {exc}",
+            }
+        try:
             result = subprocess.run(
-                command.split(),
+                parts,
                 cwd=cwd,
                 capture_output=True,
                 text=True,
@@ -327,5 +351,5 @@ class ExecutionWorker:
             return {
                 "command": command,
                 "passed": False,
-                "error": f"Command not found: {command.split()[0]}",
+                "error": f"Command not found: {parts[0]}",
             }
