@@ -5,6 +5,7 @@ Execution never happens in the live repo — only in isolated clones
 that can be promoted back after validation.
 """
 
+import re
 import shutil
 import subprocess
 import tempfile
@@ -13,6 +14,23 @@ from pathlib import Path
 from uuid import uuid4
 
 from foxhound.core.lock_manager import LockManager, LockType
+
+_SAFE_BRANCH_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9._/-]{0,254}$")
+_BRANCH_DANGEROUS_PATTERNS: set[str] = {":", "^", "~", "@{", "..", "--", "\\"}
+
+
+def validate_branch_name(name: str) -> bool:
+    """Validate a git branch name is safe for use in git commands."""
+    if not name or name.startswith("-"):
+        return False
+    for pattern in _BRANCH_DANGEROUS_PATTERNS:
+        if pattern in name:
+            return False
+    if any(ord(c) < 32 for c in name):
+        return False
+    if " " in name:
+        return False
+    return bool(_SAFE_BRANCH_RE.match(name))
 
 
 @dataclass(frozen=True)
@@ -214,6 +232,12 @@ class WorkspaceManager:
         if workspace is None:
             return PromotionResult(
                 success=False, error=f"Workspace {workspace_id} not found"
+            )
+
+        if not validate_branch_name(branch_name):
+            return PromotionResult(
+                success=False,
+                error=f"Invalid branch name: {branch_name!r}",
             )
 
         repo_path = Path(workspace.repo_snapshot.repo_path)

@@ -176,7 +176,7 @@ class TestContextAssembler:
         assembler = ContextAssembler(repo_dir)
         pack = assembler.assemble(work_item)
 
-        assert pack.trust_labels["work_item"] == TrustLevel.TRUSTED.value
+        assert pack.trust_labels["work_item"] == TrustLevel.SEMI_TRUSTED.value
         assert pack.trust_labels["recipe"] == TrustLevel.TRUSTED.value
         assert pack.trust_labels.get("file:src/auth.py") == TrustLevel.SEMI_TRUSTED.value
 

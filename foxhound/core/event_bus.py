@@ -15,6 +15,19 @@ from foxhound.core.models import (
 # Type alias for event handlers
 EventHandler = Callable[[EventEnvelope], None]
 
+# Sensitive event types restricted to authorized source modules only.
+# Event types not listed here can be emitted by any module.
+EVENT_SOURCE_ALLOWLIST: dict[EventType, set[str]] = {
+    EventType.APPROVAL_GRANTED: {"coordinator", "cli"},
+    EventType.APPROVAL_REJECTED: {"coordinator", "cli"},
+    EventType.SECURITY_VIOLATION_DETECTED: {
+        "security_review_worker", "sanitization", "harness",
+    },
+    EventType.PROMOTION_STARTED: {"promotion_manager", "workspace_manager"},
+    EventType.PROMOTION_SUCCEEDED: {"promotion_manager", "workspace_manager"},
+    EventType.PROMOTION_FAILED: {"promotion_manager", "workspace_manager"},
+}
+
 
 class EventBus:
     """Typed local pub/sub event bus.
@@ -122,11 +135,19 @@ class EventBus:
         Returns:
             The created and published event envelope.
         """
+        resolved_source = source_module or self._source_module
+        allowed_sources = EVENT_SOURCE_ALLOWLIST.get(event_type)
+        if allowed_sources is not None and resolved_source not in allowed_sources:
+            raise PermissionError(
+                f"Module '{resolved_source}' is not authorized to emit "
+                f"{event_type.value}. Allowed: {sorted(allowed_sources)}"
+            )
+
         event = EventEnvelope(
             event_id=f"evt_{uuid.uuid4().hex[:12]}",
             event_type=event_type,
             timestamp=_utc_now(),
-            source_module=source_module or self._source_module,
+            source_module=resolved_source,
             run_id=run_id,
             repo_id=repo_id,
             job_id=job_id,

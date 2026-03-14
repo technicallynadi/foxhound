@@ -183,7 +183,39 @@ class Coordinator:
                 f"Valid targets: {[s.value for s in valid_targets]}"
             )
 
+        if new_state == RunState.BRANCH_READY and not run.security_review_passed:
+            raise ValueError(
+                "Cannot transition to BRANCH_READY without passing security review. "
+                "Call mark_security_review_passed() first."
+            )
+
         return self._runs.update_state(run_id, new_state)
+
+    def mark_security_review_passed(self, run_id: str) -> bool:
+        """Mark a run's security review as passed.
+
+        Can only be called when the run is in SECURITY_REVIEW state.
+
+        Args:
+            run_id: The run to mark.
+
+        Returns:
+            True if the flag was set.
+
+        Raises:
+            ValueError: If the run is not in SECURITY_REVIEW state.
+        """
+        run = self._runs.get(run_id)
+        if run is None:
+            raise ValueError(f"Run {run_id} not found")
+        if run.state != RunState.SECURITY_REVIEW:
+            raise ValueError(
+                f"Can only mark security review passed in SECURITY_REVIEW state, "
+                f"got {run.state.value}"
+            )
+        run.security_review_passed = True
+        self._runs.save(run)
+        return True
 
     def dispatch_next(
         self, job_type: JobType | None = None
