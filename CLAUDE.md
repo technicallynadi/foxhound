@@ -1,6 +1,6 @@
 # Foxhound
 
-Autonomous product discovery engine that scans open-source repositories, identifies improvement opportunities, and executes differentiated builds. Python CLI distributed via PyPI.
+Foxhound is a product discovery engine that scans engineering signals, finds opportunities, creates work items, and builds improvements with your approval. It's a Python CLI distributed via PyPI.
 
 ## Project Structure
 
