@@ -1,4 +1,4 @@
-"""Context assembly, patching, validation, promotion."""
+"""Context assembly, patching, validation, promotion, and Ralph execution."""
 
 from foxhound.execution.context import (
     ContextAssembler,
@@ -13,6 +13,16 @@ from foxhound.execution.promotion import (
     PromotionOutcome,
     PromotionRequest,
 )
+from foxhound.execution.ralph import (
+    CompletionStatus,
+    RalphExecutionStrategy,
+    RalphProgress,
+    RalphRunResult,
+    RalphTask,
+    RalphTaskStatus,
+    build_ralph_manifest_fields,
+    select_execution_strategy,
+)
 from foxhound.execution.workspace import (
     PromotionResult,
     RepoSnapshot,
@@ -22,6 +32,7 @@ from foxhound.execution.workspace import (
 )
 
 __all__ = [
+    "CompletionStatus",
     "ContextAssembler",
     "ContextPack",
     "ContextPackFile",
@@ -31,9 +42,16 @@ __all__ = [
     "PromotionOutcome",
     "PromotionRequest",
     "PromotionResult",
+    "RalphExecutionStrategy",
+    "RalphProgress",
+    "RalphRunResult",
+    "RalphTask",
+    "RalphTaskStatus",
     "RepoSnapshot",
     "Workspace",
     "WorkspaceError",
     "WorkspaceManager",
+    "build_ralph_manifest_fields",
     "save_context_pack",
+    "select_execution_strategy",
 ]
