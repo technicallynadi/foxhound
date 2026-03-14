@@ -4,6 +4,7 @@ from pathlib import Path
 
 import typer
 from rich.console import Console
+from rich.markup import escape as rich_escape
 from rich.table import Table
 
 app = typer.Typer(
@@ -445,14 +446,14 @@ def approve(work_item_id: str) -> None:
         )
 
         details = (
-            f"[bold]Title:[/bold] {item.title}\n"
+            f"[bold]Title:[/bold] {rich_escape(item.title)}\n"
             f"[bold]State:[/bold] {item.state.value}\n"
-            f"[bold]Source:[/bold] {item.source_type}\n"
+            f"[bold]Source:[/bold] {rich_escape(item.source_type)}\n"
             f"[bold]Risk:[/bold] [{risk_color}]{item.risk.value}[/{risk_color}]\n"
             f"[bold]Confidence:[/bold] {item.confidence:.0%}\n"
-            f"[bold]Recipe:[/bold] {item.recipe_name or 'none'}\n"
-            f"[bold]Files:[/bold] {', '.join(item.likely_files) or 'none'}\n"
-            f"[bold]Description:[/bold] {item.description}"
+            f"[bold]Recipe:[/bold] {rich_escape(item.recipe_name or 'none')}\n"
+            f"[bold]Files:[/bold] {rich_escape(', '.join(item.likely_files) or 'none')}\n"
+            f"[bold]Description:[/bold] {rich_escape(item.description)}"
         )
 
         console.print(Panel(details, title=f"Work Item: {work_item_id}", border_style="cyan"))
@@ -461,7 +462,9 @@ def approve(work_item_id: str) -> None:
         if item.evidence:
             evidence_lines = []
             for key, value in item.evidence.items():
-                evidence_lines.append(f"  {key}: {value}")
+                evidence_lines.append(
+                    f"  {rich_escape(str(key))}: {rich_escape(str(value))}"
+                )
             console.print(Panel(
                 "\n".join(evidence_lines),
                 title="Evidence",
@@ -491,6 +494,13 @@ def approve(work_item_id: str) -> None:
             console.print("[red]Rejected.[/red]")
         elif action == "edit":
             new_title = Prompt.ask("New title", default=item.title)
+            new_title = "".join(c for c in new_title if c >= " " or c == "\n")
+            if len(new_title) > 200:
+                new_title = new_title[:200]
+                console.print("[yellow]Title truncated to 200 characters.[/yellow]")
+            if not new_title.strip():
+                console.print("[red]Title cannot be empty.[/red]")
+                return
             coord.advance_work_item(work_item_id, WorkItemState.EDITED)
             if new_title != item.title:
                 updated_item = coord.get_work_item(work_item_id)

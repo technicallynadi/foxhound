@@ -53,7 +53,7 @@ class TestEventBusBasics:
 
         bus.emit(EventType.RUN_STARTED, source_module="test")
         bus.emit(EventType.RUN_COMPLETED, source_module="test")
-        bus.emit(EventType.APPROVAL_GRANTED, source_module="test")
+        bus.emit(EventType.APPROVAL_GRANTED, source_module="coordinator")
 
         assert len(received) == 3
 
@@ -280,7 +280,7 @@ class TestSecurityEventHelpers:
         bus = EventBus()
         event = bus.emit_security_scan_started(
             run_id="run_001",
-            source_module="security_worker",
+            source_module="security_review_worker",
         )
 
         assert event.event_type == EventType.SECURITY_SCAN_STARTED
@@ -289,7 +289,7 @@ class TestSecurityEventHelpers:
         bus = EventBus()
         event = bus.emit_security_violation_detected(
             run_id="run_001",
-            source_module="security_worker",
+            source_module="security_review_worker",
             violation_type="sensitive_file_access",
             details="Attempted to read .env file",
         )
@@ -513,11 +513,11 @@ class TestEventBusIntegration:
         )
         bus.emit_security_scan_started(
             run_id="run_002",
-            source_module="security_worker",
+            source_module="security_review_worker",
         )
         bus.emit_security_violation_detected(
             run_id="run_002",
-            source_module="security_worker",
+            source_module="security_review_worker",
             violation_type="blocked_path",
             details="Attempted to access .env",
         )

@@ -9,6 +9,8 @@ with its trust tier.
 import fnmatch
 import hashlib
 import json
+import os
+import stat
 from pathlib import Path
 from typing import Any
 
@@ -140,6 +142,45 @@ def _validate_path_safety(full_path: Path, repo_root: Path) -> bool:
         return False
 
 
+def _safe_read_file(full_path: Path, repo_root: Path) -> str | None:
+    """Read a file safely, rejecting symlinks at the OS level to prevent TOCTOU.
+
+    Uses O_NOFOLLOW to atomically reject symlinks during open, eliminating
+    the race between checking and reading.
+    """
+    try:
+        flags = os.O_RDONLY | os.O_NOFOLLOW
+        fd = os.open(str(full_path), flags)
+    except OSError:
+        return None
+
+    try:
+        st = os.fstat(fd)
+        if not stat.S_ISREG(st.st_mode):
+            return None
+        resolved = full_path.resolve()
+        if not resolved.is_relative_to(repo_root.resolve()):
+            return None
+        data = os.read(fd, st.st_size)
+        return data.decode("utf-8")
+    except (OSError, ValueError, UnicodeDecodeError):
+        return None
+    finally:
+        os.close(fd)
+
+
+_UNTRUSTED_SOURCES: set[str] = {
+    "reddit", "article", "web_scrape", "github_trending", "forum",
+}
+
+
+def _evidence_trust_for_source(source_type: str) -> TrustLevel:
+    """Determine trust level for evidence based on its source type."""
+    if source_type in _UNTRUSTED_SOURCES:
+        return TrustLevel.UNTRUSTED
+    return TrustLevel.SEMI_TRUSTED
+
+
 def _compute_context_hash(pack: ContextPack) -> str:
     """Compute a SHA-256 hash of the context pack for provenance."""
     hasher = hashlib.sha256()
@@ -193,8 +234,10 @@ class ContextAssembler:
             max_size_kb=max_size_kb,
         )
 
+        evidence_trust = _evidence_trust_for_source(work_item.source_type)
         trust_labels: dict[str, str] = {
-            "work_item": TrustLevel.TRUSTED.value,
+            "work_item": TrustLevel.SEMI_TRUSTED.value,
+            "evidence": evidence_trust.value,
             "recipe": TrustLevel.TRUSTED.value,
             "policy": TrustLevel.TRUSTED.value,
         }
@@ -295,12 +338,6 @@ class ContextAssembler:
         exclude_patterns: list[str],
     ) -> ContextPackFile | None:
         """Try to read a file, applying exclusion and sensitivity checks."""
-        if not _validate_path_safety(full_path, self._repo_path):
-            return None
-
-        if not full_path.exists() or not full_path.is_file():
-            return None
-
         if _is_sensitive_file(rel_path):
             return None
 
@@ -308,18 +345,17 @@ class ContextAssembler:
             return None
 
         try:
-            stat = full_path.stat()
+            file_stat = full_path.stat(follow_symlinks=False)
         except OSError:
             return None
 
-        if stat.st_size > MAX_FILE_SIZE_BYTES:
+        if file_stat.st_size > MAX_FILE_SIZE_BYTES:
             return None
-        if stat.st_size == 0:
+        if file_stat.st_size == 0:
             return None
 
-        try:
-            content = full_path.read_text(encoding="utf-8")
-        except (UnicodeDecodeError, OSError):
+        content = _safe_read_file(full_path, self._repo_path)
+        if content is None:
             return None
 
         return ContextPackFile(
