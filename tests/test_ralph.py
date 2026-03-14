@@ -1,8 +1,4 @@
-"""Tests for Ralph iterative execution strategy.
-
-Covers: #40 (ralph_loop), #41 (progress persistence), #42 (completion evaluation),
-#43 (strategy selection), #44 (workspace isolation), #45 (manifest extensions).
-"""
+"""Tests for Ralph iterative execution strategy."""
 
 import json
 import subprocess
@@ -128,7 +124,7 @@ def _make_git_workspace(tmp_path: Path) -> Path:
 
 
 # =========================================================================
-# #40 — Ralph Execution Strategy
+# Ralph Execution Strategy
 # =========================================================================
 
 
@@ -341,7 +337,7 @@ class TestRalphExecutionStrategy:
 
 
 # =========================================================================
-# #41 — Progress Persistence
+# Progress Persistence
 # =========================================================================
 
 
@@ -504,7 +500,7 @@ class TestProgressPersistence:
 
 
 # =========================================================================
-# #42 — Completion Evaluation
+# Completion Evaluation
 # =========================================================================
 
 
@@ -693,7 +689,7 @@ class TestCompletionEvaluation:
 
 
 # =========================================================================
-# #43 — Strategy Selection
+# Strategy Selection
 # =========================================================================
 
 
@@ -833,7 +829,7 @@ class TestStrategySelection:
 
 
 # =========================================================================
-# #44 — Workspace Isolation
+# Workspace Isolation
 # =========================================================================
 
 
@@ -963,7 +959,7 @@ class TestRalphWorkspaceIsolation:
 
 
 # =========================================================================
-# #45 — Manifest Extensions
+# Manifest Extensions
 # =========================================================================
 
 
