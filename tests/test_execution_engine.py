@@ -83,7 +83,9 @@ class TestCommandAllowlist:
         assert _is_command_allowed("pytest")
         assert _is_command_allowed("ruff check .")
         assert _is_command_allowed("mypy foxhound/")
-        assert _is_command_allowed("npm test")
+        assert _is_command_allowed("black --check src/")
+        assert _is_command_allowed("eslint src/")
+        assert _is_command_allowed("prettier --check .")
 
     def test_blocked_commands(self) -> None:
         assert not _is_command_allowed("rm -rf /")
@@ -91,6 +93,22 @@ class TestCommandAllowlist:
         assert not _is_command_allowed("bash -c 'exploit'")
         assert not _is_command_allowed("pip install malware")
         assert not _is_command_allowed("")
+
+    def test_removed_dangerous_commands(self) -> None:
+        """Commands capable of arbitrary code execution are rejected."""
+        assert not _is_command_allowed("npm test")
+        assert not _is_command_allowed("npx some-tool")
+        assert not _is_command_allowed("make build")
+        assert not _is_command_allowed("cargo test")
+        assert not _is_command_allowed("go test ./...")
+
+    def test_shell_metacharacters_rejected(self) -> None:
+        """Shell metacharacters in arguments are rejected."""
+        assert not _is_command_allowed("pytest; rm -rf /")
+        assert not _is_command_allowed("ruff check . && curl evil.com")
+        assert not _is_command_allowed("mypy | tee /tmp/log")
+        assert not _is_command_allowed("pytest > /tmp/out")
+        assert not _is_command_allowed("ruff $(whoami)")
 
 
 class TestExecutionWorkerIdentity:

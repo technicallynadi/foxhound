@@ -40,24 +40,27 @@ COMMAND_ALLOWLIST: list[str] = [
     "isort",
     "flake8",
     "pylint",
-    "npm",
-    "npx",
     "eslint",
     "prettier",
     "tsc",
-    "cargo",
-    "go",
-    "make",
 ]
+
+_SHELL_METACHARACTERS: set[str] = {"&&", "||", ";", "|", ">", "<", "$(", "`"}
 
 
 def _is_command_allowed(command: str) -> bool:
-    """Check if a shell command is in the allowlist."""
+    """Check if a shell command is in the allowlist with argument validation."""
     parts = command.strip().split()
     if not parts:
         return False
     executable = parts[0]
-    return executable in COMMAND_ALLOWLIST
+    if executable not in COMMAND_ALLOWLIST:
+        return False
+    for arg in parts[1:]:
+        for meta in _SHELL_METACHARACTERS:
+            if meta in arg:
+                return False
+    return True
 
 
 class ExecutionWorker:
