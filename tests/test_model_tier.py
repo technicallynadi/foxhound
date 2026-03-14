@@ -1,4 +1,4 @@
-"""Tests for the model tier system (#50, #51, #52, #53, #54, #27)."""
+"""Tests for the model tier system."""
 
 import os
 from pathlib import Path
@@ -9,7 +9,7 @@ import pytest
 from foxhound.core.models import ModelTier
 
 # =============================================================================
-# #50 — Model Tier Enum and Config
+# Model Tier Enum and Config
 # =============================================================================
 
 
@@ -288,7 +288,7 @@ class TestFoxhoundConfig:
 
 
 # =============================================================================
-# #51 — Provider Adapter Protocol
+# Provider Adapter Protocol
 # =============================================================================
 
 
@@ -475,7 +475,7 @@ class TestOpenAIAdapter:
 
 
 # =============================================================================
-# #52 — Provider Registry and Auto-Defaults
+# Provider Registry and Auto-Defaults
 # =============================================================================
 
 
@@ -574,7 +574,7 @@ class TestProviderRegistry:
 
 
 # =============================================================================
-# #51 + #27 — Model Router
+# Model Router
 # =============================================================================
 
 
@@ -756,7 +756,7 @@ class TestModelRouter:
 
 
 # =============================================================================
-# #27 + #54 — Tier Resolver (recipe overrides + execution wiring)
+# Tier Resolver (recipe overrides + execution wiring)
 # =============================================================================
 
 
@@ -867,7 +867,7 @@ class TestTierResolver:
 
 
 # =============================================================================
-# Recipe tier override validation (#54)
+# Recipe tier override validation
 # =============================================================================
 
 
@@ -902,7 +902,7 @@ class TestRecipeTierOverrides:
 
 
 # =============================================================================
-# Queue with ModelTier (#50)
+# Queue with ModelTier
 # =============================================================================
 
 
