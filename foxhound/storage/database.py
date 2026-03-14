@@ -12,10 +12,11 @@ Spec References:
 
 import json
 import sqlite3
+from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
 from foxhound.core.models import (
     EventEnvelope,
@@ -38,7 +39,6 @@ from foxhound.core.models import (
     WorkItemKind,
     WorkItemState,
 )
-
 
 # SQL schema for all core tables
 SCHEMA_SQL = """

@@ -4,15 +4,14 @@ Validates database operations for all entity stores: WorkItem, Job, Run,
 Event, and Opportunity.
 """
 
-import pytest
 from datetime import datetime
+
+import pytest
 
 from foxhound.core.models import (
     EventEnvelope,
-    EventSeverity,
     EventType,
     ExecutionSnapshot,
-    ExecutionStrategy,
     JobEnvelope,
     JobPriority,
     JobStatus,

@@ -4,8 +4,8 @@ Validates that all core models can be instantiated, serialized to JSON,
 and properly enforce field constraints as defined in the specs.
 """
 
+
 import pytest
-from datetime import datetime
 
 from foxhound.core.models import (
     EventEnvelope,

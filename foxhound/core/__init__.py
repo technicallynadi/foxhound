@@ -1,5 +1,6 @@
 """Core models, coordinator, queue, locks, and event bus."""
 
+from foxhound.core.event_bus import EventBus
 from foxhound.core.models import (
     EventEnvelope,
     EventSeverity,
@@ -29,6 +30,7 @@ from foxhound.core.models import (
 )
 
 __all__ = [
+    "EventBus",
     "EventEnvelope",
     "EventSeverity",
     "EventType",
