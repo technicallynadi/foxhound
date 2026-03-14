@@ -1,6 +1,8 @@
 """Core models, coordinator, queue, locks, and event bus."""
 
+from foxhound.core.coordinator import Coordinator, SpawnDecision, SpawnRequest
 from foxhound.core.event_bus import EventBus
+from foxhound.core.lock_manager import LockManager, LockResult, LockType
 from foxhound.core.models import (
     EventEnvelope,
     EventSeverity,
@@ -28,9 +30,17 @@ from foxhound.core.models import (
     WorkItemKind,
     WorkItemState,
 )
+from foxhound.core.queue import JobQueue
 
 __all__ = [
+    "Coordinator",
     "EventBus",
+    "JobQueue",
+    "LockManager",
+    "LockResult",
+    "LockType",
+    "SpawnDecision",
+    "SpawnRequest",
     "EventEnvelope",
     "EventSeverity",
     "EventType",
