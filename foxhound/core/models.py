@@ -13,7 +13,7 @@ Spec References:
 """
 
 from datetime import UTC, datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -29,7 +29,7 @@ def _utc_now() -> datetime:
 # =============================================================================
 
 
-class TrustLevel(str, Enum):
+class TrustLevel(StrEnum):
     """Trust tiers enforced at all boundaries.
 
     From CLAUDE.md Architecture Rules:
@@ -43,7 +43,7 @@ class TrustLevel(str, Enum):
     UNTRUSTED = "untrusted"
 
 
-class WorkItemKind(str, Enum):
+class WorkItemKind(StrEnum):
     """Type of work item."""
 
     EXECUTION = "execution"
@@ -51,10 +51,11 @@ class WorkItemKind(str, Enum):
     SCOUT = "scout"
 
 
-class WorkItemState(str, Enum):
+class WorkItemState(StrEnum):
     """Work item state machine states.
 
-    Flow: discovered -> suggested -> approved|edited|rejected|blocked -> executing -> completed|failed
+    Flow: discovered -> suggested -> approved|edited|rejected|blocked ->
+          executing -> completed|failed
     """
 
     DISCOVERED = "discovered"
@@ -68,10 +69,11 @@ class WorkItemState(str, Enum):
     FAILED = "failed"
 
 
-class OpportunityState(str, Enum):
+class OpportunityState(StrEnum):
     """Opportunity discovery item state machine.
 
-    Flow: observed -> sanitized -> evaluated -> suggested -> approved|rejected -> converted_to_project
+    Flow: observed -> sanitized -> evaluated -> suggested ->
+          approved|rejected -> converted_to_project
     """
 
     OBSERVED = "observed"
@@ -83,7 +85,7 @@ class OpportunityState(str, Enum):
     CONVERTED_TO_PROJECT = "converted_to_project"
 
 
-class RiskLevel(str, Enum):
+class RiskLevel(StrEnum):
     """Risk classification for work items."""
 
     LOW = "low"
@@ -91,7 +93,7 @@ class RiskLevel(str, Enum):
     HIGH = "high"
 
 
-class JobType(str, Enum):
+class JobType(StrEnum):
     """Type of queued job."""
 
     DISCOVERY = "discovery"
@@ -101,7 +103,7 @@ class JobType(str, Enum):
     NOTIFICATION = "notification"
 
 
-class JobStatus(str, Enum):
+class JobStatus(StrEnum):
     """Job queue status."""
 
     QUEUED = "queued"
@@ -111,7 +113,7 @@ class JobStatus(str, Enum):
     CANCELLED = "cancelled"
 
 
-class JobPriority(str, Enum):
+class JobPriority(StrEnum):
     """Job priority levels."""
 
     LOW = "low"
@@ -119,7 +121,7 @@ class JobPriority(str, Enum):
     HIGH = "high"
 
 
-class RunState(str, Enum):
+class RunState(StrEnum):
     """Run state machine states.
 
     Flow: queued -> preparing -> context_built -> executing -> validating ->
@@ -139,7 +141,7 @@ class RunState(str, Enum):
     CANCELLED = "cancelled"
 
 
-class ExecutionStrategy(str, Enum):
+class ExecutionStrategy(StrEnum):
     """Execution strategy for jobs.
 
     From Ralph Integration Spec §2:
@@ -153,7 +155,7 @@ class ExecutionStrategy(str, Enum):
     RALPH_LOOP = "ralph_loop"
 
 
-class ExecutionMode(str, Enum):
+class ExecutionMode(StrEnum):
     """Execution mode controlling worker capabilities."""
 
     READ_ONLY = "read_only"
@@ -162,7 +164,7 @@ class ExecutionMode(str, Enum):
     FULL_EXECUTE = "full_execute"
 
 
-class ResultStatus(str, Enum):
+class ResultStatus(StrEnum):
     """Worker result status."""
 
     SUCCESS = "success"
@@ -171,7 +173,7 @@ class ResultStatus(str, Enum):
     QUARANTINED = "quarantined"
 
 
-class EventSeverity(str, Enum):
+class EventSeverity(StrEnum):
     """Event severity levels."""
 
     DEBUG = "debug"
@@ -180,7 +182,7 @@ class EventSeverity(str, Enum):
     ERROR = "error"
 
 
-class EventType(str, Enum):
+class EventType(StrEnum):
     """Core event types emitted by the system.
 
     From Event Schema Spec §4.
@@ -289,7 +291,8 @@ class WorkItem(BaseModel):
     """Repo-executable task candidate with state tracking.
 
     From Spec Pack §1: ExecutionWorkItem is a repo-executable task candidate.
-    State flow: discovered -> suggested -> approved|edited|rejected|blocked -> executing -> completed|failed
+    State flow: discovered -> suggested -> approved|edited|rejected|blocked ->
+                executing -> completed|failed
     """
 
     work_item_id: str = Field(..., description="Canonical work item ID")
@@ -344,7 +347,9 @@ class OpportunityDiscoveryItem(BaseModel):
     credibility_score: float = Field(
         default=0.0, ge=0.0, le=1.0, description="Source credibility score"
     )
-    novelty_score: float = Field(default=0.0, ge=0.0, le=1.0, description="Novelty/uniqueness score")
+    novelty_score: float = Field(
+        default=0.0, ge=0.0, le=1.0, description="Novelty/uniqueness score"
+    )
     actionability_score: float = Field(
         default=0.0, ge=0.0, le=1.0, description="Actionability score"
     )
@@ -465,7 +470,9 @@ class ResultEnvelope(BaseModel):
 
     status: ResultStatus = Field(..., description="Result status")
     payload: dict[str, Any] = Field(default_factory=dict, description="Worker-specific output")
-    confidence: float = Field(default=0.0, ge=0.0, le=1.0, description="Normalized confidence score")
+    confidence: float = Field(
+        default=0.0, ge=0.0, le=1.0, description="Normalized confidence score"
+    )
     evidence: dict[str, Any] = Field(
         default_factory=dict, description="Supporting structured evidence"
     )
