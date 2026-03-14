@@ -109,22 +109,42 @@ class KeychainSecretProvider:
 
 
 class SessionOverrideProvider:
-    """In-memory secret overrides for the current session."""
+    """In-memory secret overrides scoped per job to prevent cross-job leakage."""
+
+    GLOBAL_SCOPE = "__global__"
 
     def __init__(self) -> None:
-        self._overrides: dict[str, str] = {}
+        self._overrides: dict[str, dict[str, str]] = {}
 
-    def set_secret(self, key: str, value: str) -> None:
-        """Set a session-level secret override."""
-        self._overrides[key] = value
+    def set_secret(
+        self, key: str, value: str, job_id: str | None = None
+    ) -> None:
+        """Set a session-level secret override, optionally scoped to a job."""
+        scope = job_id or self.GLOBAL_SCOPE
+        if scope not in self._overrides:
+            self._overrides[scope] = {}
+        self._overrides[scope][key] = value
 
-    def clear_secret(self, key: str) -> None:
+    def clear_secret(self, key: str, job_id: str | None = None) -> None:
         """Remove a session-level override."""
-        self._overrides.pop(key, None)
+        scope = job_id or self.GLOBAL_SCOPE
+        if scope in self._overrides:
+            self._overrides[scope].pop(key, None)
 
-    def get_secret(self, key: str) -> str | None:
-        """Retrieve a session override."""
-        return self._overrides.get(key)
+    def clear_job(self, job_id: str) -> None:
+        """Remove all overrides for a completed job."""
+        self._overrides.pop(job_id, None)
+
+    def get_secret(
+        self, key: str, job_id: str | None = None
+    ) -> str | None:
+        """Retrieve a session override, checking job scope first then global."""
+        if job_id and job_id in self._overrides:
+            value = self._overrides[job_id].get(key)
+            if value is not None:
+                return value
+        global_scope = self._overrides.get(self.GLOBAL_SCOPE, {})
+        return global_scope.get(key)
 
 
 class CompositeSecretProvider:

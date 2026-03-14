@@ -122,14 +122,14 @@ class TestEventRoutingPolicy:
             k for k, v in EVENT_ROUTING.items()
             if v == NotificationPriority.ALWAYS
         ]
-        assert len(always) == 5
+        assert len(always) == 6
 
     def test_suppress_count(self):
         suppressed = [
             k for k, v in EVENT_ROUTING.items()
             if v == NotificationPriority.SUPPRESS
         ]
-        assert len(suppressed) == 10
+        assert len(suppressed) == 11
 
 
 # ============================================================================
