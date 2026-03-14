@@ -205,6 +205,11 @@ class EventType(StrEnum):
     WORKER_SPAWN_APPROVED = "WorkerSpawnApproved"
     WORKER_SPAWN_FAILED = "WorkerSpawnFailed"
 
+    # Promotion Events
+    PROMOTION_STARTED = "PromotionStarted"
+    PROMOTION_SUCCEEDED = "PromotionSucceeded"
+    PROMOTION_FAILED = "PromotionFailed"
+
     # Rules/Policies Events
     RULE_SUGGESTION_CREATED = "RuleSuggestionCreated"
     POLICY_BLOCKED_ACTION = "PolicyBlockedAction"
@@ -380,6 +385,9 @@ class RunRecord(BaseModel):
     retry_count: int = Field(default=0, ge=0, description="Number of retries used")
     failure_reason: str | None = Field(default=None, description="Normalized failure class")
     manifest_path: str | None = Field(default=None, description="Path to manifest artifact")
+    security_review_passed: bool = Field(
+        default=False, description="Whether security review has explicitly passed"
+    )
     artifact_refs: list[str] = Field(
         default_factory=list, description="References to generated artifacts"
     )

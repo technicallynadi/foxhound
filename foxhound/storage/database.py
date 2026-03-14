@@ -98,6 +98,7 @@ CREATE TABLE IF NOT EXISTS runs (
     retry_count INTEGER DEFAULT 0,
     failure_reason TEXT,
     manifest_path TEXT,
+    security_review_passed INTEGER DEFAULT 0,
     artifact_refs TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
@@ -564,8 +565,8 @@ class RunStore:
                 INSERT OR REPLACE INTO runs (
                     run_id, job_id, worker_type, state, branch_name, workspace_path,
                     total_cost, retry_count, failure_reason, manifest_path,
-                    artifact_refs, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    security_review_passed, artifact_refs, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     run.run_id,
@@ -578,6 +579,7 @@ class RunStore:
                     run.retry_count,
                     run.failure_reason,
                     run.manifest_path,
+                    1 if run.security_review_passed else 0,
                     json.dumps(run.artifact_refs),
                     run.created_at.isoformat(),
                     run.updated_at.isoformat(),
@@ -628,6 +630,7 @@ class RunStore:
             retry_count=row["retry_count"],
             failure_reason=row["failure_reason"],
             manifest_path=row["manifest_path"],
+            security_review_passed=bool(row["security_review_passed"]),
             artifact_refs=json.loads(row["artifact_refs"]) if row["artifact_refs"] else [],
             created_at=datetime.fromisoformat(row["created_at"]),
             updated_at=datetime.fromisoformat(row["updated_at"]),

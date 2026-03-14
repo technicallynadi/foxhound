@@ -145,6 +145,7 @@ class TestRunStateMachine:
         assert coordinator.advance_run(run.run_id, RunState.EXECUTING)
         assert coordinator.advance_run(run.run_id, RunState.VALIDATING)
         assert coordinator.advance_run(run.run_id, RunState.SECURITY_REVIEW)
+        assert coordinator.mark_security_review_passed(run.run_id)
         assert coordinator.advance_run(run.run_id, RunState.BRANCH_READY)
         assert coordinator.advance_run(run.run_id, RunState.COMPLETED)
 
