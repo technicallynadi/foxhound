@@ -131,6 +131,18 @@ class ExecutionStrategy(StrEnum):
     RALPH_LOOP = "ralph_loop"
 
 
+class ModelTier(StrEnum):
+    """Capability tiers for model routing.
+
+    Workers and recipes reference tiers, never model names.
+    Users map tiers to specific models in foxhound.yaml.
+    """
+
+    REASONING = "reasoning"
+    BALANCED = "balanced"
+    FAST = "fast"
+
+
 class ExecutionMode(StrEnum):
     """Execution mode controlling worker capabilities."""
 
@@ -242,8 +254,8 @@ class ExecutionSnapshot(BaseModel):
     execution_strategy: ExecutionStrategy = Field(
         default=ExecutionStrategy.ONE_SHOT, description="Selected execution strategy"
     )
-    model_tier: str = Field(
-        default="balanced", description="Model tier: 'reasoning', 'balanced', or 'fast'"
+    model_tier: ModelTier = Field(
+        default=ModelTier.BALANCED, description="Model capability tier"
     )
     config_hash: str = Field(..., description="Hash of combined configuration")
 
@@ -478,7 +490,8 @@ class Manifest(BaseModel):
     # Execution metadata
     execution_strategy: ExecutionStrategy = Field(..., description="Strategy used")
     model_provider: str = Field(..., description="Model provider used")
-    model_tier: str = Field(..., description="Model tier used")
+    model_tier: ModelTier = Field(..., description="Model tier requested")
+    model_resolved: str = Field(default="", description="Actual model identifier that ran")
     workspace_id: str = Field(..., description="Workspace identifier")
 
     # Cost and timing

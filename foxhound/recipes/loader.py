@@ -7,7 +7,7 @@ from typing import Any
 import yaml
 from pydantic import BaseModel, Field, field_validator
 
-from foxhound.core.models import ExecutionStrategy, RecipeRef
+from foxhound.core.models import ExecutionStrategy, ModelTier, RecipeRef
 
 
 class ScanConfig(BaseModel):
@@ -85,7 +85,7 @@ class Recipe(BaseModel):
     @classmethod
     def validate_tier_overrides(cls, v: dict[str, str]) -> dict[str, str]:
         """Validate tier overrides reference valid tier names."""
-        valid_tiers = {"reasoning", "balanced", "fast"}
+        valid_tiers = {t.value for t in ModelTier}
         for step, tier in v.items():
             if tier not in valid_tiers:
                 msg = f"tier override for '{step}' must be one of {valid_tiers}, got '{tier}'"

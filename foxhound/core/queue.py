@@ -15,6 +15,7 @@ from foxhound.core.models import (
     JobPriority,
     JobStatus,
     JobType,
+    ModelTier,
     PolicyRef,
     RecipeRef,
 )
@@ -48,7 +49,7 @@ class JobQueue:
         policy_ref: PolicyRef,
         config_hash: str,
         execution_strategy: ExecutionStrategy = ExecutionStrategy.ONE_SHOT,
-        model_tier: str = "balanced",
+        model_tier: ModelTier = ModelTier.BALANCED,
         priority: JobPriority = JobPriority.NORMAL,
         budget: float = 1.0,
         timeout_seconds: int = 300,
