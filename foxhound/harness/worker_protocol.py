@@ -179,6 +179,7 @@ CAPABILITIES_MATRIX: dict[str, set[Capability]] = {
     },
     "analyzer_worker": {Capability.REPO_READ, Capability.SPAWN},
     "security_review_worker": {Capability.REPO_READ},
+    "code_review_worker": {Capability.REPO_READ},
 }
 
 
