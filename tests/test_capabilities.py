@@ -248,6 +248,7 @@ class TestCapabilitiesMatrix:
             "execution_worker",
             "analyzer_worker",
             "security_review_worker",
+            "code_review_worker",
         }
         assert set(CAPABILITIES_MATRIX.keys()) == expected
 

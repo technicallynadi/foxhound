@@ -1,4 +1,4 @@
-"""Context assembly, patching, validation, promotion, and Ralph execution."""
+"""Context assembly, patching, validation, promotion, Ralph execution, and code review."""
 
 from foxhound.execution.context import (
     ContextAssembler,
@@ -23,6 +23,23 @@ from foxhound.execution.ralph import (
     build_ralph_manifest_fields,
     select_execution_strategy,
 )
+from foxhound.execution.review import (
+    CategoryResult,
+    CodeReviewWorker,
+    Finding,
+    FindingSeverity,
+    ReviewCategory,
+    ReviewResult,
+    ReviewStrategy,
+    ReviewVerdict,
+    build_review_manifest_fields,
+    format_review_cli,
+    render_review_panel,
+    run_final_review,
+    run_intermediate_review,
+    select_review_strategy,
+    should_pause_ralph,
+)
 from foxhound.execution.workspace import (
     PromotionResult,
     RepoSnapshot,
@@ -32,11 +49,15 @@ from foxhound.execution.workspace import (
 )
 
 __all__ = [
+    "CategoryResult",
+    "CodeReviewWorker",
     "CompletionStatus",
     "ContextAssembler",
     "ContextPack",
     "ContextPackFile",
     "ExecutionWorker",
+    "Finding",
+    "FindingSeverity",
     "PromotionError",
     "PromotionManager",
     "PromotionOutcome",
@@ -48,10 +69,21 @@ __all__ = [
     "RalphTask",
     "RalphTaskStatus",
     "RepoSnapshot",
+    "ReviewCategory",
+    "ReviewResult",
+    "ReviewStrategy",
+    "ReviewVerdict",
     "Workspace",
     "WorkspaceError",
     "WorkspaceManager",
     "build_ralph_manifest_fields",
+    "build_review_manifest_fields",
+    "format_review_cli",
+    "render_review_panel",
+    "run_final_review",
+    "run_intermediate_review",
     "save_context_pack",
     "select_execution_strategy",
+    "select_review_strategy",
+    "should_pause_ralph",
 ]
