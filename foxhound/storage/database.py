@@ -183,6 +183,23 @@ CREATE TABLE IF NOT EXISTS artifacts (
     FOREIGN KEY (run_id) REFERENCES runs(run_id)
 );
 
+-- Rule suggestions table
+CREATE TABLE IF NOT EXISTS rule_suggestions (
+    suggestion_id TEXT PRIMARY KEY,
+    repo_id TEXT,
+    rule_name TEXT NOT NULL,
+    rule_type TEXT NOT NULL,
+    condition TEXT NOT NULL,
+    action TEXT NOT NULL,
+    evidence TEXT,
+    confidence REAL DEFAULT 0.0,
+    state TEXT DEFAULT 'pending_review',
+    suggested_by TEXT DEFAULT 'analyzer',
+    reviewed_by TEXT,
+    created_at TEXT NOT NULL,
+    reviewed_at TEXT
+);
+
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_work_items_repo_state ON work_items(repo_id, state, kind);
 CREATE INDEX IF NOT EXISTS idx_jobs_status_priority ON jobs(status, priority, queued_at);
@@ -740,3 +757,191 @@ class OpportunityStore:
             created_at=datetime.fromisoformat(row["created_at"]),
             updated_at=datetime.fromisoformat(row["updated_at"]),
         )
+
+
+class RecipeStore:
+    """Storage operations for recipe version records."""
+
+    def __init__(self, db: Database) -> None:
+        self.db = db
+
+    def save(
+        self,
+        name: str,
+        version: str,
+        content_hash: str,
+        source_scope: str = "builtin",
+        content_path: str | None = None,
+    ) -> None:
+        """Save a recipe version record."""
+        with self.db.connection() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO recipe_versions
+                    (name, version, content_hash, source_scope, content_path, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (name, version, content_hash, source_scope, content_path,
+                 datetime.now().isoformat()),
+            )
+            conn.commit()
+
+    def get(self, name: str, version: str) -> dict[str, Any] | None:
+        """Get a recipe version by name and version."""
+        with self.db.connection() as conn:
+            row = conn.execute(
+                "SELECT * FROM recipe_versions WHERE name = ? AND version = ?",
+                (name, version),
+            ).fetchone()
+            if row is None:
+                return None
+            return dict(row)
+
+    def get_latest(self, name: str) -> dict[str, Any] | None:
+        """Get the latest version of a recipe by name."""
+        with self.db.connection() as conn:
+            row = conn.execute(
+                "SELECT * FROM recipe_versions WHERE name = ? ORDER BY created_at DESC LIMIT 1",
+                (name,),
+            ).fetchone()
+            if row is None:
+                return None
+            return dict(row)
+
+    def list_all(self) -> list[dict[str, Any]]:
+        """List all recipe versions."""
+        with self.db.connection() as conn:
+            rows = conn.execute(
+                "SELECT * FROM recipe_versions ORDER BY name, created_at DESC"
+            ).fetchall()
+            return [dict(row) for row in rows]
+
+
+class PolicyStore:
+    """Storage operations for policy version records."""
+
+    def __init__(self, db: Database) -> None:
+        self.db = db
+
+    def save(
+        self,
+        name: str,
+        version: str,
+        content_hash: str,
+        source_scope: str = "builtin",
+        content_path: str | None = None,
+    ) -> None:
+        """Save a policy version record."""
+        with self.db.connection() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO policy_versions
+                    (name, version, content_hash, source_scope, content_path, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (name, version, content_hash, source_scope, content_path,
+                 datetime.now().isoformat()),
+            )
+            conn.commit()
+
+    def get(self, name: str, version: str) -> dict[str, Any] | None:
+        """Get a policy version by name and version."""
+        with self.db.connection() as conn:
+            row = conn.execute(
+                "SELECT * FROM policy_versions WHERE name = ? AND version = ?",
+                (name, version),
+            ).fetchone()
+            if row is None:
+                return None
+            return dict(row)
+
+    def get_latest(self, name: str) -> dict[str, Any] | None:
+        """Get the latest version of a policy by name."""
+        with self.db.connection() as conn:
+            row = conn.execute(
+                "SELECT * FROM policy_versions WHERE name = ? ORDER BY created_at DESC LIMIT 1",
+                (name,),
+            ).fetchone()
+            if row is None:
+                return None
+            return dict(row)
+
+    def list_all(self) -> list[dict[str, Any]]:
+        """List all policy versions."""
+        with self.db.connection() as conn:
+            rows = conn.execute(
+                "SELECT * FROM policy_versions ORDER BY name, created_at DESC"
+            ).fetchall()
+            return [dict(row) for row in rows]
+
+
+class RuleSuggestionStore:
+    """Storage operations for rule suggestion records."""
+
+    def __init__(self, db: Database) -> None:
+        self.db = db
+
+    def save(
+        self,
+        suggestion_id: str,
+        rule_name: str,
+        rule_type: str,
+        condition: str,
+        action: str,
+        repo_id: str | None = None,
+        evidence: str | None = None,
+        confidence: float = 0.0,
+        suggested_by: str = "analyzer",
+    ) -> None:
+        """Save a rule suggestion."""
+        with self.db.connection() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO rule_suggestions
+                    (suggestion_id, repo_id, rule_name, rule_type, condition, action,
+                     evidence, confidence, state, suggested_by, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending_review', ?, ?)
+                """,
+                (suggestion_id, repo_id, rule_name, rule_type, condition, action,
+                 evidence, confidence, suggested_by, datetime.now().isoformat()),
+            )
+            conn.commit()
+
+    def get(self, suggestion_id: str) -> dict[str, Any] | None:
+        """Get a rule suggestion by ID."""
+        with self.db.connection() as conn:
+            row = conn.execute(
+                "SELECT * FROM rule_suggestions WHERE suggestion_id = ?",
+                (suggestion_id,),
+            ).fetchone()
+            if row is None:
+                return None
+            return dict(row)
+
+    def list_by_state(self, state: str = "pending_review") -> list[dict[str, Any]]:
+        """List rule suggestions by state."""
+        with self.db.connection() as conn:
+            rows = conn.execute(
+                "SELECT * FROM rule_suggestions WHERE state = ? ORDER BY created_at DESC",
+                (state,),
+            ).fetchall()
+            return [dict(row) for row in rows]
+
+    def update_state(
+        self,
+        suggestion_id: str,
+        new_state: str,
+        reviewed_by: str | None = None,
+    ) -> bool:
+        """Update a rule suggestion's state."""
+        with self.db.connection() as conn:
+            cursor = conn.execute(
+                """
+                UPDATE rule_suggestions
+                SET state = ?, reviewed_by = ?, reviewed_at = ?
+                WHERE suggestion_id = ?
+                """,
+                (new_state, reviewed_by, datetime.now().isoformat(), suggestion_id),
+            )
+            conn.commit()
+            return cursor.rowcount > 0

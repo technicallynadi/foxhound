@@ -1,0 +1,46 @@
+name: approved_ticket
+version: "1.0.0"
+description: Handle manually approved tickets from issue trackers or internal queues.
+execution_strategy: one_shot
+
+tier_overrides:
+  execution: balanced
+  review_final: reasoning
+
+scan:
+  source_types:
+    - github_issue
+    - manual_approval
+  auto_approve: false
+
+readiness:
+  require_approval: true
+  require_recipe_match: true
+
+context:
+  include_patterns:
+    - "src/**/*.py"
+    - "lib/**/*.py"
+    - "tests/**/*.py"
+  exclude_patterns:
+    - "**/node_modules/**"
+    - "**/__pycache__/**"
+    - "**/.git/**"
+  max_files: 50
+  max_total_size_kb: 500
+
+validation:
+  commands:
+    - "pytest"
+    - "ruff check ."
+  require_all_pass: true
+
+retry:
+  max_retries: 2
+  backoff_strategy: fixed
+
+promotion:
+  require_evaluation_pass: true
+  require_security_review: true
+  auto_branch: true
+  auto_pr_draft: false

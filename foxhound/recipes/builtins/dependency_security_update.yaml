@@ -1,0 +1,49 @@
+name: dependency_security_update
+version: "1.0.0"
+description: Update vulnerable dependencies flagged by security advisories.
+execution_strategy: one_shot
+
+tier_overrides:
+  execution: balanced
+  review_final: reasoning
+
+scan:
+  source_types:
+    - dependency_alert
+    - security_advisory
+  auto_approve: false
+
+readiness:
+  require_approval: true
+  require_recipe_match: true
+
+context:
+  include_patterns:
+    - "pyproject.toml"
+    - "setup.cfg"
+    - "setup.py"
+    - "requirements*.txt"
+    - "poetry.lock"
+    - "uv.lock"
+    - "package.json"
+    - "package-lock.json"
+  exclude_patterns:
+    - "**/node_modules/**"
+    - "**/.git/**"
+  max_files: 20
+  max_total_size_kb: 200
+
+validation:
+  commands:
+    - "pytest"
+  require_all_pass: true
+
+retry:
+  max_retries: 1
+  backoff_strategy: fixed
+
+promotion:
+  require_evaluation_pass: true
+  require_security_review: true
+  auto_branch: true
+  auto_pr_draft: true
