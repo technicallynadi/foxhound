@@ -1,3 +1,3 @@
-"""Foxhound - Autonomous product discovery engine for open-source repositories."""
+"""Foxhound - Sniff out ideas worth building. Ship them fast."""
 
 __version__ = "0.1.0"

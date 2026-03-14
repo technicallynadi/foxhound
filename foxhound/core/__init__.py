@@ -1,4 +1,11 @@
-"""Core models, coordinator, queue, locks, and event bus."""
+"""Core models, coordinator, queue, locks, and event bus.
+
+Note: To avoid circular imports, coordinator, queue, and lock_manager
+must be imported from their modules directly:
+    from foxhound.core.coordinator import Coordinator
+    from foxhound.core.queue import JobQueue
+    from foxhound.core.lock_manager import LockManager
+"""
 
 from foxhound.core.event_bus import EventBus
 from foxhound.core.models import (
