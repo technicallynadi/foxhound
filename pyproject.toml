@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "foxhound"
 version = "0.1.0"
-description = "Autonomous product discovery engine for open-source repositories"
+description = "Sniff out ideas worth building. Ship them fast."
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.13"

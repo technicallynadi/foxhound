@@ -8,7 +8,7 @@ from rich.table import Table
 
 app = typer.Typer(
     name="foxhound",
-    help="Autonomous product discovery engine for open-source repositories.",
+    help="Sniff out ideas worth building. Ship them fast.",
     no_args_is_help=True,
 )
 
@@ -71,6 +71,18 @@ def init() -> None:
         console.print(f"[green]Created:[/green] {config_path}")
     else:
         console.print(f"[yellow]Config exists:[/yellow] {config_path}")
+
+    # Add .foxhound/ to .gitignore if not already there
+    gitignore_path = Path.cwd() / ".gitignore"
+    entry = ".foxhound/"
+    if gitignore_path.exists():
+        content = gitignore_path.read_text()
+        if entry not in content.splitlines():
+            gitignore_path.write_text(content.rstrip() + f"\n{entry}\n")
+            console.print(f"[green]Updated:[/green] .gitignore (added {entry})")
+    else:
+        gitignore_path.write_text(f"{entry}\n")
+        console.print(f"[green]Created:[/green] .gitignore (added {entry})")
 
     console.print(
         "\n[bold green]Foxhound initialized.[/bold green] "
