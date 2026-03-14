@@ -260,12 +260,21 @@ class Coordinator:
         self._locks.release_by_owner(job_id)
 
         job = self._queue.get(job_id)
+        if job is None:
+            self._event_bus.emit(
+                event_type=EventType.RUN_COMPLETED,
+                source_module="coordinator",
+                job_id=job_id,
+                run_id=run_id,
+                payload={"warning": f"Job {job_id} not found after completion"},
+            )
+            return
         self._event_bus.emit(
             event_type=EventType.RUN_COMPLETED,
             source_module="coordinator",
             job_id=job_id,
             run_id=run_id,
-            repo_id=job.repo_id if job else None,
+            repo_id=job.repo_id,
         )
 
     def fail_job(
@@ -282,12 +291,24 @@ class Coordinator:
         self._locks.release_by_owner(job_id)
 
         job = self._queue.get(job_id)
+        if job is None:
+            self._event_bus.emit(
+                event_type=EventType.RUN_FAILED,
+                source_module="coordinator",
+                job_id=job_id,
+                run_id=run_id,
+                payload={
+                    "reason": reason,
+                    "warning": f"Job {job_id} not found after failure",
+                },
+            )
+            return
         self._event_bus.emit(
             event_type=EventType.RUN_FAILED,
             source_module="coordinator",
             job_id=job_id,
             run_id=run_id,
-            repo_id=job.repo_id if job else None,
+            repo_id=job.repo_id,
             payload={"reason": reason},
         )
 

@@ -640,8 +640,24 @@ class EventStore:
     def __init__(self, db: Database) -> None:
         self.db = db
 
+    @staticmethod
+    def _sanitize_payload_for_storage(payload: dict[str, Any]) -> dict[str, Any]:
+        """Redact secrets from event payloads before persisting to DB."""
+        from foxhound.sanitization.pipeline import redact_secrets
+
+        sanitized: dict[str, Any] = {}
+        for key, value in payload.items():
+            if isinstance(value, str):
+                sanitized[key], _ = redact_secrets(value)
+            elif isinstance(value, dict):
+                sanitized[key] = EventStore._sanitize_payload_for_storage(value)
+            else:
+                sanitized[key] = value
+        return sanitized
+
     def save(self, event: EventEnvelope) -> None:
-        """Save an event."""
+        """Save an event with payload redaction."""
+        safe_payload = self._sanitize_payload_for_storage(event.payload)
         with self.db.connection() as conn:
             conn.execute(
                 """
@@ -657,7 +673,7 @@ class EventStore:
                     event.run_id,
                     event.job_id,
                     event.severity.value,
-                    json.dumps(event.payload),
+                    json.dumps(safe_payload),
                     event.timestamp.isoformat(),
                 ),
             )
