@@ -165,6 +165,49 @@ class RuntimeHandle:
         self.budget_remaining -= amount
 
 
+# Per-worker capability matrix: defines what each worker type is allowed to declare.
+# Workers that declare capabilities outside their allowed set are blocked.
+CAPABILITIES_MATRIX: dict[str, set[Capability]] = {
+    "discovery_worker": {Capability.REPO_READ, Capability.SPAWN},
+    "scout_worker": {Capability.NETWORK, Capability.SPAWN},
+    "execution_worker": {
+        Capability.REPO_READ,
+        Capability.REPO_WRITE,
+        Capability.NETWORK,
+        Capability.SHELL,
+        Capability.SPAWN,
+    },
+    "analyzer_worker": {Capability.REPO_READ, Capability.SPAWN},
+    "security_review_worker": {Capability.REPO_READ},
+}
+
+
+def validate_worker_capabilities(worker_name: str, declared: set[Capability]) -> list[str]:
+    """Validate that a worker's declared capabilities are within its allowed set.
+
+    Args:
+        worker_name: The worker's name.
+        declared: The capabilities the worker declares.
+
+    Returns:
+        List of violation messages. Empty if valid.
+    """
+    allowed = CAPABILITIES_MATRIX.get(worker_name)
+    if allowed is None:
+        # Unknown worker — allow any capabilities (custom workers)
+        return []
+
+    violations: list[str] = []
+    disallowed = declared - allowed
+    if disallowed:
+        violations.append(
+            f"Worker '{worker_name}' declares disallowed capabilities: "
+            f"{sorted(c.value for c in disallowed)}. "
+            f"Allowed: {sorted(c.value for c in allowed)}"
+        )
+    return violations
+
+
 @runtime_checkable
 class Worker(Protocol):
     """Protocol that all Foxhound workers must implement.

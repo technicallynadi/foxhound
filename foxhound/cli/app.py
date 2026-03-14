@@ -315,9 +315,92 @@ def repo_use(repo_id: str) -> None:
 
 
 @app.command()
-def scan() -> None:
-    """Run discovery scanners."""
-    console.print("[yellow]foxhound scan — not yet implemented[/yellow]")
+def scan(
+    repo_path: str = typer.Option(
+        ".", "--path", "-p", help="Path to the repository to scan."
+    ),
+) -> None:
+    """Run discovery scanners on a repository."""
+    from foxhound.core.coordinator import Coordinator
+    from foxhound.core.repo_registry import RepoRegistry, is_git_repo
+    from foxhound.discovery.scanners import ScannerRegistry, scan_result_to_work_item
+    from foxhound.storage.database import Database
+
+    db_path = _db_path()
+    if not db_path.exists():
+        console.print("[red]Not initialized.[/red] Run [cyan]foxhound init[/cyan] first.")
+        raise typer.Exit(code=1)
+
+    target = Path(repo_path).resolve()
+    if not target.is_dir():
+        console.print(f"[red]Not a directory:[/red] {target}")
+        raise typer.Exit(code=1)
+
+    db = Database(db_path)
+    registry = RepoRegistry(db)
+    repos = registry.list_repos()
+
+    # Find repo_id for this path
+    repo_id = None
+    for repo in repos:
+        if Path(repo.path).resolve() == target:
+            repo_id = repo.repo_id
+            break
+
+    if repo_id is None:
+        # Auto-register if it's a git repo
+        if is_git_repo(target):
+            repo = registry.register(target)
+            repo_id = repo.repo_id
+            console.print(f"[green]Auto-registered:[/green] {repo.name}")
+        else:
+            console.print(
+                "[red]Not a registered repo.[/red] "
+                "Run [cyan]foxhound repo add[/cyan] first."
+            )
+            db.close()
+            raise typer.Exit(code=1)
+
+    coord = Coordinator(db)
+    known_fps = coord.get_known_fingerprints(repo_id)
+
+    # Run scanners
+    scanner_reg = ScannerRegistry()
+    scanner_reg.register_defaults()
+
+    console.print(f"[cyan]Scanning[/cyan] {target} ...")
+    results = scanner_reg.scan_all(target)
+
+    # Dedup and save
+    from uuid import uuid4
+
+    new_count = 0
+    skip_count = 0
+    for result in results:
+        if result.fingerprint in known_fps:
+            skip_count += 1
+            continue
+        known_fps.add(result.fingerprint)
+        wid = f"wi_{uuid4().hex[:12]}"
+        item = scan_result_to_work_item(result, repo_id, wid)
+        coord.save_work_item(item)
+        new_count += 1
+
+    # Promote discovered → suggested
+    promoted = coord.promote_discovered_to_suggested(repo_id)
+
+    db.close()
+
+    console.print(
+        f"\n[bold green]Scan complete.[/bold green] "
+        f"Found {len(results)} items, {new_count} new, "
+        f"{skip_count} duplicates skipped, {promoted} promoted to suggested."
+    )
+    if new_count > 0:
+        console.print(
+            "Run [cyan]foxhound log[/cyan] to see items, "
+            "[cyan]foxhound approve <id>[/cyan] to review."
+        )
 
 
 @app.command()
@@ -328,12 +411,197 @@ def scout() -> None:
 
 @app.command()
 def approve(work_item_id: str) -> None:
-    """Approve/edit/reject a work item."""
-    console.print(f"[yellow]foxhound approve {work_item_id} — not yet implemented[/yellow]")
+    """Approve, edit, or reject a work item."""
+    from rich.panel import Panel
+    from rich.prompt import Prompt
+
+    from foxhound.core.coordinator import Coordinator
+    from foxhound.core.models import WorkItemState
+    from foxhound.storage.database import Database
+
+    db_path = _db_path()
+    if not db_path.exists():
+        console.print("[red]Not initialized.[/red] Run [cyan]foxhound init[/cyan] first.")
+        raise typer.Exit(code=1)
+
+    db = Database(db_path)
+    coord = Coordinator(db)
+    item = coord.get_work_item(work_item_id)
+
+    if item is None:
+        console.print(f"[red]Work item not found:[/red] {work_item_id}")
+        db.close()
+        raise typer.Exit(code=1)
+
+    # Display work item details
+    risk_color = {"low": "green", "medium": "yellow", "high": "red"}.get(
+        item.risk.value, "white"
+    )
+
+    details = (
+        f"[bold]Title:[/bold] {item.title}\n"
+        f"[bold]State:[/bold] {item.state.value}\n"
+        f"[bold]Source:[/bold] {item.source_type}\n"
+        f"[bold]Risk:[/bold] [{risk_color}]{item.risk.value}[/{risk_color}]\n"
+        f"[bold]Confidence:[/bold] {item.confidence:.0%}\n"
+        f"[bold]Recipe:[/bold] {item.recipe_name or 'none'}\n"
+        f"[bold]Files:[/bold] {', '.join(item.likely_files) or 'none'}\n"
+        f"[bold]Description:[/bold] {item.description}"
+    )
+
+    console.print(Panel(details, title=f"Work Item: {work_item_id}", border_style="cyan"))
+
+    # Show evidence
+    if item.evidence:
+        evidence_lines = []
+        for key, value in item.evidence.items():
+            evidence_lines.append(f"  {key}: {value}")
+        console.print(Panel(
+            "\n".join(evidence_lines),
+            title="Evidence",
+            border_style="dim",
+        ))
+
+    # Check if item is in a reviewable state
+    if item.state not in (WorkItemState.SUGGESTED, WorkItemState.BLOCKED):
+        console.print(
+            f"[yellow]Item is in state '{item.state.value}' — "
+            f"only 'suggested' or 'blocked' items can be reviewed.[/yellow]"
+        )
+        db.close()
+        return
+
+    # Prompt for action
+    action = Prompt.ask(
+        "\nAction",
+        choices=["approve", "reject", "edit", "skip"],
+        default="skip",
+    )
+
+    if action == "approve":
+        coord.advance_work_item(work_item_id, WorkItemState.APPROVED)
+        console.print("[green]Approved.[/green]")
+    elif action == "reject":
+        coord.advance_work_item(work_item_id, WorkItemState.REJECTED)
+        console.print("[red]Rejected.[/red]")
+    elif action == "edit":
+        new_title = Prompt.ask("New title", default=item.title)
+        if new_title != item.title:
+            from foxhound.core.models import WorkItem
+
+            item_dict = item.model_dump()
+            item_dict["title"] = new_title
+            item_dict["state"] = WorkItemState.EDITED
+            updated = WorkItem(**item_dict)
+            coord.save_work_item(updated)
+            console.print(f"[green]Edited and approved:[/green] {new_title}")
+        else:
+            coord.advance_work_item(work_item_id, WorkItemState.EDITED)
+            console.print("[green]Marked as edited.[/green]")
+    else:
+        console.print("[dim]Skipped.[/dim]")
+
+    db.close()
 
 
 @app.command()
-def run(work_item_id: str) -> None:
+def log(
+    state: str = typer.Option(
+        None, "--state", "-s", help="Filter by state (e.g., suggested, approved)."
+    ),
+    repo_path: str = typer.Option(
+        None, "--repo", "-r", help="Filter by repo path."
+    ),
+    limit: int = typer.Option(50, "--limit", "-n", help="Max items to show."),
+) -> None:
+    """Show work item history with state transitions."""
+    from foxhound.core.coordinator import Coordinator
+    from foxhound.core.models import WorkItemState
+    from foxhound.core.repo_registry import RepoRegistry
+    from foxhound.storage.database import Database
+
+    db_path = _db_path()
+    if not db_path.exists():
+        console.print("[red]Not initialized.[/red] Run [cyan]foxhound init[/cyan] first.")
+        raise typer.Exit(code=1)
+
+    db = Database(db_path)
+    coord = Coordinator(db)
+
+    # Resolve state filter
+    state_filter = None
+    if state:
+        try:
+            state_filter = WorkItemState(state)
+        except ValueError:
+            valid = ", ".join(s.value for s in WorkItemState)
+            console.print(f"[red]Invalid state:[/red] {state}. Valid: {valid}")
+            db.close()
+            raise typer.Exit(code=1)
+
+    # Resolve repo filter
+    repo_id = None
+    if repo_path:
+        registry = RepoRegistry(db)
+        target = Path(repo_path).resolve()
+        for repo in registry.list_repos():
+            if Path(repo.path).resolve() == target:
+                repo_id = repo.repo_id
+                break
+        if repo_id is None:
+            console.print(f"[red]Repo not found:[/red] {repo_path}")
+            db.close()
+            raise typer.Exit(code=1)
+
+    items = coord.list_work_items(repo_id=repo_id, state=state_filter)
+    items = items[:limit]
+
+    if not items:
+        console.print("[yellow]No work items found.[/yellow]")
+        db.close()
+        return
+
+    table = Table(title="Work Items")
+    table.add_column("ID", style="dim", max_width=16)
+    table.add_column("State", justify="center")
+    table.add_column("Risk", justify="center")
+    table.add_column("Conf", justify="right")
+    table.add_column("Source", max_width=18)
+    table.add_column("Title", max_width=50)
+    table.add_column("Updated")
+
+    state_colors = {
+        "discovered": "blue",
+        "suggested": "cyan",
+        "approved": "green",
+        "edited": "green",
+        "rejected": "red",
+        "blocked": "yellow",
+        "executing": "magenta",
+        "completed": "bold green",
+        "failed": "bold red",
+    }
+    risk_colors = {"low": "green", "medium": "yellow", "high": "red"}
+
+    for item in items:
+        sc = state_colors.get(item.state.value, "white")
+        rc = risk_colors.get(item.risk.value, "white")
+        table.add_row(
+            item.work_item_id[:16],
+            f"[{sc}]{item.state.value}[/{sc}]",
+            f"[{rc}]{item.risk.value}[/{rc}]",
+            f"{item.confidence:.0%}",
+            item.source_type,
+            item.title[:50],
+            item.updated_at.strftime("%Y-%m-%d %H:%M"),
+        )
+
+    console.print(table)
+    db.close()
+
+
+@app.command(name="run")
+def run_item(work_item_id: str) -> None:
     """Execute approved item."""
     console.print(f"[yellow]foxhound run {work_item_id} — not yet implemented[/yellow]")
 
