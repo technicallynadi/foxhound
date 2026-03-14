@@ -73,6 +73,14 @@ class Recipe(BaseModel):
     version: str = Field(..., pattern=r"^\d+\.\d+\.\d+$")
     description: str = Field(default="")
     execution_strategy: ExecutionStrategy = Field(default=ExecutionStrategy.ONE_SHOT)
+    ralph_threshold: int = Field(
+        default=3, ge=1,
+        description="Task count threshold for auto-selecting ralph_loop",
+    )
+    max_iterations: int = Field(
+        default=10, ge=1,
+        description="Maximum Ralph iterations for this recipe",
+    )
     tier_overrides: dict[str, str] = Field(default_factory=dict)
     scan: ScanConfig = Field(default_factory=ScanConfig)
     readiness: ReadinessConfig = Field(default_factory=ReadinessConfig)
