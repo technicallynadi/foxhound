@@ -1,0 +1,49 @@
+name: ci_failure_repair
+version: "1.0.0"
+description: Fix failing CI builds by analyzing logs and applying targeted repairs.
+execution_strategy: bounded_retry
+
+tier_overrides:
+  execution: balanced
+  review_final: reasoning
+
+scan:
+  source_types:
+    - ci_failure
+    - build_failure
+  auto_approve: false
+
+readiness:
+  require_approval: true
+  require_recipe_match: true
+
+context:
+  include_patterns:
+    - "src/**/*.py"
+    - "lib/**/*.py"
+    - "tests/**/*.py"
+    - ".github/workflows/*.yml"
+    - "pyproject.toml"
+  exclude_patterns:
+    - "**/node_modules/**"
+    - "**/__pycache__/**"
+    - "**/.git/**"
+  max_files: 30
+  max_total_size_kb: 300
+
+validation:
+  commands:
+    - "pytest"
+    - "ruff check ."
+    - "mypy ."
+  require_all_pass: true
+
+retry:
+  max_retries: 3
+  backoff_strategy: fixed
+
+promotion:
+  require_evaluation_pass: true
+  require_security_review: true
+  auto_branch: true
+  auto_pr_draft: false

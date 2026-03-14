@@ -1,0 +1,72 @@
+name: default_policy
+version: "1.0.0"
+description: Default security and operational policy pack for Foxhound.
+
+commands:
+  allowed:
+    - "pytest"
+    - "ruff"
+    - "mypy"
+    - "black"
+    - "isort"
+    - "flake8"
+    - "pylint"
+    - "git diff"
+    - "git log"
+    - "git status"
+    - "git show"
+    - "ls"
+    - "cat"
+    - "head"
+    - "tail"
+    - "wc"
+    - "find"
+    - "grep"
+  blocked:
+    - "rm -rf"
+    - "sudo"
+    - "curl"
+    - "wget"
+    - "pip install"
+    - "npm install"
+    - "eval"
+    - "exec"
+
+sensitive_paths:
+  blocked_patterns:
+    - ".env"
+    - ".env.*"
+    - "*.pem"
+    - "*.key"
+    - "*.p12"
+    - "*.pfx"
+    - "id_rsa"
+    - "id_ed25519"
+    - "credentials.json"
+    - "secrets.yaml"
+    - "secrets.yml"
+    - "*.secret"
+  blocked_directories:
+    - ".ssh/"
+    - "secrets/"
+    - ".aws/"
+    - ".gcloud/"
+
+budget:
+  max_budget_per_job: 5.0
+  max_budget_per_run: 2.0
+  warn_threshold: 0.8
+
+timeout:
+  max_timeout_seconds: 1800
+  default_timeout_seconds: 300
+
+approval:
+  require_for_install_scripts: true
+  require_for_network_access: true
+  require_for_shell_commands: true
+
+promotion:
+  require_evaluation_pass: true
+  require_security_review: true
+  require_clean_validation: true
