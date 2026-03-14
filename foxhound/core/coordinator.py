@@ -19,6 +19,7 @@ from foxhound.core.models import (
     JobType,
     RunRecord,
     RunState,
+    WorkItem,
     WorkItemState,
 )
 from foxhound.core.queue import MAX_SPAWN_DEPTH, JobQueue
@@ -259,12 +260,21 @@ class Coordinator:
         self._locks.release_by_owner(job_id)
 
         job = self._queue.get(job_id)
+        if job is None:
+            self._event_bus.emit(
+                event_type=EventType.RUN_COMPLETED,
+                source_module="coordinator",
+                job_id=job_id,
+                run_id=run_id,
+                payload={"warning": f"Job {job_id} not found after completion"},
+            )
+            return
         self._event_bus.emit(
             event_type=EventType.RUN_COMPLETED,
             source_module="coordinator",
             job_id=job_id,
             run_id=run_id,
-            repo_id=job.repo_id if job else None,
+            repo_id=job.repo_id,
         )
 
     def fail_job(
@@ -281,12 +291,24 @@ class Coordinator:
         self._locks.release_by_owner(job_id)
 
         job = self._queue.get(job_id)
+        if job is None:
+            self._event_bus.emit(
+                event_type=EventType.RUN_FAILED,
+                source_module="coordinator",
+                job_id=job_id,
+                run_id=run_id,
+                payload={
+                    "reason": reason,
+                    "warning": f"Job {job_id} not found after failure",
+                },
+            )
+            return
         self._event_bus.emit(
             event_type=EventType.RUN_FAILED,
             source_module="coordinator",
             job_id=job_id,
             run_id=run_id,
-            repo_id=job.repo_id if job else None,
+            repo_id=job.repo_id,
             payload={"reason": reason},
         )
 
@@ -381,6 +403,63 @@ class Coordinator:
         )
 
         return SpawnDecision(approved=True, job=child_job)
+
+    def promote_discovered_to_suggested(self, repo_id: str) -> int:
+        """Batch-promote all DISCOVERED work items to SUGGESTED for a repo.
+
+        Returns:
+            Number of items promoted.
+        """
+        items = self._work_items.list_by_repo(
+            repo_id, state=WorkItemState.DISCOVERED
+        )
+        promoted = 0
+        for item in items:
+            if self._work_items.update_state(
+                item.work_item_id, WorkItemState.SUGGESTED
+            ):
+                self._event_bus.emit(
+                    event_type=EventType.APPROVAL_REQUESTED,
+                    source_module="coordinator",
+                    repo_id=repo_id,
+                    payload={
+                        "work_item_id": item.work_item_id,
+                        "title": item.title,
+                        "risk": item.risk.value,
+                    },
+                )
+                promoted += 1
+        return promoted
+
+    def list_work_items(
+        self,
+        repo_id: str | None = None,
+        state: WorkItemState | None = None,
+    ) -> list[WorkItem]:
+        """List work items with optional filters.
+
+        Args:
+            repo_id: Filter by repository.
+            state: Filter by state.
+
+        Returns:
+            List of WorkItem objects.
+        """
+        if repo_id:
+            return self._work_items.list_by_repo(repo_id, state=state)
+        return self._work_items.list_all(state=state)
+
+    def get_work_item(self, work_item_id: str) -> WorkItem | None:
+        """Get a single work item by ID."""
+        return self._work_items.get(work_item_id)
+
+    def save_work_item(self, item: WorkItem) -> None:
+        """Save a work item to storage."""
+        self._work_items.save(item)
+
+    def get_known_fingerprints(self, repo_id: str) -> set[str]:
+        """Get known fingerprints for dedup during discovery."""
+        return self._work_items.get_fingerprints(repo_id)
 
     def get_queue_stats(self) -> dict[str, int]:
         """Get counts of jobs in each status.
