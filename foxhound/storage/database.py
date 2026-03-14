@@ -1,14 +1,4 @@
-"""SQLite database access layer for Foxhound.
-
-This module provides the SQLite storage layer for durable metadata persistence.
-SQLite is the authoritative metadata store for v1. The filesystem under
-`.foxhound/` holds heavy artifacts.
-
-Spec References:
-- DB Schema Spec §2: Persistence model (SQLite for metadata, filesystem for artifacts)
-- DB Schema Spec §3: Core SQLite tables
-- DB Schema Spec §4: Recommended indexes
-"""
+"""SQLite database access layer for Foxhound."""
 
 import json
 import sqlite3

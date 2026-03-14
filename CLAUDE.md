@@ -247,7 +247,7 @@ validation:
 
 ## Coding Conventions
 
-- **Python version:** 3.13 for development, minimum 3.11+ supported
+- **Python version:** 3.13 for development
 - **Type hints:** Required on all function signatures
 - **Data contracts:** Pydantic models for all data structures
 - **Storage:** SQLite for metadata, filesystem for heavy artifacts
@@ -255,6 +255,11 @@ validation:
 - **Testing:** pytest
 - **Naming:** Descriptive variable names, no abbreviations
 - **Docstrings:** Required on all public functions and classes
+- **Comments:** Keep comments minimal and meaningful. Do NOT add:
+  - References to spec documents (e.g., "From Spec Pack §1", "Per Engineering Blueprint")
+  - References to CLAUDE.md or other documentation files
+  - Verbose multi-line docstrings explaining what is already clear from code
+  - Section comments that duplicate information in docstrings
 
 ## Key Commands
 
