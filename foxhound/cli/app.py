@@ -41,7 +41,7 @@ def init() -> None:
         console.print(f"[green]Created:[/green] {fh_dir}/")
 
     # Create subdirectories
-    for subdir in ["artifacts", "recipes", "policies"]:
+    for subdir in ["artifacts", "recipes", "policies", "cache", "config"]:
         sub = fh_dir / subdir
         if not sub.exists():
             sub.mkdir()
@@ -168,8 +168,25 @@ def doctor() -> None:
     except ImportError as e:
         checks.append(("Secrets modules", False, str(e)))
 
+    # Recipe and policy modules
+    try:
+        importlib.import_module("foxhound.recipes.loader")
+        importlib.import_module("foxhound.policies.engine")
+        importlib.import_module("foxhound.policies.rules")
+        checks.append(("Recipe/Policy modules", True, "recipes, policies, rules"))
+    except ImportError as e:
+        checks.append(("Recipe/Policy modules", False, str(e)))
+
+    # Sanitization and evaluation modules
+    try:
+        importlib.import_module("foxhound.sanitization.pipeline")
+        importlib.import_module("foxhound.evaluation.engine")
+        checks.append(("Output processing", True, "sanitization, evaluation"))
+    except ImportError as e:
+        checks.append(("Output processing", False, str(e)))
+
     # Subdirectories
-    for subdir in ["artifacts", "recipes", "policies"]:
+    for subdir in ["artifacts", "recipes", "policies", "cache", "config"]:
         sub = fh_dir / subdir
         checks.append((f".foxhound/{subdir}/", sub.is_dir(), str(sub)))
 
@@ -193,6 +210,108 @@ def doctor() -> None:
     else:
         console.print("\n[bold red]Some checks failed.[/bold red] Fix the issues above.")
         raise typer.Exit(code=1)
+
+
+repo_app = typer.Typer(
+    name="repo",
+    help="Manage registered repositories.",
+    no_args_is_help=True,
+)
+app.add_typer(repo_app, name="repo")
+
+
+@repo_app.command("add")
+def repo_add(
+    path: str = typer.Argument(
+        ".", help="Path to the repository to register."
+    ),
+) -> None:
+    """Register a new repository."""
+    from foxhound.core.repo_registry import RepoRegistry, is_git_repo
+    from foxhound.storage.database import Database
+
+    repo_path = Path(path).resolve()
+    if not repo_path.is_dir():
+        console.print(f"[red]Not a directory:[/red] {repo_path}")
+        raise typer.Exit(code=1)
+
+    if not is_git_repo(repo_path):
+        console.print(f"[red]Not a git repository:[/red] {repo_path}")
+        raise typer.Exit(code=1)
+
+    db_path = _db_path()
+    if not db_path.exists():
+        console.print("[red]Not initialized.[/red] Run [cyan]foxhound init[/cyan] first.")
+        raise typer.Exit(code=1)
+
+    db = Database(db_path)
+    registry = RepoRegistry(db)
+    repo = registry.register(repo_path)
+    db.close()
+
+    lang = repo.language_meta.get("primary", "unknown")
+    console.print(f"[green]Registered:[/green] {repo.name} ({lang})")
+    console.print(f"  ID: {repo.repo_id}")
+    console.print(f"  Path: {repo.path}")
+    console.print(f"  Branch: {repo.default_branch}")
+
+    # Ensure .foxhound/ exists in the target repo
+    fh_dir = repo_path / ".foxhound"
+    if not fh_dir.exists():
+        fh_dir.mkdir(parents=True)
+        for subdir in ["artifacts", "recipes", "policies", "cache", "config"]:
+            (fh_dir / subdir).mkdir(exist_ok=True)
+        console.print(f"[green]Created:[/green] {fh_dir}/")
+
+
+@repo_app.command("list")
+def repo_list() -> None:
+    """Show all registered repositories."""
+    from foxhound.core.repo_registry import RepoRegistry
+    from foxhound.storage.database import Database
+
+    db_path = _db_path()
+    if not db_path.exists():
+        console.print("[red]Not initialized.[/red] Run [cyan]foxhound init[/cyan] first.")
+        raise typer.Exit(code=1)
+
+    db = Database(db_path)
+    registry = RepoRegistry(db)
+    repos = registry.list_repos()
+    db.close()
+
+    if not repos:
+        console.print("[yellow]No repositories registered.[/yellow]")
+        console.print("Run [cyan]foxhound repo add <path>[/cyan] to register one.")
+        return
+
+    table = Table(title="Registered Repositories")
+    table.add_column("Name", style="bold")
+    table.add_column("Language")
+    table.add_column("Branch")
+    table.add_column("Path")
+    table.add_column("ID", style="dim")
+
+    for repo in repos:
+        lang = repo.language_meta.get("primary", "unknown")
+        table.add_row(
+            repo.name,
+            lang,
+            repo.default_branch,
+            repo.path,
+            repo.repo_id[:12],
+        )
+
+    console.print(table)
+
+
+@repo_app.command("use")
+def repo_use(repo_id: str) -> None:
+    """Switch active repository context."""
+    console.print(
+        f"[yellow]foxhound repo use {repo_id} — "
+        "active repo switching will be wired in a future milestone[/yellow]"
+    )
 
 
 @app.command()
