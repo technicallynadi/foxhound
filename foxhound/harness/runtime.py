@@ -25,6 +25,7 @@ from foxhound.harness.worker_protocol import (
     ValidationResult,
     Worker,
     WorkerOutput,
+    validate_worker_capabilities,
 )
 
 
@@ -97,6 +98,7 @@ class Harness:
         start_time = time.monotonic()
 
         self._validate_capabilities(worker, task)
+        self._enforce_capabilities_matrix(worker)
 
         # Stage 1: validate_input
         self._emit_stage_event("validate_input", task, worker)
@@ -211,6 +213,20 @@ class Harness:
             total_cost=raw_output.cost,
             stage_reached="finalize",
         )
+
+    def _enforce_capabilities_matrix(self, worker: Worker) -> None:
+        """Enforce the per-worker capabilities matrix.
+
+        Raises:
+            HarnessError: If the worker declares disallowed capabilities.
+        """
+        violations = validate_worker_capabilities(
+            worker.worker_name, worker.capabilities
+        )
+        if violations:
+            raise HarnessError(
+                f"Capabilities matrix violation: {'; '.join(violations)}"
+            )
 
     def _validate_capabilities(
         self, worker: Worker, task: TaskEnvelope

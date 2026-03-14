@@ -352,6 +352,48 @@ class WorkItemStore:
             conn.commit()
             return cursor.rowcount > 0
 
+    def find_by_fingerprint(
+        self, repo_id: str, source_fingerprint: str
+    ) -> WorkItem | None:
+        """Find a work item by its source fingerprint for dedup."""
+        with self.db.connection() as conn:
+            row = conn.execute(
+                "SELECT * FROM work_items WHERE repo_id = ? AND source_fingerprint = ?",
+                (repo_id, source_fingerprint),
+            ).fetchone()
+            if row is None:
+                return None
+            return self._row_to_model(row)
+
+    def list_all(
+        self,
+        state: WorkItemState | None = None,
+        limit: int = 100,
+    ) -> list[WorkItem]:
+        """List all work items with optional state filter."""
+        query = "SELECT * FROM work_items"
+        params: list[Any] = []
+
+        if state is not None:
+            query += " WHERE state = ?"
+            params.append(state.value)
+
+        query += " ORDER BY updated_at DESC LIMIT ?"
+        params.append(limit)
+
+        with self.db.connection() as conn:
+            rows = conn.execute(query, params).fetchall()
+            return [self._row_to_model(row) for row in rows]
+
+    def get_fingerprints(self, repo_id: str) -> set[str]:
+        """Get all source fingerprints for a repo (for dedup)."""
+        with self.db.connection() as conn:
+            rows = conn.execute(
+                "SELECT source_fingerprint FROM work_items WHERE repo_id = ?",
+                (repo_id,),
+            ).fetchall()
+            return {row["source_fingerprint"] for row in rows}
+
     def delete(self, work_item_id: str) -> bool:
         """Delete a work item."""
         with self.db.connection() as conn:
