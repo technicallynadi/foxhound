@@ -186,7 +186,7 @@ class ExecutionWorker:
         """Execute the work item in the isolated workspace.
 
         In v1, execution generates a placeholder patch and runs validation
-        commands. Full LLM integration requires the model adapter (#27).
+        commands. Full LLM integration requires the model adapter.
         """
         if self._workspace is None:
             return WorkerOutput(
