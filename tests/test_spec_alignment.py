@@ -6,15 +6,11 @@ Covers #99 (doctor model validation), #100 (manifest wiring),
 
 from __future__ import annotations
 
-import hashlib
 import json
-import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import MagicMock
 
 # ── #99: Doctor model validation ─────────────────────────────────────
 
@@ -65,7 +61,7 @@ class TestDoctorModelValidation:
 
     def test_doctor_benchmark_with_mock_router(self) -> None:
         """Benchmark runs through router.complete when available."""
-        from foxhound.adapters.benchmark import BenchmarkResult, run_benchmark_for_tier
+        from foxhound.adapters.benchmark import run_benchmark_for_tier
         from foxhound.core.models import ModelTier
 
         @dataclass
@@ -239,7 +235,7 @@ class TestManifestWiring:
         run_store = RunStore(db)
 
         # Create a run record first
-        from foxhound.core.models import RunRecord, RunState
+        from foxhound.core.models import RunRecord
 
         run = RunRecord(
             run_id="run_manifest_test",
@@ -543,8 +539,6 @@ def _make_task_envelope(**overrides: Any) -> Any:
     from foxhound.core.models import (
         ExecutionMode,
         ExecutionSnapshot,
-        ExecutionStrategy,
-        ModelTier,
         PolicyRef,
         RecipeRef,
         TaskEnvelope,

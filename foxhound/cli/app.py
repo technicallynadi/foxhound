@@ -437,10 +437,10 @@ def doctor(
 
             configured = [
                 t for t in [ModelTier.REASONING, ModelTier.BALANCED, ModelTier.FAST]
-                if router.is_tier_configured(t)  # type: ignore[possibly-undefined]
+                if router.is_tier_configured(t)
             ]
             console.print("\n[bold]Running model benchmarks...[/bold]")
-            summary = run_full_benchmark(configured, router.complete)  # type: ignore[possibly-undefined]
+            summary = run_full_benchmark(configured, router.complete)
             console.print(format_benchmark_output(summary))
 
         if not all_pass:

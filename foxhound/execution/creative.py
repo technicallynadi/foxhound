@@ -167,7 +167,8 @@ def get_image_adapter_from_config(config: dict[str, Any] | None) -> ImageAdapter
 
     base_url = config.get("base_url")
     if adapter.authenticate(api_key, base_url):
-        return adapter
+        result: ImageAdapter = adapter
+        return result
     return None
 
 

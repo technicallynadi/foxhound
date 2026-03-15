@@ -7,7 +7,6 @@ subtasks like security review, evidence validation, and failure triage.
 
 from __future__ import annotations
 
-import hashlib
 import re
 from typing import Any
 
@@ -27,7 +26,6 @@ from foxhound.harness.worker_protocol import (
     WorkerOutput,
 )
 from foxhound.sanitization.pipeline import redact_secrets
-
 
 # ── SecurityReviewWorker ─────────────────────────────────────────────
 
@@ -855,4 +853,5 @@ def _redact_payload(payload: dict[str, Any]) -> dict[str, Any]:
 
     serialized = json.dumps(payload, default=str)
     redacted_text, _count = redact_secrets(serialized)
-    return json.loads(redacted_text)
+    result: dict[str, Any] = json.loads(redacted_text)
+    return result
