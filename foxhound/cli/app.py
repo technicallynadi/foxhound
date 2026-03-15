@@ -613,8 +613,114 @@ def log(
 
 @app.command(name="run")
 def run_item(work_item_id: str) -> None:
-    """Execute approved item."""
-    console.print(f"[yellow]foxhound run {work_item_id} — not yet implemented[/yellow]")
+    """Execute approved work item end-to-end."""
+
+    from foxhound.cli.run_pipeline import run_pipeline
+    from foxhound.core.coordinator import Coordinator
+    from foxhound.core.models import WorkItemState
+    from foxhound.storage.database import Database
+
+    db_path = _db_path()
+    if not db_path.exists():
+        console.print("[red]Not initialized.[/red] Run [cyan]foxhound init[/cyan] first.")
+        raise typer.Exit(code=1)
+
+    db = Database(db_path)
+    try:
+        # Quick validation before starting pipeline
+        coord = Coordinator(db)
+        item = coord.get_work_item(work_item_id)
+        if item is None:
+            console.print(f"[red]Work item not found:[/red] {work_item_id}")
+            raise typer.Exit(code=1)
+
+        if item.state not in (WorkItemState.APPROVED, WorkItemState.EDITED):
+            console.print(
+                f"[red]Work item must be approved or edited,[/red] "
+                f"got '{item.state.value}'"
+            )
+            raise typer.Exit(code=1)
+
+        # Resolve repo path
+        from foxhound.core.repo_registry import RepoRegistry
+
+        registry = RepoRegistry(db)
+        repo_path = None
+        for repo in registry.list_repos():
+            if repo.repo_id == item.repo_id:
+                repo_path = Path(repo.path)
+                break
+
+        if repo_path is None:
+            console.print(f"[red]Repository not found for repo_id:[/red] {item.repo_id}")
+            raise typer.Exit(code=1)
+
+        console.print(
+            f"[cyan]Running[/cyan] {rich_escape(item.title[:60])} "
+            f"[dim]({work_item_id[:16]})[/dim]"
+        )
+        console.print(f"  Repository: {repo_path}")
+        console.print()
+
+        # Run the pipeline
+        result = run_pipeline(
+            work_item_id=work_item_id,
+            db=db,
+            repo_path=repo_path,
+        )
+
+        # Display review panel if available
+        if result.review_verdict:
+
+            # Show review results
+            verdict_colors = {
+                "pass": "green",
+                "pass_with_warnings": "yellow",
+                "needs_review": "red",
+                "recommend_reject": "bold red",
+            }
+            v_color = verdict_colors.get(result.review_verdict, "white")
+            v_display = result.review_verdict.upper().replace("_", " ")
+            console.print(
+                f"  Review: [{v_color}]{v_display}[/{v_color}] "
+                f"({result.review_confidence:.0%} confidence)"
+            )
+            if result.review_summary:
+                console.print(f"  {result.review_summary}")
+            console.print()
+
+        # Display final result
+        if result.success:
+            console.print("[bold green]Run completed successfully.[/bold green]")
+            if result.branch_name:
+                console.print(f"  Branch: [cyan]{result.branch_name}[/cyan]")
+            if result.commit_hash:
+                console.print(f"  Commit: [dim]{result.commit_hash[:12]}[/dim]")
+            if result.files_changed:
+                console.print(f"  Files changed: {len(result.files_changed)}")
+            console.print(f"  Duration: {result.duration_seconds:.1f}s")
+            console.print(f"  Cost: ${result.total_cost:.4f}")
+        else:
+            console.print(f"[bold red]Run failed at stage:[/bold red] {result.stage_reached}")
+            if result.error:
+                console.print(f"  Error: {rich_escape(result.error[:200])}")
+            if result.validation_results:
+                failed = [
+                    r for r in result.validation_results
+                    if not r.get("passed", False)
+                ]
+                if failed:
+                    console.print(f"  Failed validations: {len(failed)}")
+                    for r in failed[:3]:
+                        cmd = r.get("command", "unknown")
+                        err = r.get("error", "")
+                        if isinstance(err, str) and len(err) > 100:
+                            err = err[:100]
+                        console.print(f"    {cmd}: {err}")
+            console.print(f"  Duration: {result.duration_seconds:.1f}s")
+            raise typer.Exit(code=1)
+    finally:
+        db.close()
 
 
 @app.command()
