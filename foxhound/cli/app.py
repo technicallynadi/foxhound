@@ -526,9 +526,98 @@ def scan(
 
 
 @app.command()
-def scout() -> None:
+def scout(
+    language: str = typer.Option(
+        None, "--language", "-l", help="Filter by language."
+    ),
+    min_stars: int = typer.Option(
+        10, "--min-stars", help="Minimum star count."
+    ),
+    limit: int = typer.Option(
+        20, "--limit", "-n", help="Max results per source."
+    ),
+) -> None:
     """Run external opportunity discovery."""
-    console.print("[yellow]foxhound scout — not yet implemented[/yellow]")
+    from rich.panel import Panel
+
+    from foxhound.scout.opportunity import OpportunityManager
+    from foxhound.storage.database import Database
+
+    db_path = _db_path()
+    if not db_path.exists():
+        console.print(
+            "[red]Not initialized.[/red] Run [cyan]foxhound init[/cyan] first."
+        )
+        raise typer.Exit(code=1)
+
+    db = Database(db_path)
+    try:
+        mgr = OpportunityManager(db)
+
+        # Show existing suggested opportunities
+        from foxhound.core.models import OpportunityState
+
+        suggested = mgr.list_by_state(OpportunityState.SUGGESTED)
+        if not suggested:
+            console.print(
+                "[yellow]No opportunities found.[/yellow]\n"
+                "Scout connectors require API credentials.\n"
+                "Set GITHUB_TOKEN for GitHub trending discovery."
+            )
+            return
+
+        console.print(
+            f"[cyan]Found {len(suggested)} opportunities[/cyan]\n"
+        )
+
+        for item in suggested:
+            scores = (
+                f"Credibility: {item.credibility_score:.0%}  "
+                f"Novelty: {item.novelty_score:.0%}  "
+                f"Actionability: {item.actionability_score:.0%}  "
+                f"Value: {item.business_value_score:.0%}"
+            )
+
+            source_info = f"[dim]Source: {item.source_type}[/dim]"
+            if item.source_url:
+                source_info += f"  [dim]{item.source_url}[/dim]"
+
+            tags_str = ""
+            if item.tags:
+                tags_str = f"\n[dim]Tags: {', '.join(item.tags)}[/dim]"
+
+            body = (
+                f"{rich_escape(item.description[:200])}\n\n"
+                f"{scores}\n"
+                f"{source_info}{tags_str}"
+            )
+
+            console.print(Panel(
+                body,
+                title=f"{rich_escape(item.title)} [{item.opportunity_id[:16]}]",
+                border_style="cyan",
+            ))
+
+        # Interactive review
+        from rich.prompt import Prompt
+
+        for item in suggested:
+            action = Prompt.ask(
+                f"\n[bold]{rich_escape(item.title[:50])}[/bold]",
+                choices=["approve", "reject", "skip"],
+                default="skip",
+            )
+
+            if action == "approve":
+                mgr.approve(item.opportunity_id)
+                console.print("[green]Approved.[/green]")
+            elif action == "reject":
+                mgr.reject(item.opportunity_id)
+                console.print("[red]Rejected.[/red]")
+            else:
+                console.print("[dim]Skipped.[/dim]")
+    finally:
+        db.close()
 
 
 @app.command()
