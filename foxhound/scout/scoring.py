@@ -81,6 +81,23 @@ def _raw_to_scout_source(raw: dict[str, Any]) -> ScoutSource:
             tags=[payload.get("subreddit", "")],
             evidence=payload,
         )
+    elif source_type == "hackernews":
+        score = payload.get("score", 0)
+        comments = payload.get("comment_count", 0)
+        # Normalize HN score to a velocity-like signal: 100pts ≈ 1.0, 500pts ≈ 5.0
+        velocity = score / 100.0
+        return ScoutSource(
+            title=payload.get("title", raw["title"]),
+            description=payload.get("external_url", ""),
+            source_type="hackernews",
+            source_url=raw.get("source_url", ""),
+            stars=score,
+            star_velocity=velocity,
+            language="",
+            license_type="",
+            tags=[payload.get("source_feed", "topstories")],
+            evidence=payload,
+        )
     else:
         return ScoutSource(
             title=raw["title"],
@@ -127,13 +144,6 @@ class ScoringPipeline:
                 self._raw_store.mark_scored(raw["raw_id"])
                 continue
 
-            scores = score_opportunity(source)
-
-            if not self._passes_filters(source, scores):
-                result.filtered += 1
-                self._raw_store.mark_scored(raw["raw_id"])
-                continue
-
             item = source_to_opportunity(source)
             existing = self._opp_mgr.find_by_fingerprint(item.source_fingerprint)
             if existing is not None:
@@ -145,10 +155,10 @@ class ScoringPipeline:
             self._opp_mgr.sanitize(item.opportunity_id)
             self._opp_mgr.evaluate(
                 item.opportunity_id,
-                credibility=scores["credibility"],
-                novelty=scores["novelty"],
-                actionability=scores["actionability"],
-                business_value=scores["business_value"],
+                credibility=0.0,
+                novelty=0.0,
+                actionability=0.0,
+                business_value=0.0,
             )
             self._opp_mgr.suggest(item.opportunity_id)
 

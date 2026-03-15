@@ -143,6 +143,10 @@ class OpportunityManager:
         """Reject an opportunity."""
         return self.advance(opportunity_id, OpportunityState.REJECTED)
 
+    def delete(self, opportunity_id: str) -> bool:
+        """Permanently delete an opportunity."""
+        return self._store.delete(opportunity_id)
+
     def convert_to_work_item(
         self, opportunity_id: str, repo_id: str
     ) -> WorkItem:

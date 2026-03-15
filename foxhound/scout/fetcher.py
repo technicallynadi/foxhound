@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field
 
 from foxhound.adapters.github_connector import GitHubConnector, HttpClient, HttpResponse
 from foxhound.adapters.reddit_connector import RedditConnector
+from foxhound.scout.connectors.hackernews import HackerNewsConnector
 from foxhound.storage.database import Database, RawOpportunityStore
 
 logger = logging.getLogger(__name__)
@@ -31,6 +32,9 @@ class SourceConfig(BaseModel):
 
     enabled: bool = Field(default=True)
     fetch_interval_hours: float = Field(default=DEFAULT_FETCH_INTERVAL_HOURS)
+    subreddits: list[str] | None = Field(
+        default=None, description="Subreddits to scan (reddit source only)"
+    )
 
     model_config = {"extra": "forbid"}
 
@@ -43,6 +47,7 @@ class ScoutConfig(BaseModel):
     sources: dict[str, SourceConfig] = Field(default_factory=lambda: {
         "github_trending": SourceConfig(),
         "reddit": SourceConfig(fetch_interval_hours=12),
+        "hackernews": SourceConfig(),
     })
 
     model_config = {"extra": "forbid"}
@@ -145,6 +150,7 @@ class ScoutFetcher:
             client_id=reddit_client_id,
             client_secret=reddit_client_secret,
         )
+        self._hackernews = HackerNewsConnector()
 
     def fetch_all(
         self,
@@ -152,6 +158,7 @@ class ScoutFetcher:
         language: str | None = None,
         min_stars: int = 10,
         limit: int = 30,
+        query: str | None = None,
     ) -> FetchSummary:
         """Fetch from all enabled sources, respecting freshness intervals.
 
@@ -160,14 +167,16 @@ class ScoutFetcher:
             language: Filter GitHub results by language.
             min_stars: Minimum stars for GitHub trending.
             limit: Max results per source.
+            query: Search keyword to filter across all sources.
         """
         summary = FetchSummary()
 
         source_fetchers: dict[str, Any] = {
             "github_trending": lambda: self._fetch_github(
-                language=language, min_stars=min_stars, limit=limit
+                language=language, min_stars=min_stars, limit=limit, query=query,
             ),
-            "reddit": lambda: self._fetch_reddit(limit=limit),
+            "reddit": lambda: self._fetch_reddit(limit=limit, query=query),
+            "hackernews": lambda: self._fetch_hackernews(limit=limit, query=query),
         }
 
         for source, fetcher_fn in source_fetchers.items():
@@ -210,12 +219,13 @@ class ScoutFetcher:
         language: str | None = None,
         min_stars: int = 10,
         limit: int = 30,
+        query: str | None = None,
     ) -> FetchResult:
         """Fetch trending repos from GitHub."""
         result = FetchResult(source="github_trending")
 
         repos = self._github.search_trending(
-            language=language, min_stars=min_stars, limit=limit,
+            language=language, min_stars=min_stars, limit=limit, query=query,
         )
         result.items_fetched = len(repos)
 
@@ -265,7 +275,7 @@ class ScoutFetcher:
         )
         return result
 
-    def _fetch_reddit(self, limit: int = 25) -> FetchResult:
+    def _fetch_reddit(self, limit: int = 25, query: str | None = None) -> FetchResult:
         """Fetch posts from configured subreddits."""
         result = FetchResult(source="reddit")
 
@@ -277,6 +287,14 @@ class ScoutFetcher:
         posts = self._reddit.scan_all_subreddits(
             subreddits=subreddits, limit_per_sub=limit,
         )
+
+        if query:
+            query_lower = query.lower()
+            posts = [
+                p for p in posts
+                if query_lower in p.title.lower() or query_lower in p.selftext.lower()
+            ]
+
         result.items_fetched = len(posts)
 
         expires_at = (
@@ -321,6 +339,67 @@ class ScoutFetcher:
         self._store.update_fetch_metadata(
             source="reddit",
             items_fetched=len(posts),
+            rate_limit_hits=result.rate_limit_hits,
+        )
+        return result
+
+    def _fetch_hackernews(self, limit: int = 30, query: str | None = None) -> FetchResult:
+        """Fetch top stories from Hacker News."""
+        import asyncio
+
+        result = FetchResult(source="hackernews")
+
+        try:
+            if query:
+                opportunities = asyncio.run(self._hackernews.search(query, limit=limit))
+            else:
+                opportunities = asyncio.run(self._hackernews.fetch())
+        except Exception as exc:
+            logger.error("Hacker News fetch failed: %s", exc)
+            result.error = str(exc)
+            return result
+
+        result.items_fetched = len(opportunities)
+
+        expires_at = (
+            datetime.now() + timedelta(days=self._config.retention_days)
+        ).isoformat()
+        now = datetime.now().isoformat()
+
+        for opp in opportunities[:limit]:
+            hn_id = str(opp.raw_metadata.get("hn_id", ""))
+            dedupe_hash = _make_dedupe_hash("hackernews", hn_id)
+
+            payload = {
+                "hn_id": opp.raw_metadata.get("hn_id"),
+                "title": opp.title,
+                "score": opp.raw_metadata.get("score", 0),
+                "comment_count": opp.raw_metadata.get("comment_count", 0),
+                "author": opp.raw_metadata.get("author", ""),
+                "external_url": opp.raw_metadata.get("external_url", ""),
+                "posted_at": opp.raw_metadata.get("posted_at", ""),
+                "source_feed": opp.raw_metadata.get("source_feed", ""),
+            }
+
+            is_new = self._store.upsert(
+                raw_id=_make_raw_id(),
+                source="hackernews",
+                source_url=opp.source_url,
+                source_id=hn_id,
+                title=opp.title,
+                raw_payload=json.dumps(payload),
+                fetched_at=now,
+                expires_at=expires_at,
+                dedupe_hash=dedupe_hash,
+            )
+            if is_new:
+                result.new_items += 1
+            else:
+                result.updated_items += 1
+
+        self._store.update_fetch_metadata(
+            source="hackernews",
+            items_fetched=result.items_fetched,
             rate_limit_hits=result.rate_limit_hits,
         )
         return result
