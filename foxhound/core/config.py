@@ -88,10 +88,31 @@ class ModelsConfig(BaseModel):
         return self.providers.get(provider_name)
 
 
+class NotificationSinkConfig(BaseModel):
+    """Configuration for a single notification sink."""
+
+    type: str = Field(..., description="Sink type: slack, discord, webhook")
+    url: str = Field(..., description="Webhook or endpoint URL")
+    channel: str | None = Field(default=None, description="Channel (Slack only)")
+    headers: dict[str, str] = Field(
+        default_factory=dict, description="Extra headers (webhook only)"
+    )
+
+
+class NotificationsConfig(BaseModel):
+    """Notification configuration from foxhound.yaml."""
+
+    enabled: bool = Field(default=True, description="Enable notifications")
+    sinks: list[NotificationSinkConfig] = Field(
+        default_factory=list, description="Configured notification sinks"
+    )
+
+
 class FoxhoundConfig(BaseModel):
     """Top-level foxhound.yaml configuration."""
 
     models: ModelsConfig = Field(default_factory=ModelsConfig)
+    notifications: NotificationsConfig = Field(default_factory=NotificationsConfig)
 
 
 def load_config(config_path: Path) -> FoxhoundConfig:

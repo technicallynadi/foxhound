@@ -1,13 +1,19 @@
 """Notification dispatch for routing events through notification policy.
 
 Routes system events to notification sinks based on severity and event type.
-V1 supports CLI sink only. Slack/Discord/webhook sinks are stubbed for future.
+Supports CLI, Slack, Discord, and generic webhook sinks.
 """
 
+import json
+import logging
+import urllib.request
 from enum import StrEnum
 from typing import Protocol
+from urllib.error import HTTPError, URLError
 
 from foxhound.core.models import EventEnvelope, EventType
+
+logger = logging.getLogger(__name__)
 
 
 class NotificationPriority(StrEnum):
@@ -90,6 +96,92 @@ class CliNotificationSink:
         elif priority == NotificationPriority.DEFAULT:
             console.print(f"[cyan]>[/cyan] {message}")
         return True
+
+
+class SlackNotificationSink:
+    """Sends notifications to a Slack channel via incoming webhook."""
+
+    sink_name = "slack"
+
+    def __init__(self, webhook_url: str, channel: str | None = None) -> None:
+        self._webhook_url = webhook_url
+        self._channel = channel
+
+    def send(self, message: str, priority: NotificationPriority, event: EventEnvelope) -> bool:
+        """Post a formatted message to Slack."""
+        icon = ":red_circle:" if priority == NotificationPriority.ALWAYS else ":large_blue_circle:"
+        payload: dict[str, str] = {
+            "text": f"{icon} *foxhound* | {message}",
+        }
+        if self._channel:
+            payload["channel"] = self._channel
+        return _post_json(self._webhook_url, payload, "Slack")
+
+
+class DiscordNotificationSink:
+    """Sends notifications to a Discord channel via webhook."""
+
+    sink_name = "discord"
+
+    def __init__(self, webhook_url: str) -> None:
+        self._webhook_url = webhook_url
+
+    def send(self, message: str, priority: NotificationPriority, event: EventEnvelope) -> bool:
+        """Post a formatted message to Discord."""
+        color = 0xFF0000 if priority == NotificationPriority.ALWAYS else 0x3498DB
+        payload = {
+            "embeds": [{
+                "title": "foxhound",
+                "description": message,
+                "color": color,
+            }],
+        }
+        return _post_json(self._webhook_url, payload, "Discord")
+
+
+class WebhookNotificationSink:
+    """Sends JSON payloads to a generic HTTP endpoint."""
+
+    sink_name = "webhook"
+
+    def __init__(self, endpoint_url: str, headers: dict[str, str] | None = None) -> None:
+        self._endpoint_url = endpoint_url
+        self._headers = headers or {}
+
+    def send(self, message: str, priority: NotificationPriority, event: EventEnvelope) -> bool:
+        """POST a JSON payload to the configured endpoint."""
+        payload = {
+            "source": "foxhound",
+            "message": message,
+            "priority": priority.value,
+            "event_type": event.event_type.value,
+            "run_id": event.run_id,
+            "timestamp": event.timestamp.isoformat() if event.timestamp else None,
+        }
+        return _post_json(self._endpoint_url, payload, "Webhook", self._headers)
+
+
+def _post_json(
+    url: str,
+    payload: dict,  # noqa: ANN401
+    sink_label: str,
+    extra_headers: dict[str, str] | None = None,
+) -> bool:
+    """POST a JSON payload to a URL. Returns True on success."""
+    try:
+        data = json.dumps(payload).encode("utf-8")
+        headers = {"Content-Type": "application/json"}
+        if extra_headers:
+            headers.update(extra_headers)
+        req = urllib.request.Request(url, data=data, headers=headers)
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            return resp.status < 400
+    except (HTTPError, URLError, OSError) as exc:
+        logger.warning("%s notification failed: %s", sink_label, exc)
+        return False
+    except Exception as exc:
+        logger.warning("%s notification error: %s", sink_label, exc)
+        return False
 
 
 def _format_event_message(event: EventEnvelope) -> str:
@@ -202,3 +294,37 @@ class NotificationDispatcher:
             if self.dispatch(event):
                 count += 1
         return count
+
+
+def build_sinks_from_config(
+    notifications_config: "NotificationsConfig",
+) -> list[NotificationSink]:
+    """Create notification sinks from configuration.
+
+    Args:
+        notifications_config: Notifications section from foxhound.yaml.
+
+    Returns:
+        List of configured and ready sinks.
+    """
+    from foxhound.core.config import NotificationsConfig  # noqa: F811
+
+    sinks: list[NotificationSink] = []
+    for sink_config in notifications_config.sinks:
+        if sink_config.type == "slack":
+            sinks.append(SlackNotificationSink(
+                webhook_url=sink_config.url,
+                channel=sink_config.channel,
+            ))
+        elif sink_config.type == "discord":
+            sinks.append(DiscordNotificationSink(
+                webhook_url=sink_config.url,
+            ))
+        elif sink_config.type == "webhook":
+            sinks.append(WebhookNotificationSink(
+                endpoint_url=sink_config.url,
+                headers=sink_config.headers,
+            ))
+        else:
+            logger.warning("Unknown notification sink type: %s", sink_config.type)
+    return sinks
