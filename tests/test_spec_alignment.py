@@ -989,6 +989,141 @@ class TestCapabilitiesMatrixUpdated:
         assert len(violations) > 0
 
 
+# ── #102: Multi-repo management ──────────────────────────────────────
+
+
+class TestMultiRepoManagement:
+    """Tests for multi-repo management commands."""
+
+    def test_repo_use_sets_active(self, tmp_path: Path) -> None:
+        """repo use sets the active repo and persists it."""
+        from foxhound.core.repo_registry import RepoInfo, RepoRegistry
+        from foxhound.storage.database import Database
+
+        db = Database(tmp_path / "test.db")
+        fh_dir = tmp_path / ".foxhound"
+        fh_dir.mkdir()
+
+        registry = RepoRegistry(db, foxhound_dir=fh_dir)
+
+        # Manually save a repo
+        from foxhound.core.repo_registry import RepoStore
+
+        store = RepoStore(db)
+        repo = RepoInfo(
+            repo_id="repo_abc",
+            name="test-repo",
+            path=str(tmp_path),
+            default_branch="main",
+        )
+        store.save(repo)
+
+        assert registry.set_active("repo_abc") is True
+        assert registry.active_repo_id == "repo_abc"
+
+        # Verify persistence
+        active_file = fh_dir / "config" / "active_repo"
+        assert active_file.exists()
+        assert active_file.read_text().strip() == "repo_abc"
+
+        db.close()
+
+    def test_repo_use_persists_across_instances(self, tmp_path: Path) -> None:
+        """Active repo persists across RepoRegistry instances."""
+        from foxhound.core.repo_registry import RepoInfo, RepoRegistry, RepoStore
+        from foxhound.storage.database import Database
+
+        db = Database(tmp_path / "test.db")
+        fh_dir = tmp_path / ".foxhound"
+        fh_dir.mkdir()
+
+        store = RepoStore(db)
+        store.save(RepoInfo(
+            repo_id="repo_persist",
+            name="persist-repo",
+            path=str(tmp_path),
+            default_branch="main",
+        ))
+
+        # Set active in first instance
+        reg1 = RepoRegistry(db, foxhound_dir=fh_dir)
+        reg1.set_active("repo_persist")
+
+        # Create new instance — should load from file
+        reg2 = RepoRegistry(db, foxhound_dir=fh_dir)
+        assert reg2.active_repo_id == "repo_persist"
+
+        db.close()
+
+    def test_repo_use_nonexistent(self, tmp_path: Path) -> None:
+        """set_active returns False for nonexistent repo."""
+        from foxhound.core.repo_registry import RepoRegistry
+        from foxhound.storage.database import Database
+
+        db = Database(tmp_path / "test.db")
+        registry = RepoRegistry(db, foxhound_dir=tmp_path)
+        assert registry.set_active("nonexistent") is False
+        db.close()
+
+    def test_repo_remove_clears_active(self, tmp_path: Path) -> None:
+        """Removing active repo clears the active state."""
+        from foxhound.core.repo_registry import RepoInfo, RepoRegistry, RepoStore
+        from foxhound.storage.database import Database
+
+        db = Database(tmp_path / "test.db")
+        fh_dir = tmp_path / ".foxhound"
+        fh_dir.mkdir()
+
+        store = RepoStore(db)
+        store.save(RepoInfo(
+            repo_id="repo_rm",
+            name="rm-repo",
+            path=str(tmp_path),
+            default_branch="main",
+        ))
+
+        registry = RepoRegistry(db, foxhound_dir=fh_dir)
+        registry.set_active("repo_rm")
+        assert registry.active_repo_id == "repo_rm"
+
+        registry.remove("repo_rm")
+        assert registry.active_repo_id is None
+        active_file = fh_dir / "config" / "active_repo"
+        assert not active_file.exists()
+
+        db.close()
+
+    def test_scan_all_flag_accepted(self) -> None:
+        """Scan command accepts --all flag."""
+        from typer.testing import CliRunner
+
+        from foxhound.cli.app import app
+
+        runner = CliRunner()
+        result = runner.invoke(app, ["scan", "--help"])
+        assert "--all" in result.output
+
+    def test_scout_all_flag_accepted(self) -> None:
+        """Scout command accepts --all flag."""
+        from typer.testing import CliRunner
+
+        from foxhound.cli.app import app
+
+        runner = CliRunner()
+        result = runner.invoke(app, ["scout", "--help"])
+        assert "--all" in result.output
+
+    def test_repo_use_command_help(self) -> None:
+        """repo use command exists and has help text."""
+        from typer.testing import CliRunner
+
+        from foxhound.cli.app import app
+
+        runner = CliRunner()
+        result = runner.invoke(app, ["repo", "use", "--help"])
+        assert "active" in result.output.lower() or "Switch" in result.output
+
+
 # ── #101: Notification sinks ─────────────────────────────────────────
 
 

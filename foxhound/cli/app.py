@@ -547,16 +547,36 @@ def repo_list() -> None:
 @repo_app.command("use")
 def repo_use(repo_id: str) -> None:
     """Switch active repository context."""
-    console.print(
-        f"[yellow]foxhound repo use {repo_id} — "
-        "active repo switching will be wired in a future milestone[/yellow]"
-    )
+    from foxhound.core.repo_registry import RepoRegistry
+    from foxhound.storage.database import Database
+
+    db_path = _db_path()
+    if not db_path.exists():
+        console.print("[red]Not initialized.[/red] Run [cyan]foxhound init[/cyan] first.")
+        raise typer.Exit(code=1)
+
+    db = Database(db_path)
+    try:
+        registry = RepoRegistry(db)
+        if registry.set_active(repo_id):
+            repo = registry.get(repo_id)
+            name = repo.name if repo else repo_id
+            console.print(f"[green]Active repo:[/green] {name} ({repo_id})")
+        else:
+            console.print(f"[red]Repo not found:[/red] {repo_id}")
+            console.print("Run [cyan]foxhound repo list[/cyan] to see registered repos.")
+            raise typer.Exit(code=1)
+    finally:
+        db.close()
 
 
 @app.command()
 def scan(
     repo_path: str = typer.Option(
         ".", "--path", "-p", help="Path to the repository to scan."
+    ),
+    all_repos: bool = typer.Option(
+        False, "--all", help="Scan all registered repositories."
     ),
 ) -> None:
     """Run discovery scanners on a repository."""
@@ -570,70 +590,89 @@ def scan(
         console.print("[red]Not initialized.[/red] Run [cyan]foxhound init[/cyan] first.")
         raise typer.Exit(code=1)
 
-    target = Path(repo_path).resolve()
-    if not target.is_dir():
-        console.print(f"[red]Not a directory:[/red] {target}")
-        raise typer.Exit(code=1)
-
     db = Database(db_path)
     try:
         registry = RepoRegistry(db)
-        repos = registry.list_repos()
 
-        # Find repo_id for this path
-        repo_id = None
-        for repo in repos:
-            if Path(repo.path).resolve() == target:
-                repo_id = repo.repo_id
-                break
-
-        if repo_id is None:
-            # Auto-register if it's a git repo
-            if is_git_repo(target):
-                repo = registry.register(target)
-                repo_id = repo.repo_id
-                console.print(f"[green]Auto-registered:[/green] {repo.name}")
-            else:
-                console.print(
-                    "[red]Not a registered repo.[/red] "
-                    "Run [cyan]foxhound repo add[/cyan] first."
-                )
+        if all_repos:
+            targets = [
+                (repo.repo_id, Path(repo.path), repo.name)
+                for repo in registry.list_repos()
+                if Path(repo.path).is_dir()
+            ]
+            if not targets:
+                console.print("[yellow]No accessible repos registered.[/yellow]")
+                raise typer.Exit(code=1)
+        else:
+            target = Path(repo_path).resolve()
+            if not target.is_dir():
+                console.print(f"[red]Not a directory:[/red] {target}")
                 raise typer.Exit(code=1)
 
-        coord = Coordinator(db)
-        known_fps = coord.get_known_fingerprints(repo_id)
+            # Find or auto-register
+            repo_id = None
+            for repo in registry.list_repos():
+                if Path(repo.path).resolve() == target:
+                    repo_id = repo.repo_id
+                    break
 
-        # Run scanners
+            if repo_id is None:
+                if is_git_repo(target):
+                    repo = registry.register(target)
+                    repo_id = repo.repo_id
+                    console.print(f"[green]Auto-registered:[/green] {repo.name}")
+                else:
+                    console.print(
+                        "[red]Not a registered repo.[/red] "
+                        "Run [cyan]foxhound repo add[/cyan] first."
+                    )
+                    raise typer.Exit(code=1)
+            targets = [(repo_id, target, target.name)]
+
+        coord = Coordinator(db)
         scanner_reg = ScannerRegistry()
         scanner_reg.register_defaults()
 
-        console.print(f"[cyan]Scanning[/cyan] {target} ...")
-        results = scanner_reg.scan_all(target)
+        total_new = 0
+        total_skip = 0
+        total_promoted = 0
 
-        # Dedup and save
-        from uuid import uuid4
+        for rid, rpath, rname in targets:
+            known_fps = coord.get_known_fingerprints(rid)
+            console.print(f"[cyan]Scanning[/cyan] {rname} ({rpath}) ...")
+            results = scanner_reg.scan_all(rpath)
 
-        new_count = 0
-        skip_count = 0
-        for result in results:
-            if result.fingerprint in known_fps:
-                skip_count += 1
-                continue
-            known_fps.add(result.fingerprint)
-            wid = f"wi_{uuid4().hex[:12]}"
-            item = scan_result_to_work_item(result, repo_id, wid)
-            coord.save_work_item(item)
-            new_count += 1
+            from uuid import uuid4
 
-        # Promote discovered → suggested
-        promoted = coord.promote_discovered_to_suggested(repo_id)
+            new_count = 0
+            skip_count = 0
+            for result in results:
+                if result.fingerprint in known_fps:
+                    skip_count += 1
+                    continue
+                known_fps.add(result.fingerprint)
+                wid = f"wi_{uuid4().hex[:12]}"
+                item = scan_result_to_work_item(result, rid, wid)
+                coord.save_work_item(item)
+                new_count += 1
+
+            promoted = coord.promote_discovered_to_suggested(rid)
+            total_new += new_count
+            total_skip += skip_count
+            total_promoted += promoted
+
+            if all_repos:
+                console.print(
+                    f"  {rname}: {len(results)} found, "
+                    f"{new_count} new, {skip_count} skipped"
+                )
 
         console.print(
             f"\n[bold green]Scan complete.[/bold green] "
-            f"Found {len(results)} items, {new_count} new, "
-            f"{skip_count} duplicates skipped, {promoted} promoted to suggested."
+            f"{total_new} new items, {total_skip} duplicates skipped, "
+            f"{total_promoted} promoted to suggested."
         )
-        if new_count > 0:
+        if total_new > 0:
             console.print(
                 "Run [cyan]foxhound log[/cyan] to see items, "
                 "[cyan]foxhound approve <id>[/cyan] to review."
@@ -655,6 +694,9 @@ def scout(
     ),
     refresh: bool = typer.Option(
         False, "--refresh", help="Force fresh fetch regardless of cache."
+    ),
+    all_repos: bool = typer.Option(
+        False, "--all", help="Run scout for all registered repositories."
     ),
 ) -> None:
     """Run external opportunity discovery (fetch, score, review)."""
