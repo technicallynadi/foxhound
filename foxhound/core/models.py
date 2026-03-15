@@ -141,6 +141,7 @@ class ModelTier(StrEnum):
     REASONING = "reasoning"
     BALANCED = "balanced"
     FAST = "fast"
+    CREATIVE = "creative"
 
 
 class ExecutionMode(StrEnum):
