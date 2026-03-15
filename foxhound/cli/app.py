@@ -136,7 +136,11 @@ def init() -> None:
 
 
 @app.command()
-def doctor() -> None:
+def doctor(
+    benchmark: bool = typer.Option(
+        False, "--benchmark", help="Run model capability benchmarks."
+    ),
+) -> None:
     """Validate environment and configuration."""
     import importlib
     import os
@@ -340,6 +344,60 @@ def doctor() -> None:
         except Exception:
             pass
 
+    # Model tier connectivity checks
+    model_connectivity_ok = False
+    try:
+        from foxhound.core.config import load_config
+        from foxhound.core.models import ModelTier
+
+        config_file = Path.cwd() / CONFIG_NAME
+        if config_file.exists():
+            config = load_config(config_file)
+            from foxhound.adapters.router import ModelRouter
+
+            router = ModelRouter(config)
+            init_errors = router.initialize()
+            if init_errors:
+                for err in init_errors:
+                    checks.append(("Model provider", False, err))
+            else:
+                model_connectivity_ok = True
+
+            # Check each configured tier
+            text_tiers = [ModelTier.REASONING, ModelTier.BALANCED, ModelTier.FAST]
+            for tier in text_tiers:
+                if router.is_tier_configured(tier):
+                    try:
+                        provider_name, model_id, _adapter = router.resolve(tier)
+                        if provider_name in router.authenticated_providers:
+                            checks.append((
+                                f"Tier: {tier.value}",
+                                True,
+                                f"{provider_name}/{model_id}",
+                            ))
+                        else:
+                            checks.append((
+                                f"Tier: {tier.value}",
+                                False,
+                                f"{provider_name}/{model_id} — not authenticated",
+                            ))
+                    except (ValueError, RuntimeError) as exc:
+                        checks.append((f"Tier: {tier.value}", False, str(exc)))
+                else:
+                    checks.append((
+                        f"Tier: {tier.value}", False, "Not configured",
+                    ))
+
+            # Creative tier (optional)
+            if router.is_tier_configured(ModelTier.CREATIVE):
+                checks.append(("Tier: creative", True, "Configured"))
+            else:
+                checks.append(("Tier: creative", True, "Not configured (optional)"))
+    except FileNotFoundError:
+        pass
+    except Exception as exc:
+        checks.append(("Model connectivity", False, str(exc)))
+
     if db_instance is not None:
         db_instance.close()
 
@@ -362,7 +420,31 @@ def doctor() -> None:
         console.print("\n[bold green]All checks passed.[/bold green]")
     else:
         console.print("\n[bold red]Some checks failed.[/bold red] Fix the issues above.")
-        raise typer.Exit(code=1)
+        if not benchmark:
+            raise typer.Exit(code=1)
+
+    # Optional benchmark
+    if benchmark:
+        if not model_connectivity_ok:
+            console.print(
+                "\n[yellow]Skipping benchmark — no model providers authenticated.[/yellow]"
+            )
+        else:
+            from foxhound.adapters.benchmark import (
+                format_benchmark_output,
+                run_full_benchmark,
+            )
+
+            configured = [
+                t for t in [ModelTier.REASONING, ModelTier.BALANCED, ModelTier.FAST]
+                if router.is_tier_configured(t)
+            ]
+            console.print("\n[bold]Running model benchmarks...[/bold]")
+            summary = run_full_benchmark(configured, router.complete)
+            console.print(format_benchmark_output(summary))
+
+        if not all_pass:
+            raise typer.Exit(code=1)
 
 
 repo_app = typer.Typer(
