@@ -536,11 +536,17 @@ def scout(
     limit: int = typer.Option(
         20, "--limit", "-n", help="Max results per source."
     ),
+    refresh: bool = typer.Option(
+        False, "--refresh", help="Force fresh fetch regardless of cache."
+    ),
 ) -> None:
-    """Run external opportunity discovery."""
+    """Run external opportunity discovery (fetch, score, review)."""
+    import os
+
     from rich.panel import Panel
 
-    from foxhound.scout.opportunity import OpportunityManager
+    from foxhound.scout.fetcher import ScoutFetcher
+    from foxhound.scout.scoring import ScoringPipeline
     from foxhound.storage.database import Database
 
     db_path = _db_path()
@@ -552,29 +558,77 @@ def scout(
 
     db = Database(db_path)
     try:
-        mgr = OpportunityManager(db)
+        config = _load_scout_config()
 
-        # Show existing suggested opportunities
+        # Phase 1: Fetch from external sources
+        http_client = _make_http_client()
+        fetcher = ScoutFetcher(
+            db=db,
+            http_client=http_client,  # type: ignore[arg-type]
+            config=config,  # type: ignore[arg-type]
+            github_token=os.environ.get("GITHUB_TOKEN"),
+            reddit_client_id=os.environ.get("REDDIT_CLIENT_ID"),
+            reddit_client_secret=os.environ.get("REDDIT_CLIENT_SECRET"),
+        )
+
+        fetch_summary = fetcher.fetch_all(
+            force_refresh=refresh,
+            language=language,
+            min_stars=min_stars,
+            limit=limit,
+        )
+
+        for r in fetch_summary.results:
+            if r.skipped_fresh:
+                console.print(f"[dim]{r.source}: cached (still fresh)[/dim]")
+            elif r.error:
+                console.print(f"[yellow]{r.source}: fetch error — {r.error}[/yellow]")
+            else:
+                console.print(
+                    f"[green]{r.source}:[/green] "
+                    f"{r.new_items} new, {r.updated_items} updated"
+                )
+
+        if fetch_summary.pruned > 0:
+            console.print(f"[dim]Pruned {fetch_summary.pruned} expired entries[/dim]")
+
+        # Phase 2: Score unscored items
+        pipeline = ScoringPipeline(db=db)
+        score_result = pipeline.score_all()
+
+        if score_result.processed > 0:
+            console.print(
+                f"\n[cyan]Scored:[/cyan] {score_result.processed} items, "
+                f"{score_result.passed} passed, {score_result.filtered} filtered"
+            )
+
+        # Phase 3: Display and review suggested opportunities
         from foxhound.core.models import OpportunityState
+        from foxhound.scout.opportunity import OpportunityManager
 
+        mgr = OpportunityManager(db)
         suggested = mgr.list_by_state(OpportunityState.SUGGESTED)
+
         if not suggested:
             console.print(
-                "[yellow]No opportunities found.[/yellow]\n"
-                "Scout connectors require API credentials.\n"
-                "Set GITHUB_TOKEN for GitHub trending discovery."
+                "\n[yellow]No opportunities to review.[/yellow]\n"
+                "Try running with [cyan]--refresh[/cyan] or check API credentials."
             )
             return
 
         console.print(
-            f"[cyan]Found {len(suggested)} opportunities[/cyan]\n"
+            f"\n[cyan]Found {len(suggested)} opportunities to review[/cyan]\n"
         )
 
         for item in suggested:
+            evidence = item.evidence or {}
+            lang = evidence.get("language", "")
+            license_type = evidence.get("license_type", "")
+
             scores = (
-                f"Credibility: {item.credibility_score:.0%}  "
-                f"Novelty: {item.novelty_score:.0%}  "
-                f"Actionability: {item.actionability_score:.0%}  "
+                f"Velocity: {item.credibility_score:.0%}  "
+                f"Improvability: {item.novelty_score:.0%}  "
+                f"Buildability: {item.actionability_score:.0%}  "
                 f"Value: {item.business_value_score:.0%}"
             )
 
@@ -582,14 +636,19 @@ def scout(
             if item.source_url:
                 source_info += f"  [dim]{item.source_url}[/dim]"
 
-            tags_str = ""
+            meta_parts = []
+            if lang:
+                meta_parts.append(f"Language: {lang}")
+            if license_type:
+                meta_parts.append(f"License: {license_type}")
             if item.tags:
-                tags_str = f"\n[dim]Tags: {', '.join(item.tags)}[/dim]"
+                meta_parts.append(f"Tags: {', '.join(item.tags)}")
+            meta_str = f"\n[dim]{' | '.join(meta_parts)}[/dim]" if meta_parts else ""
 
             body = (
                 f"{rich_escape(item.description[:200])}\n\n"
                 f"{scores}\n"
-                f"{source_info}{tags_str}"
+                f"{source_info}{meta_str}"
             )
 
             console.print(Panel(
@@ -618,6 +677,91 @@ def scout(
                 console.print("[dim]Skipped.[/dim]")
     finally:
         db.close()
+
+
+def _load_scout_config() -> object:
+    """Load scout configuration from foxhound.yaml."""
+    from foxhound.scout.fetcher import ScoutConfig, SourceConfig
+
+    config_path = _foxhound_dir() / CONFIG_NAME
+    if not config_path.exists():
+        return ScoutConfig()
+
+    try:
+        import yaml
+
+        with open(config_path) as f:
+            data = yaml.safe_load(f) or {}
+
+        scout_data = data.get("scout", {})
+        if not scout_data:
+            return ScoutConfig()
+
+        sources: dict[str, SourceConfig] = {}
+        for name, src_data in scout_data.get("sources", {}).items():
+            if isinstance(src_data, dict):
+                sources[name] = SourceConfig(**{
+                    k: v for k, v in src_data.items()
+                    if k in SourceConfig.model_fields
+                })
+
+        return ScoutConfig(
+            fetch_interval_hours=scout_data.get(
+                "fetch_interval_hours", ScoutConfig.model_fields["fetch_interval_hours"].default,
+            ),
+            retention_days=scout_data.get("retention_days", 7),
+            sources=sources if sources else ScoutConfig().sources,
+        )
+    except Exception:
+        return ScoutConfig()
+
+
+def _make_http_client() -> object:
+    """Create a simple HTTP client using urllib."""
+    import json as json_mod
+    import urllib.request
+    from urllib.error import HTTPError, URLError
+
+    from foxhound.adapters.github_connector import HttpResponse
+
+    class UrllibHttpClient:
+        """Minimal HTTP client using urllib."""
+
+        def get(
+            self,
+            url: str,
+            headers: dict[str, str] | None = None,
+            params: dict[str, str] | None = None,
+            timeout: int = 30,
+        ) -> HttpResponse:
+            if params:
+                from urllib.parse import urlencode
+                url = f"{url}?{urlencode(params)}"
+
+            req = urllib.request.Request(url)
+            for k, v in (headers or {}).items():
+                req.add_header(k, v)
+
+            try:
+                with urllib.request.urlopen(req, timeout=timeout) as resp:
+                    body = resp.read().decode("utf-8")
+                    resp_headers = {k: v for k, v in resp.headers.items()}
+                    return HttpResponse(
+                        status_code=resp.status,
+                        json_data=json_mod.loads(body) if body else None,
+                        headers=resp_headers,
+                    )
+            except HTTPError as e:
+                resp_headers = {k: v for k, v in e.headers.items()} if e.headers else {}
+                return HttpResponse(
+                    status_code=e.code,
+                    json_data=None,
+                    headers=resp_headers,
+                )
+            except (URLError, TimeoutError):
+                return HttpResponse(status_code=0, json_data=None)
+
+    return UrllibHttpClient()
 
 
 @app.command()
