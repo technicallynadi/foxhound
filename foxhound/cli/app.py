@@ -1,6 +1,13 @@
 """Foxhound CLI application."""
 
+from __future__ import annotations
+
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from foxhound.analyzer.engine import AnalysisDiagnosis
+    from foxhound.storage.database import Database
 
 import typer
 from rich.console import Console
@@ -96,6 +103,7 @@ def init() -> None:
 @app.command()
 def doctor() -> None:
     """Validate environment and configuration."""
+    import importlib
     import os
     import sys
 
@@ -109,24 +117,51 @@ def doctor() -> None:
     fh_dir = _foxhound_dir()
     checks.append((".foxhound/ directory", fh_dir.is_dir(), str(fh_dir)))
 
-    # Database
+    # Database with schema validation
     db_path = _db_path()
     db_ok = db_path.exists()
+    db_instance = None
     if db_ok:
         try:
             from foxhound.storage.database import Database
 
-            db = Database(db_path)
-            db.close()
-            checks.append(("Database", True, str(db_path)))
+            db_instance = Database(db_path)
+            # Validate schema — check expected tables exist
+            with db_instance.connection() as conn:
+                tables = conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                ).fetchall()
+                table_names = {row["name"] for row in tables}
+            expected = {
+                "repos", "work_items", "jobs", "runs", "events",
+                "locks", "artifacts", "recipe_versions", "policy_versions",
+                "rule_suggestions", "opportunity_items",
+            }
+            missing = expected - table_names
+            if missing:
+                checks.append(("Database schema", False, f"Missing tables: {sorted(missing)}"))
+            else:
+                checks.append(("Database schema", True, f"{len(table_names)} tables OK"))
         except Exception as e:
             checks.append(("Database", False, str(e)))
     else:
         checks.append(("Database", False, "Not found — run foxhound init"))
 
-    # Config file
+    # Config file with YAML validation
     config_path = Path.cwd() / CONFIG_NAME
-    checks.append(("foxhound.yaml", config_path.exists(), str(config_path)))
+    if config_path.exists():
+        try:
+            import yaml
+
+            config_data = yaml.safe_load(config_path.read_text())
+            if config_data and "models" in config_data:
+                checks.append(("foxhound.yaml", True, "Valid config with models section"))
+            else:
+                checks.append(("foxhound.yaml", False, "Missing 'models' section"))
+        except Exception:
+            checks.append(("foxhound.yaml", True, str(config_path)))
+    else:
+        checks.append(("foxhound.yaml", False, "Not found"))
 
     # API keys (never display key content — presence check only)
     anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
@@ -141,10 +176,20 @@ def doctor() -> None:
         key_detail.append("No API keys found")
     checks.append(("API key configured", has_key, ", ".join(key_detail)))
 
+    # .gitignore check
+    gitignore_path = Path.cwd() / ".gitignore"
+    if gitignore_path.exists():
+        content = gitignore_path.read_text()
+        has_foxhound = ".foxhound/" in content or ".foxhound" in content
+        if has_foxhound:
+            checks.append((".gitignore", True, ".foxhound/ is ignored"))
+        else:
+            checks.append((".gitignore", False, ".foxhound/ NOT in .gitignore — add it"))
+    else:
+        checks.append((".gitignore", False, "No .gitignore found"))
+
     # Core imports
     try:
-        import importlib
-
         for mod in [
             "foxhound.core.coordinator",
             "foxhound.core.event_bus",
@@ -188,10 +233,80 @@ def doctor() -> None:
     except ImportError as e:
         checks.append(("Output processing", False, str(e)))
 
+    # Observer and analyzer modules
+    try:
+        importlib.import_module("foxhound.observer.store")
+        importlib.import_module("foxhound.observer.retention")
+        importlib.import_module("foxhound.analyzer.engine")
+        checks.append(("Observability modules", True, "observer, analyzer, retention"))
+    except ImportError as e:
+        checks.append(("Observability modules", False, str(e)))
+
     # Subdirectories
     for subdir in ["artifacts", "recipes", "policies", "cache", "config"]:
         sub = fh_dir / subdir
         checks.append((f".foxhound/{subdir}/", sub.is_dir(), str(sub)))
+
+    # Stale lock detection
+    if db_instance is not None:
+        try:
+            from datetime import UTC, datetime
+
+            with db_instance.connection() as conn:
+                now_iso = datetime.now(UTC).isoformat()
+                stale = conn.execute(
+                    "SELECT COUNT(*) as cnt FROM locks WHERE expires_at < ?",
+                    (now_iso,),
+                ).fetchone()
+                stale_count = stale["cnt"] if stale else 0
+            if stale_count > 0:
+                checks.append(("Stale locks", False, f"{stale_count} expired locks found"))
+            else:
+                checks.append(("Stale locks", True, "No stale locks"))
+        except Exception:
+            pass
+
+    # Retention status
+    if db_instance is not None:
+        try:
+            from foxhound.observer.retention import RetentionPolicy
+
+            policy = RetentionPolicy(db_instance)
+            status = policy.get_status()
+            total = status.get("total", {})
+            count = total.get("count", 0)
+            size = total.get("size_bytes", 0)
+            size_mb = size / (1024 * 1024) if size > 0 else 0
+            checks.append((
+                "Artifact retention",
+                True,
+                f"{count} artifacts, {size_mb:.1f} MB total",
+            ))
+        except Exception:
+            pass
+
+    # Repo validation
+    if db_instance is not None:
+        try:
+            from foxhound.core.repo_registry import RepoRegistry
+
+            registry = RepoRegistry(db_instance)
+            repos = registry.list_repos()
+            accessible = sum(1 for r in repos if Path(r.path).is_dir())
+            if repos:
+                if accessible == len(repos):
+                    checks.append(("Registered repos", True, f"{accessible} repos accessible"))
+                else:
+                    checks.append((
+                        "Registered repos",
+                        False,
+                        f"{accessible}/{len(repos)} accessible",
+                    ))
+        except Exception:
+            pass
+
+    if db_instance is not None:
+        db_instance.close()
 
     # Display results
     table = Table(title="Foxhound Doctor", show_lines=True)
@@ -201,10 +316,10 @@ def doctor() -> None:
 
     all_pass = True
     for name, passed, detail in checks:
-        status = "[green]✓[/green]" if passed else "[red]✗[/red]"
+        icon = "[green]\u2713[/green]" if passed else "[red]\u2717[/red]"
         if not passed:
             all_pass = False
-        table.add_row(name, status, detail)
+        table.add_row(name, icon, detail)
 
     console.print(table)
 
@@ -525,11 +640,14 @@ def log(
         None, "--repo", "-r", help="Filter by repo path."
     ),
     limit: int = typer.Option(50, "--limit", "-n", help="Max items to show."),
+    runs: bool = typer.Option(
+        False, "--runs", help="Show run history instead of work items."
+    ),
+    since: str = typer.Option(
+        None, "--since", help="Filter runs by date (YYYY-MM-DD)."
+    ),
 ) -> None:
-    """Show work item history with state transitions."""
-    from foxhound.core.coordinator import Coordinator
-    from foxhound.core.models import WorkItemState
-    from foxhound.core.repo_registry import RepoRegistry
+    """Show work item or run history with rich formatting."""
     from foxhound.storage.database import Database
 
     db_path = _db_path()
@@ -539,76 +657,179 @@ def log(
 
     db = Database(db_path)
     try:
-        coord = Coordinator(db)
-
-        # Resolve state filter
-        state_filter = None
-        if state:
-            try:
-                state_filter = WorkItemState(state)
-            except ValueError:
-                valid = ", ".join(s.value for s in WorkItemState)
-                console.print(f"[red]Invalid state:[/red] {state}. Valid: {valid}")
-                raise typer.Exit(code=1)
-
-        # Resolve repo filter
-        repo_id = None
-        if repo_path:
-            registry = RepoRegistry(db)
-            target = Path(repo_path).resolve()
-            for repo in registry.list_repos():
-                if Path(repo.path).resolve() == target:
-                    repo_id = repo.repo_id
-                    break
-            if repo_id is None:
-                console.print(f"[red]Repo not found:[/red] {repo_path}")
-                raise typer.Exit(code=1)
-
-        items = coord.list_work_items(repo_id=repo_id, state=state_filter)
-        items = items[:limit]
-
-        if not items:
-            console.print("[yellow]No work items found.[/yellow]")
-            return
-
-        table = Table(title="Work Items")
-        table.add_column("ID", style="dim", max_width=16)
-        table.add_column("State", justify="center")
-        table.add_column("Risk", justify="center")
-        table.add_column("Conf", justify="right")
-        table.add_column("Source", max_width=18)
-        table.add_column("Title", max_width=50)
-        table.add_column("Updated")
-
-        state_colors = {
-            "discovered": "blue",
-            "suggested": "cyan",
-            "approved": "green",
-            "edited": "green",
-            "rejected": "red",
-            "blocked": "yellow",
-            "executing": "magenta",
-            "completed": "bold green",
-            "failed": "bold red",
-        }
-        risk_colors = {"low": "green", "medium": "yellow", "high": "red"}
-
-        for item in items:
-            sc = state_colors.get(item.state.value, "white")
-            rc = risk_colors.get(item.risk.value, "white")
-            table.add_row(
-                item.work_item_id[:16],
-                f"[{sc}]{item.state.value}[/{sc}]",
-                f"[{rc}]{item.risk.value}[/{rc}]",
-                f"{item.confidence:.0%}",
-                item.source_type,
-                item.title[:50],
-                item.updated_at.strftime("%Y-%m-%d %H:%M"),
-            )
-
-        console.print(table)
+        if runs:
+            _show_run_history(db, state=state, since=since, limit=limit)
+        else:
+            _show_work_items(db, state=state, repo_path=repo_path, limit=limit)
     finally:
         db.close()
+
+
+def _show_run_history(
+    db: Database,
+    state: str | None = None,
+    since: str | None = None,
+    limit: int = 50,
+) -> None:
+    """Display run history with rich formatting."""
+    from foxhound.core.models import RunState
+
+    # Query all runs via direct SQL for filtering
+    query = "SELECT * FROM runs"
+    params: list[str | int] = []
+    conditions: list[str] = []
+
+    if state:
+        try:
+            RunState(state)
+        except ValueError:
+            valid = ", ".join(s.value for s in RunState)
+            console.print(f"[red]Invalid state:[/red] {state}. Valid: {valid}")
+            raise typer.Exit(code=1)
+        conditions.append("state = ?")
+        params.append(state)
+
+    if since:
+        conditions.append("created_at >= ?")
+        params.append(since)
+
+    if conditions:
+        query += " WHERE " + " AND ".join(conditions)
+
+    query += " ORDER BY updated_at DESC LIMIT ?"
+    params.append(limit)
+
+    with db.connection() as conn:
+        rows = conn.execute(query, params).fetchall()
+
+    if not rows:
+        console.print("[yellow]No runs found.[/yellow]")
+        return
+
+    table = Table(title="Run History")
+    table.add_column("Run ID", style="dim", max_width=16)
+    table.add_column("Worker", max_width=20)
+    table.add_column("State", justify="center")
+    table.add_column("Cost", justify="right")
+    table.add_column("Retries", justify="center")
+    table.add_column("Branch", max_width=30)
+    table.add_column("Failure", max_width=30)
+    table.add_column("Updated")
+
+    state_colors = {
+        "queued": "blue",
+        "preparing": "cyan",
+        "context_built": "cyan",
+        "executing": "magenta",
+        "validating": "yellow",
+        "security_review": "yellow",
+        "branch_ready": "green",
+        "pr_draft_ready": "green",
+        "completed": "bold green",
+        "failed": "bold red",
+        "cancelled": "dim",
+    }
+
+    for row in rows:
+        sc = state_colors.get(row["state"], "white")
+        cost_str = f"${row['total_cost']:.4f}" if row["total_cost"] else "$0.00"
+        failure = row["failure_reason"] or ""
+        if len(failure) > 30:
+            failure = failure[:27] + "..."
+        branch = row["branch_name"] or ""
+        updated = row["updated_at"][:16] if row["updated_at"] else ""
+
+        table.add_row(
+            row["run_id"][:16],
+            row["worker_type"],
+            f"[{sc}]{row['state']}[/{sc}]",
+            cost_str,
+            str(row["retry_count"]),
+            branch,
+            failure,
+            updated,
+        )
+
+    console.print(table)
+
+
+def _show_work_items(
+    db: Database,
+    state: str | None = None,
+    repo_path: str | None = None,
+    limit: int = 50,
+) -> None:
+    """Display work item history."""
+    from foxhound.core.coordinator import Coordinator
+    from foxhound.core.models import WorkItemState
+    from foxhound.core.repo_registry import RepoRegistry
+
+    coord = Coordinator(db)
+
+    state_filter = None
+    if state:
+        try:
+            state_filter = WorkItemState(state)
+        except ValueError:
+            valid = ", ".join(s.value for s in WorkItemState)
+            console.print(f"[red]Invalid state:[/red] {state}. Valid: {valid}")
+            raise typer.Exit(code=1)
+
+    repo_id = None
+    if repo_path:
+        registry = RepoRegistry(db)
+        target = Path(repo_path).resolve()
+        for repo in registry.list_repos():
+            if Path(repo.path).resolve() == target:
+                repo_id = repo.repo_id
+                break
+        if repo_id is None:
+            console.print(f"[red]Repo not found:[/red] {repo_path}")
+            raise typer.Exit(code=1)
+
+    items = coord.list_work_items(repo_id=repo_id, state=state_filter)
+    items = items[:limit]
+
+    if not items:
+        console.print("[yellow]No work items found.[/yellow]")
+        return
+
+    table = Table(title="Work Items")
+    table.add_column("ID", style="dim", max_width=16)
+    table.add_column("State", justify="center")
+    table.add_column("Risk", justify="center")
+    table.add_column("Conf", justify="right")
+    table.add_column("Source", max_width=18)
+    table.add_column("Title", max_width=50)
+    table.add_column("Updated")
+
+    state_colors = {
+        "discovered": "blue",
+        "suggested": "cyan",
+        "approved": "green",
+        "edited": "green",
+        "rejected": "red",
+        "blocked": "yellow",
+        "executing": "magenta",
+        "completed": "bold green",
+        "failed": "bold red",
+    }
+    risk_colors = {"low": "green", "medium": "yellow", "high": "red"}
+
+    for item in items:
+        sc = state_colors.get(item.state.value, "white")
+        rc = risk_colors.get(item.risk.value, "white")
+        table.add_row(
+            item.work_item_id[:16],
+            f"[{sc}]{item.state.value}[/{sc}]",
+            f"[{rc}]{item.risk.value}[/{rc}]",
+            f"{item.confidence:.0%}",
+            item.source_type,
+            item.title[:50],
+            item.updated_at.strftime("%Y-%m-%d %H:%M"),
+        )
+
+    console.print(table)
 
 
 @app.command(name="run")
@@ -724,9 +945,219 @@ def run_item(work_item_id: str) -> None:
 
 
 @app.command()
-def analyze() -> None:
+def analyze(
+    run_id: str = typer.Argument(
+        None, help="Run ID to analyze. If omitted, analyzes recent failed runs."
+    ),
+    limit: int = typer.Option(5, "--limit", "-n", help="Number of recent runs to analyze."),
+) -> None:
     """Summarize failures and suggestions."""
-    console.print("[yellow]foxhound analyze — not yet implemented[/yellow]")
+
+    from foxhound.analyzer.engine import AnalyzerEngine
+    from foxhound.storage.database import Database
+
+    db_path = _db_path()
+    if not db_path.exists():
+        console.print("[red]Not initialized.[/red] Run [cyan]foxhound init[/cyan] first.")
+        raise typer.Exit(code=1)
+
+    db = Database(db_path)
+    try:
+        engine = AnalyzerEngine(db)
+
+        if run_id:
+            # Analyze a specific run
+            diagnosis = engine.analyze_run(run_id)
+            _display_diagnosis(diagnosis)
+        else:
+            # Analyze recent failed runs
+            with db.connection() as conn:
+                rows = conn.execute(
+                    "SELECT run_id FROM runs WHERE state = 'failed' "
+                    "ORDER BY updated_at DESC LIMIT ?",
+                    (limit,),
+                ).fetchall()
+
+            if not rows:
+                console.print("[yellow]No failed runs found.[/yellow]")
+                # Show pending suggestions
+                suggestions = engine.get_pending_suggestions()
+                if suggestions:
+                    console.print(f"\n[cyan]{len(suggestions)} pending rule suggestions:[/cyan]")
+                    for s in suggestions[:10]:
+                        console.print(
+                            f"  {s['suggestion_id'][:16]}: {s['rule_name']} "
+                            f"(confidence: {s['confidence']:.0%})"
+                        )
+                return
+
+            for row in rows:
+                diagnosis = engine.analyze_run(row["run_id"])
+                _display_diagnosis(diagnosis)
+                console.print()
+
+        # Show pending suggestions
+        suggestions = engine.get_pending_suggestions()
+        if suggestions:
+            console.print(f"\n[cyan]{len(suggestions)} pending rule suggestions.[/cyan]")
+    finally:
+        db.close()
+
+
+def _display_diagnosis(diagnosis: AnalysisDiagnosis) -> None:
+    """Display an analysis diagnosis with rich formatting."""
+    from rich.panel import Panel
+
+    lines = [f"[bold]Run:[/bold] {diagnosis.run_id}"]
+
+    if diagnosis.failure_class:
+        fc_colors = {
+            "bad_ticket": "yellow",
+            "context_gap": "cyan",
+            "wrong_model": "magenta",
+            "validation_failure": "red",
+            "timeout": "yellow",
+            "budget_exceeded": "yellow",
+            "security_violation": "bold red",
+            "unknown": "dim",
+        }
+        color = fc_colors.get(diagnosis.failure_class, "white")
+        lines.append(
+            f"[bold]Failure class:[/bold] [{color}]{diagnosis.failure_class}[/{color}]"
+        )
+
+    lines.append(f"[bold]Confidence:[/bold] {diagnosis.confidence:.0%}")
+
+    if diagnosis.context_gaps:
+        lines.append("[bold]Context gaps:[/bold]")
+        for gap in diagnosis.context_gaps:
+            lines.append(f"  - {gap}")
+
+    if diagnosis.readiness_issues:
+        lines.append("[bold]Readiness issues:[/bold]")
+        for issue in diagnosis.readiness_issues:
+            lines.append(f"  - {issue}")
+
+    if diagnosis.recommendations:
+        lines.append("[bold]Recommendations:[/bold]")
+        for rec in diagnosis.recommendations:
+            lines.append(f"  - {rec}")
+
+    console.print(Panel("\n".join(lines), title="Analysis", border_style="cyan"))
+
+
+# Retention commands
+retention_app = typer.Typer(
+    name="retention",
+    help="Manage artifact retention and storage.",
+    no_args_is_help=True,
+)
+app.add_typer(retention_app, name="retention")
+
+
+@retention_app.command("status")
+def retention_status() -> None:
+    """Show storage usage and retention statistics."""
+    from foxhound.observer.retention import RetentionPolicy
+    from foxhound.storage.database import Database
+
+    db_path = _db_path()
+    if not db_path.exists():
+        console.print("[red]Not initialized.[/red] Run [cyan]foxhound init[/cyan] first.")
+        raise typer.Exit(code=1)
+
+    db = Database(db_path)
+    try:
+        policy = RetentionPolicy(db)
+        status = policy.get_status()
+
+        table = Table(title="Retention Status")
+        table.add_column("Class", style="bold")
+        table.add_column("Retention", justify="right")
+        table.add_column("Artifacts", justify="right")
+        table.add_column("Size", justify="right")
+
+        for cls in ["A", "B", "C"]:
+            info = status.get(cls, {})
+            count = info.get("count", 0)
+            size = info.get("size_bytes", 0)
+            days = info.get("retention_days", 0)
+            size_str = _format_size(size)
+            table.add_row(f"Class {cls}", f"{days}d", str(count), size_str)
+
+        total = status.get("total", {})
+        table.add_row(
+            "[bold]Total[/bold]",
+            "",
+            str(total.get("count", 0)),
+            _format_size(total.get("size_bytes", 0)),
+        )
+
+        console.print(table)
+    finally:
+        db.close()
+
+
+@retention_app.command("prune")
+def retention_prune() -> None:
+    """Remove expired artifacts."""
+    from foxhound.observer.retention import RetentionPolicy
+    from foxhound.storage.database import Database
+
+    db_path = _db_path()
+    if not db_path.exists():
+        console.print("[red]Not initialized.[/red] Run [cyan]foxhound init[/cyan] first.")
+        raise typer.Exit(code=1)
+
+    db = Database(db_path)
+    try:
+        policy = RetentionPolicy(db)
+        result = policy.prune()
+
+        console.print(f"[green]Pruned:[/green] {result.artifacts_removed} artifacts")
+        console.print(f"  Files deleted: {result.files_deleted}")
+        console.print(f"  Space freed: {_format_size(result.bytes_freed)}")
+        if result.errors:
+            console.print(f"  [yellow]Errors: {len(result.errors)}[/yellow]")
+            for err in result.errors[:5]:
+                console.print(f"    {err}")
+    finally:
+        db.close()
+
+
+@retention_app.command("compact")
+def retention_compact(
+    days: int = typer.Option(30, "--days", "-d", help="Compact events older than N days."),
+) -> None:
+    """Compact event streams to summaries."""
+    from foxhound.observer.retention import RetentionPolicy
+    from foxhound.storage.database import Database
+
+    db_path = _db_path()
+    if not db_path.exists():
+        console.print("[red]Not initialized.[/red] Run [cyan]foxhound init[/cyan] first.")
+        raise typer.Exit(code=1)
+
+    db = Database(db_path)
+    try:
+        policy = RetentionPolicy(db)
+        result = policy.compact_events(older_than_days=days)
+
+        console.print(f"[green]Compacted:[/green] {result.events_compacted} events")
+    finally:
+        db.close()
+
+
+def _format_size(size_bytes: int) -> str:
+    """Format bytes into human-readable size."""
+    if size_bytes < 1024:
+        return f"{size_bytes} B"
+    elif size_bytes < 1024 * 1024:
+        return f"{size_bytes / 1024:.1f} KB"
+    elif size_bytes < 1024 * 1024 * 1024:
+        return f"{size_bytes / (1024 * 1024):.1f} MB"
+    else:
+        return f"{size_bytes / (1024 * 1024 * 1024):.1f} GB"
 
 
 @app.command()
