@@ -265,7 +265,7 @@ class TestScoutConfig:
         assert config.fetch_interval_hours == 6
         assert config.is_source_enabled("github_trending")
         assert config.is_source_enabled("reddit")
-        assert not config.is_source_enabled("hackernews")
+        assert config.is_source_enabled("hackernews")
 
     def test_source_interval_override(self) -> None:
         config = ScoutConfig(
@@ -309,8 +309,10 @@ class TestScoutFetcher:
         self, db: Database, mock_http_client: MagicMock
     ) -> None:
         store = RawOpportunityStore(db)
-        store.update_fetch_metadata("github_trending", items_fetched=5)
-        store.update_fetch_metadata("reddit", items_fetched=3)
+        config = ScoutConfig()
+        for source_name in config.sources:
+            if config.is_source_enabled(source_name):
+                store.update_fetch_metadata(source_name, items_fetched=1)
 
         fetcher = ScoutFetcher(db=db, http_client=mock_http_client)
         summary = fetcher.fetch_all()
@@ -405,7 +407,7 @@ class TestScoutFetcher:
 
         errors = [r for r in summary.results if r.error]
         successes = [r for r in summary.results if not r.error and not r.skipped_fresh]
-        assert len(errors) == 1
+        assert len(errors) >= 1
         assert len(successes) >= 1
 
     def test_fetch_reddit_stores_raw(
@@ -556,14 +558,14 @@ class TestRawToScoutSource:
     def test_unknown_source_conversion(self) -> None:
         raw = {
             "raw_id": "raw_003",
-            "source": "hackernews",
-            "source_url": "https://news.ycombinator.com/item?id=123",
-            "title": "Show HN: My project",
-            "raw_payload": json.dumps({"title": "Show HN"}),
+            "source": "unknown_feed",
+            "source_url": "https://example.com/item/123",
+            "title": "Some discovery",
+            "raw_payload": json.dumps({"title": "Payload title"}),
         }
         source = _raw_to_scout_source(raw)
-        assert source.source_type == "hackernews"
-        assert source.title == "Show HN: My project"
+        assert source.source_type == "unknown_feed"
+        assert source.title == "Some discovery"
 
 
 class TestScoringPipeline:

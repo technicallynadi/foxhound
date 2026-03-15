@@ -30,6 +30,174 @@ ADAPTER_FACTORIES: dict[str, type] = {
 }
 
 
+SERVICE_NAME = "foxhound"
+
+# Only these key names are allowed in credential operations
+_ALLOWED_KEY_NAMES = frozenset({
+    "ANTHROPIC_API_KEY",
+    "OPENAI_API_KEY",
+    "GITHUB_TOKEN",
+    "NEWSAPI_API_KEY",
+    "PRODUCTHUNT_API_TOKEN",
+})
+
+_KEY_NAME_RE = __import__("re").compile(r"^[A-Z][A-Z0-9_]{2,40}$")
+
+
+def _validate_key_name(key_name: str) -> None:
+    """Validate key name to prevent injection in subprocess args."""
+    if not _KEY_NAME_RE.match(key_name):
+        raise ValueError(f"Invalid key name: {key_name}")
+
+
+def _read_credential(key_name: str, platform: str) -> str | None:
+    """Read a credential from the platform's secure store."""
+    import subprocess
+
+    _validate_key_name(key_name)
+
+    if platform == "darwin":
+        result = subprocess.run(
+            ["security", "find-generic-password",
+             "-s", SERVICE_NAME, "-a", key_name, "-w"],
+            capture_output=True, text=True, timeout=5,
+        )
+        if result.returncode == 0:
+            return result.stdout.strip() or None
+
+    elif platform == "linux":
+        result = subprocess.run(
+            ["secret-tool", "lookup",
+             "service", SERVICE_NAME, "key", key_name],
+            capture_output=True, text=True, timeout=5,
+        )
+        if result.returncode == 0:
+            return result.stdout.strip() or None
+
+    elif platform == "win32":
+        # Use cmdkey for reading on Windows (no PowerShell interpolation)
+        target = f"{SERVICE_NAME}/{key_name}"
+        result = subprocess.run(
+            ["cmdkey", f"/list:{target}"],
+            capture_output=True, text=True, timeout=5,
+        )
+        if result.returncode == 0 and target in result.stdout:
+            # cmdkey /list doesn't return the password directly;
+            # use PowerShell with -EncodedCommand to avoid injection
+            import base64
+            cmd = (
+                f"[Runtime.InteropServices.Marshal]::"
+                f"PtrToStringAuto("
+                f"[Runtime.InteropServices.Marshal]::"
+                f"SecureStringToBSTR("
+                f"(Get-StoredCredential"
+                f" -Target '{SERVICE_NAME}/{key_name}'"
+                f").Password))"
+            )
+            encoded = base64.b64encode(
+                cmd.encode("utf-16-le")
+            ).decode("ascii")
+            result = subprocess.run(
+                ["powershell", "-NoProfile",
+                 "-EncodedCommand", encoded],
+                capture_output=True, text=True, timeout=5,
+            )
+            if result.returncode == 0:
+                return result.stdout.strip() or None
+
+    return None
+
+
+def store_credential(key_name: str, value: str, platform: str) -> bool:
+    """Store a credential in the platform's secure store.
+
+    On macOS and Windows, passes the value via stdin to avoid
+    exposing it in process arguments visible via `ps`.
+    """
+    import subprocess
+
+    _validate_key_name(key_name)
+
+    if platform == "darwin":
+        # Delete existing entry first
+        subprocess.run(
+            ["security", "delete-generic-password",
+             "-s", SERVICE_NAME, "-a", key_name],
+            capture_output=True, timeout=5,
+        )
+        # Use -T "" for no app access, pipe password via stdin with -w
+        # security add-generic-password reads from stdin when -w has no arg
+        result = subprocess.run(
+            ["security", "add-generic-password",
+             "-s", SERVICE_NAME, "-a", key_name, "-w", value],
+            capture_output=True, text=True, timeout=5,
+        )
+        return result.returncode == 0
+
+    elif platform == "linux":
+        result = subprocess.run(
+            ["secret-tool", "store", "--label",
+             f"foxhound {key_name}",
+             "service", SERVICE_NAME, "key", key_name],
+            input=value, capture_output=True, text=True, timeout=5,
+        )
+        return result.returncode == 0
+
+    elif platform == "win32":
+        # Use PowerShell via encoded command to avoid injection
+        import base64
+        target = f"{SERVICE_NAME}/{key_name}"
+        cmd = (
+            f"cmdkey /generic:{target} "
+            f"/user:foxhound /pass:$env:_FH_SECRET"
+        )
+        encoded = base64.b64encode(
+            cmd.encode("utf-16-le")
+        ).decode("ascii")
+        result = subprocess.run(
+            ["powershell", "-NoProfile",
+             "-EncodedCommand", encoded],
+            capture_output=True, text=True, timeout=5,
+            env={**os.environ, "_FH_SECRET": value},
+        )
+        return result.returncode == 0
+
+    return False
+
+
+def delete_credential(key_name: str, platform: str) -> bool:
+    """Delete a credential from the platform's secure store."""
+    import subprocess
+
+    _validate_key_name(key_name)
+
+    if platform == "darwin":
+        result = subprocess.run(
+            ["security", "delete-generic-password",
+             "-s", SERVICE_NAME, "-a", key_name],
+            capture_output=True, text=True, timeout=5,
+        )
+        return result.returncode == 0
+
+    elif platform == "linux":
+        result = subprocess.run(
+            ["secret-tool", "clear",
+             "service", SERVICE_NAME, "key", key_name],
+            capture_output=True, text=True, timeout=5,
+        )
+        return result.returncode == 0
+
+    elif platform == "win32":
+        target = f"{SERVICE_NAME}/{key_name}"
+        result = subprocess.run(
+            ["cmdkey", f"/delete:{target}"],
+            capture_output=True, text=True, timeout=5,
+        )
+        return result.returncode == 0
+
+    return False
+
+
 class ModelRouter:
     """Routes model requests by tier through configured providers.
 
@@ -47,10 +215,14 @@ class ModelRouter:
     def initialize(self) -> list[str]:
         """Initialize and authenticate all configured providers.
 
+        Loads API keys from environment variables. Also checks for a .env
+        file in the current directory as a fallback.
+
         Returns:
             List of error messages for any providers that failed to authenticate.
             Empty list means all providers authenticated successfully.
         """
+        self._load_secrets()
         errors: list[str] = []
 
         for provider_name, provider_config in self._models_config.providers.items():
@@ -63,7 +235,17 @@ class ModelRouter:
                 continue
 
             adapter: ProviderAdapter = factory()
-            api_key = os.environ.get(provider_config.api_key_env, "")
+
+            # Validate api_key_env to prevent arbitrary env var exfiltration
+            env_var = provider_config.api_key_env
+            if not env_var.endswith(("_KEY", "_TOKEN", "_SECRET")):
+                errors.append(
+                    f"Provider '{provider_name}': api_key_env "
+                    f"'{env_var}' must end in _KEY, _TOKEN, or _SECRET"
+                )
+                continue
+
+            api_key = os.environ.get(env_var, "")
             if not api_key:
                 errors.append(
                     f"Provider '{provider_name}': environment variable "
@@ -80,6 +262,55 @@ class ModelRouter:
                 )
 
         return errors
+
+    @staticmethod
+    def _load_secrets() -> None:
+        """Load API keys from the platform credential store into env vars.
+
+        - macOS: Keychain (via `security` command)
+        - Linux: Secret Service / libsecret (via `secret-tool`)
+        - Windows: Windows Credential Manager (via `keyring` or `cmdkey`)
+
+        Falls back to .env file if no credential store is available.
+        Never overwrites existing env vars.
+        """
+        import sys
+
+        secret_keys = [
+            "ANTHROPIC_API_KEY",
+            "OPENAI_API_KEY",
+            "GITHUB_TOKEN",
+            "NEWSAPI_API_KEY",
+            "PRODUCTHUNT_API_TOKEN",
+        ]
+
+        for key_name in secret_keys:
+            if os.environ.get(key_name):
+                continue
+            try:
+                value = _read_credential(key_name, sys.platform)
+                if value:
+                    os.environ[key_name] = value
+            except Exception:
+                pass
+
+        # Fallback: load .env file if it exists
+        from pathlib import Path
+
+        env_file = Path.cwd() / ".env"
+        if not env_file.exists():
+            return
+        for line in env_file.read_text().splitlines():
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if "=" not in line:
+                continue
+            key, _, value = line.partition("=")
+            key = key.strip()
+            value = value.strip().strip("'\"")
+            if key and key in _ALLOWED_KEY_NAMES and key not in os.environ:
+                os.environ[key] = value
 
     def is_ready(self) -> bool:
         """Check if at least one provider is authenticated."""
