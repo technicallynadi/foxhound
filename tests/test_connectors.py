@@ -7,7 +7,7 @@ from foxhound.adapters.github_connector import (
     HttpResponse,
     RepoMetadata,
 )
-from foxhound.adapters.reddit_connector import (
+from foxhound.scout.connectors.reddit import (
     GITHUB_URL_PATTERN,
     SCOUT_SUBREDDITS,
     RedditConnector,

@@ -1,285 +1,115 @@
-"""Foxhound operator TUI built with Textual.
+"""Foxhound TUI — unified interactive dashboard.
 
-Provides a dashboard for work items, runs, queue stats, and
-an approval workflow. Launchable via `foxhound tui`.
+Sidebar navigation with ContentSwitcher for instant view switching.
+All views preserve state when navigating between them.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Vertical
-from textual.reactive import reactive
-from textual.widgets import DataTable, Footer, Header, Static, TabbedContent, TabPane
+from textual.containers import Horizontal, Vertical
+from textual.widgets import ContentSwitcher, Footer, Header, Static
 
-if TYPE_CHECKING:
-    from foxhound.storage.database import Database
-
-DB_NAME = "foxhound.db"
-FOXHOUND_DIR = ".foxhound"
-
-
-def _db_path() -> Path:
-    """Return the database path."""
-    return Path.cwd() / FOXHOUND_DIR / DB_NAME
-
-
-class StatsPanel(Static):
-    """Displays queue and system statistics."""
-
-    stats_text: reactive[str] = reactive("Loading...")
-
-    def render(self) -> str:
-        """Render stats text."""
-        return self.stats_text
-
-
-class WorkItemsTable(DataTable[str]):
-    """Table displaying work items with state and metadata."""
-
-    def on_mount(self) -> None:
-        """Set up table columns."""
-        self.add_columns("ID", "State", "Title", "Repo", "Risk")
-        self.cursor_type = "row"
-
-
-class RunsTable(DataTable[str]):
-    """Table displaying run history."""
-
-    def on_mount(self) -> None:
-        """Set up table columns."""
-        self.add_columns("Run ID", "State", "Worker", "Cost", "Duration")
-        self.cursor_type = "row"
+from foxhound.tui.data import TUIData
+from foxhound.tui.styles import APP_CSS
+from foxhound.tui.widgets.sidebar import NAV_ITEMS, NavItem, Sidebar
 
 
 class FoxhoundApp(App[None]):
-    """Foxhound operator TUI application."""
+    """Foxhound unified TUI application."""
 
     TITLE = "Foxhound"
     SUB_TITLE = "Product Discovery Engine"
-    CSS = """
-    StatsPanel {
-        height: 5;
-        padding: 1;
-        background: $surface;
-        border: solid $primary;
-        margin-bottom: 1;
-    }
-    DataTable {
-        height: 1fr;
-    }
-    #approval-info {
-        height: 8;
-        padding: 1;
-        background: $surface;
-        border: solid $accent;
-    }
-    """
+    CSS = APP_CSS
 
     BINDINGS = [
         Binding("q", "quit", "Quit"),
-        Binding("r", "refresh", "Refresh"),
-        Binding("a", "approve", "Approve"),
-        Binding("x", "reject", "Reject"),
+        Binding("f1", "switch('dashboard')", "Dashboard", show=True),
+        Binding("f2", "switch('scout-inbox')", "Scout", show=True),
+        Binding("f3", "switch('work-items')", "Work Items", show=True),
+        Binding("f4", "switch('runs')", "Runs", show=True),
+        Binding("f5", "switch('doctor')", "Doctor", show=False),
+        Binding("f6", "switch('analyze')", "Analyze", show=False),
+        Binding("f7", "switch('repos')", "Repos", show=False),
+        Binding("f8", "switch('retention')", "Retention", show=False),
     ]
 
     def __init__(self, db_path: Path | None = None) -> None:
         super().__init__()
-        self._db_path = db_path or _db_path()
-        self._db: Database | None = None
+        root = db_path.parent.parent if db_path else None
+        self.data = TUIData(root=root)
 
     def compose(self) -> ComposeResult:
         """Build the TUI layout."""
         yield Header()
-        yield StatsPanel(id="stats")
-        with TabbedContent():
-            with TabPane("Work Items", id="tab-items"):
-                yield WorkItemsTable(id="items-table")
-            with TabPane("Runs", id="tab-runs"):
-                yield RunsTable(id="runs-table")
-            with TabPane("Approval", id="tab-approval"):
-                yield Vertical(
-                    Static(
-                        "Select a work item and press [bold]a[/bold] to approve "
-                        "or [bold]x[/bold] to reject.",
-                        id="approval-info",
-                    ),
-                )
+        with Horizontal():
+            yield Sidebar(id="sidebar")
+            with ContentSwitcher(id="main-content", initial="dashboard"):
+                yield self._make_view("dashboard", "Dashboard")
+                yield self._make_view("scout-inbox", "Scout Inbox")
+                yield self._make_view("work-items", "Work Items")
+                yield self._make_view("runs", "Runs")
+                yield self._make_view("doctor", "Doctor")
+                yield self._make_view("analyze", "Analyze")
+                yield self._make_view("repos", "Repos")
+                yield self._make_view("retention", "Retention")
         yield Footer()
 
-    def on_mount(self) -> None:
-        """Load data on startup."""
-        self._load_data()
+    def _make_view(self, view_id: str, title: str) -> Vertical:
+        """Create a placeholder view container. Real views mount into these."""
+        return Vertical(
+            Static(f" {title}", classes="view-title"),
+            Static("Loading...", classes="empty-state", id=f"{view_id}-content"),
+            id=view_id,
+        )
 
-    def _get_db(self) -> Database | None:
-        """Get or create database connection."""
-        if not self._db_path.exists():
-            return None
-        if self._db is None:
-            from foxhound.storage.database import Database
-
-            self._db = Database(self._db_path)
-        return self._db
-
-    def _load_data(self) -> None:
-        """Load work items, runs, and stats from the database."""
-        db = self._get_db()
-        if db is None:
-            stats = self.query_one("#stats", StatsPanel)
-            stats.stats_text = "Not initialized. Run foxhound init first."
-            return
-
-        self._load_stats(db)
-        self._load_work_items(db)
-        self._load_runs(db)
-
-    def _load_stats(self, db: Database) -> None:
-        """Load queue and system stats."""
-        from foxhound.core.models import WorkItemState
-        from foxhound.storage.database import WorkItemStore
-
-        stats_panel = self.query_one("#stats", StatsPanel)
-        try:
-            store = WorkItemStore(db)
-            items = store.list_all()
-            total = len(items)
-            by_state: dict[str, int] = {}
-            for item in items:
-                state = item.state.value
-                by_state[state] = by_state.get(state, 0) + 1
-
-            suggested = by_state.get(WorkItemState.SUGGESTED.value, 0)
-            approved = by_state.get(WorkItemState.APPROVED.value, 0)
-            executing = by_state.get(WorkItemState.EXECUTING.value, 0)
-
-            stats_panel.stats_text = (
-                f"Work Items: {total} total | "
-                f"{suggested} suggested | "
-                f"{approved} approved | "
-                f"{executing} executing"
+    async def on_mount(self) -> None:
+        """Load views after mount."""
+        if not self.data.is_initialized():
+            self.notify(
+                "Not initialized. Run foxhound init first.", severity="error"
             )
-        except Exception:
-            stats_panel.stats_text = "Stats unavailable"
-
-    def _load_work_items(self, db: Database) -> None:
-        """Populate the work items table."""
-        from foxhound.storage.database import WorkItemStore
-
-        table = self.query_one("#items-table", WorkItemsTable)
-        table.clear()
-        try:
-            store = WorkItemStore(db)
-            items = store.list_all()
-            for item in items[:100]:
-                table.add_row(
-                    item.work_item_id[:12],
-                    item.state.value,
-                    item.title[:50],
-                    item.repo_id[:12],
-                    item.risk_level if hasattr(item, "risk_level") else "—",
-                )
-        except Exception:
-            pass
-
-    def _load_runs(self, db: Database) -> None:
-        """Populate the runs table."""
-        table = self.query_one("#runs-table", RunsTable)
-        table.clear()
-        try:
-            from foxhound.storage.database import RunStore
-
-            run_store = RunStore(db)
-            runs = run_store.list_recent(limit=50)
-            for run in runs:
-                table.add_row(
-                    run.run_id[:12],
-                    run.state.value,
-                    run.worker_type,
-                    f"${run.total_cost:.4f}",
-                    f"{0:.1f}s",
-                )
-        except Exception:
-            pass
-
-    def action_refresh(self) -> None:
-        """Refresh all data."""
-        self._load_data()
-
-    def action_approve(self) -> None:
-        """Approve selected work item."""
-        table = self.query_one("#items-table", WorkItemsTable)
-        if table.cursor_row is not None:
-            row = table.get_row_at(table.cursor_row)
-            if row:
-                work_item_id = str(row[0])
-                self._approve_item(work_item_id)
-
-    def action_reject(self) -> None:
-        """Reject selected work item."""
-        table = self.query_one("#items-table", WorkItemsTable)
-        if table.cursor_row is not None:
-            row = table.get_row_at(table.cursor_row)
-            if row:
-                work_item_id = str(row[0])
-                self._reject_item(work_item_id)
-
-    def _approve_item(self, work_item_id_prefix: str) -> None:
-        """Approve a work item by ID prefix."""
-        db = self._get_db()
-        if db is None:
             return
-        try:
-            from foxhound.core.models import WorkItemState
-            from foxhound.storage.database import WorkItemStore
+        await self._load_views()
 
-            store = WorkItemStore(db)
-            items = store.list_all()
-            for item in items:
-                if item.work_item_id.startswith(work_item_id_prefix):
-                    if item.state == WorkItemState.SUGGESTED:
-                        store.update_state(
-                            item.work_item_id, WorkItemState.APPROVED
-                        )
-                        self.notify(f"Approved: {item.title[:40]}")
-                        self._load_data()
-                    else:
-                        self.notify(
-                            f"Cannot approve: state is {item.state.value}",
-                            severity="warning",
-                        )
-                    return
-            self.notify(f"Item not found: {work_item_id_prefix}", severity="error")
-        except Exception as exc:
-            self.notify(f"Error: {exc}", severity="error")
+    async def _load_views(self) -> None:
+        """Replace placeholder content with real view widgets."""
+        from foxhound.tui.views.dashboard import DashboardView
+        from foxhound.tui.views.scout_inbox import ScoutInboxView
+        from foxhound.tui.views.work_items import WorkItemsView
+        from foxhound.tui.views.runs import RunsView
+        from foxhound.tui.views.doctor import DoctorView
+        from foxhound.tui.views.analyze import AnalyzeView
+        from foxhound.tui.views.repos import ReposView
+        from foxhound.tui.views.retention import RetentionView
 
-    def _reject_item(self, work_item_id_prefix: str) -> None:
-        """Reject a work item by ID prefix."""
-        db = self._get_db()
-        if db is None:
-            return
-        try:
-            from foxhound.core.models import WorkItemState
-            from foxhound.storage.database import WorkItemStore
+        view_map: dict[str, type] = {
+            "dashboard": DashboardView,
+            "scout-inbox": ScoutInboxView,
+            "work-items": WorkItemsView,
+            "runs": RunsView,
+            "doctor": DoctorView,
+            "analyze": AnalyzeView,
+            "repos": ReposView,
+            "retention": RetentionView,
+        }
 
-            store = WorkItemStore(db)
-            items = store.list_all()
-            for item in items:
-                if item.work_item_id.startswith(work_item_id_prefix):
-                    if item.state == WorkItemState.SUGGESTED:
-                        store.update_state(
-                            item.work_item_id, WorkItemState.REJECTED
-                        )
-                        self.notify(f"Rejected: {item.title[:40]}")
-                        self._load_data()
-                    else:
-                        self.notify(
-                            f"Cannot reject: state is {item.state.value}",
-                            severity="warning",
-                        )
-                    return
-            self.notify(f"Item not found: {work_item_id_prefix}", severity="error")
-        except Exception as exc:
-            self.notify(f"Error: {exc}", severity="error")
+        for view_id, view_cls in view_map.items():
+            container = self.query_one(f"#{view_id}", Vertical)
+            placeholder = container.query_one(f"#{view_id}-content")
+            await placeholder.remove()
+            await container.mount(view_cls(data=self.data, id=f"{view_id}-view"))
+
+    def action_switch(self, view_id: str) -> None:
+        """Switch to a different view."""
+        switcher = self.query_one("#main-content", ContentSwitcher)
+        switcher.current = view_id
+        sidebar = self.query_one("#sidebar", Sidebar)
+        sidebar.active_view = view_id
+
+    def on_nav_item_selected(self, message: NavItem.Selected) -> None:
+        """Handle sidebar navigation clicks."""
+        self.action_switch(message.view_id)

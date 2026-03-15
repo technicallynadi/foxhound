@@ -1,0 +1,23 @@
+name: default
+description: General-purpose opportunity scoring
+
+criteria:
+  velocity:
+    - High if the project is trending in the last 48 hours
+    - Boost if growth is accelerating, not just high absolute numbers
+    - Consider comment/discussion volume as a signal of interest
+
+  improvability:
+    - High if documentation is thin or missing
+    - High if there are open issues labeled good-first-issue or help-wanted
+    - Low if the project already has many active contributors
+
+  buildability:
+    - High if the project has a permissive license (MIT, Apache-2.0, BSD)
+    - Boost if the project uses a well-known language and framework
+    - Low if the project has complex build requirements or dependencies
+
+  value:
+    - High if the project solves a real developer pain point
+    - Boost if the project is in an underserved niche
+    - Low if the space is already crowded with similar tools

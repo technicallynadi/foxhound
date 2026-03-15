@@ -84,8 +84,6 @@ def source_to_opportunity(
         f"{source.source_type}:{source.title}:{source.source_url or ''}".encode()
     ).hexdigest()[:16]
 
-    scores = score_opportunity(source)
-
     return OpportunityDiscoveryItem(
         opportunity_id=f"opp_{hashlib.md5(fingerprint.encode()).hexdigest()[:12]}",
         title=source.title,
@@ -95,10 +93,10 @@ def source_to_opportunity(
         source_fingerprint=fingerprint,
         trust_level=TrustLevel.UNTRUSTED,
         state=OpportunityState.OBSERVED,
-        credibility_score=scores["credibility"],
-        novelty_score=scores["novelty"],
-        actionability_score=scores["actionability"],
-        business_value_score=scores["business_value"],
+        credibility_score=0.0,
+        novelty_score=0.0,
+        actionability_score=0.0,
+        business_value_score=0.0,
         evidence=source.evidence,
         tags=source.tags,
     )

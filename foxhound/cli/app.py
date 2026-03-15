@@ -17,24 +17,40 @@ from rich.table import Table
 app = typer.Typer(
     name="foxhound",
     help="Sniff out ideas worth building. Ship them fast.",
-    no_args_is_help=True,
+    no_args_is_help=False,
+    invoke_without_command=True,
 )
+
+
+@app.callback()
+def _default_callback(ctx: typer.Context) -> None:
+    """Sniff out ideas worth building. Ship them fast."""
+    if ctx.invoked_subcommand is not None:
+        return
+
+    from foxhound.core.paths import db_path
+
+    db = db_path()
+    if not db.exists():
+        Console().print(
+            "[red]Not initialized.[/red] Run [cyan]foxhound init[/cyan] first."
+        )
+        raise typer.Exit(code=1)
+
+    from foxhound.tui.app import FoxhoundApp
+
+    tui_app = FoxhoundApp(db_path=db)
+    tui_app.run()
 
 console = Console()
 
-FOXHOUND_DIR = ".foxhound"
-DB_NAME = "foxhound.db"
-CONFIG_NAME = "foxhound.yaml"
-
-
-def _foxhound_dir() -> Path:
-    """Return the .foxhound directory path."""
-    return Path.cwd() / FOXHOUND_DIR
-
-
-def _db_path() -> Path:
-    """Return the database path."""
-    return _foxhound_dir() / DB_NAME
+from foxhound.core.paths import (
+    FOXHOUND_DIR,
+    DB_NAME,
+    CONFIG_NAME,
+    foxhound_dir as _foxhound_dir,
+    db_path as _db_path,
+)
 
 
 def _default_config_yaml() -> str:
@@ -136,315 +152,11 @@ def init() -> None:
 
 
 @app.command()
-def doctor(
-    benchmark: bool = typer.Option(
-        False, "--benchmark", help="Run model capability benchmarks."
-    ),
-) -> None:
+def doctor() -> None:
     """Validate environment and configuration."""
-    import importlib
-    import os
-    import sys
+    from foxhound.tui.mini import run_doctor
 
-    checks: list[tuple[str, bool, str]] = []
-
-    # Python version
-    py_ver = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
-    checks.append(("Python version", sys.version_info >= (3, 13), py_ver))
-
-    # .foxhound directory
-    fh_dir = _foxhound_dir()
-    checks.append((".foxhound/ directory", fh_dir.is_dir(), str(fh_dir)))
-
-    # Database with schema validation
-    db_path = _db_path()
-    db_ok = db_path.exists()
-    db_instance = None
-    if db_ok:
-        try:
-            from foxhound.storage.database import Database
-
-            db_instance = Database(db_path)
-            # Validate schema — check expected tables exist
-            with db_instance.connection() as conn:
-                tables = conn.execute(
-                    "SELECT name FROM sqlite_master WHERE type='table'"
-                ).fetchall()
-                table_names = {row["name"] for row in tables}
-            expected = {
-                "repos", "work_items", "jobs", "runs", "events",
-                "locks", "artifacts", "recipe_versions", "policy_versions",
-                "rule_suggestions", "opportunity_items",
-            }
-            missing = expected - table_names
-            if missing:
-                checks.append(("Database schema", False, f"Missing tables: {sorted(missing)}"))
-            else:
-                checks.append(("Database schema", True, f"{len(table_names)} tables OK"))
-        except Exception as e:
-            checks.append(("Database", False, str(e)))
-    else:
-        checks.append(("Database", False, "Not found — run foxhound init"))
-
-    # Config file with YAML validation
-    config_path = Path.cwd() / CONFIG_NAME
-    if config_path.exists():
-        try:
-            import yaml
-
-            config_data = yaml.safe_load(config_path.read_text())
-            if config_data and "models" in config_data:
-                checks.append(("foxhound.yaml", True, "Valid config with models section"))
-            else:
-                checks.append(("foxhound.yaml", False, "Missing 'models' section"))
-        except Exception:
-            checks.append(("foxhound.yaml", True, str(config_path)))
-    else:
-        checks.append(("foxhound.yaml", False, "Not found"))
-
-    # API keys (never display key content — presence check only)
-    anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
-    openai_key = os.environ.get("OPENAI_API_KEY")
-    has_key = bool(anthropic_key or openai_key)
-    key_detail = []
-    if anthropic_key:
-        key_detail.append("ANTHROPIC_API_KEY=configured")
-    if openai_key:
-        key_detail.append("OPENAI_API_KEY=configured")
-    if not key_detail:
-        key_detail.append("No API keys found")
-    checks.append(("API key configured", has_key, ", ".join(key_detail)))
-
-    # .gitignore check
-    gitignore_path = Path.cwd() / ".gitignore"
-    if gitignore_path.exists():
-        content = gitignore_path.read_text()
-        has_foxhound = ".foxhound/" in content or ".foxhound" in content
-        if has_foxhound:
-            checks.append((".gitignore", True, ".foxhound/ is ignored"))
-        else:
-            checks.append((".gitignore", False, ".foxhound/ NOT in .gitignore — add it"))
-    else:
-        checks.append((".gitignore", False, "No .gitignore found"))
-
-    # Core imports
-    try:
-        for mod in [
-            "foxhound.core.coordinator",
-            "foxhound.core.event_bus",
-            "foxhound.core.lock_manager",
-            "foxhound.core.queue",
-        ]:
-            importlib.import_module(mod)
-        checks.append(("Core modules", True, "coordinator, queue, locks, event_bus"))
-    except ImportError as e:
-        checks.append(("Core modules", False, str(e)))
-
-    # Harness imports
-    try:
-        importlib.import_module("foxhound.harness.runtime")
-        importlib.import_module("foxhound.harness.worker_protocol")
-        checks.append(("Harness modules", True, "harness, worker_protocol"))
-    except ImportError as e:
-        checks.append(("Harness modules", False, str(e)))
-
-    # Secrets imports
-    try:
-        importlib.import_module("foxhound.secrets.provider")
-        checks.append(("Secrets modules", True, "provider, redaction"))
-    except ImportError as e:
-        checks.append(("Secrets modules", False, str(e)))
-
-    # Recipe and policy modules
-    try:
-        importlib.import_module("foxhound.recipes.loader")
-        importlib.import_module("foxhound.policies.engine")
-        importlib.import_module("foxhound.policies.rules")
-        checks.append(("Recipe/Policy modules", True, "recipes, policies, rules"))
-    except ImportError as e:
-        checks.append(("Recipe/Policy modules", False, str(e)))
-
-    # Sanitization and evaluation modules
-    try:
-        importlib.import_module("foxhound.sanitization.pipeline")
-        importlib.import_module("foxhound.evaluation.engine")
-        checks.append(("Output processing", True, "sanitization, evaluation"))
-    except ImportError as e:
-        checks.append(("Output processing", False, str(e)))
-
-    # Observer and analyzer modules
-    try:
-        importlib.import_module("foxhound.observer.store")
-        importlib.import_module("foxhound.observer.retention")
-        importlib.import_module("foxhound.analyzer.engine")
-        checks.append(("Observability modules", True, "observer, analyzer, retention"))
-    except ImportError as e:
-        checks.append(("Observability modules", False, str(e)))
-
-    # Subdirectories
-    for subdir in ["artifacts", "recipes", "policies", "cache", "config"]:
-        sub = fh_dir / subdir
-        checks.append((f".foxhound/{subdir}/", sub.is_dir(), str(sub)))
-
-    # Stale lock detection
-    if db_instance is not None:
-        try:
-            from datetime import UTC, datetime
-
-            with db_instance.connection() as conn:
-                now_iso = datetime.now(UTC).isoformat()
-                stale = conn.execute(
-                    "SELECT COUNT(*) as cnt FROM locks WHERE expires_at < ?",
-                    (now_iso,),
-                ).fetchone()
-                stale_count = stale["cnt"] if stale else 0
-            if stale_count > 0:
-                checks.append(("Stale locks", False, f"{stale_count} expired locks found"))
-            else:
-                checks.append(("Stale locks", True, "No stale locks"))
-        except Exception:
-            pass
-
-    # Retention status
-    if db_instance is not None:
-        try:
-            from foxhound.observer.retention import RetentionPolicy
-
-            policy = RetentionPolicy(db_instance)
-            status = policy.get_status()
-            total = status.get("total", {})
-            count = total.get("count", 0)
-            size = total.get("size_bytes", 0)
-            size_mb = size / (1024 * 1024) if size > 0 else 0
-            checks.append((
-                "Artifact retention",
-                True,
-                f"{count} artifacts, {size_mb:.1f} MB total",
-            ))
-        except Exception:
-            pass
-
-    # Repo validation
-    if db_instance is not None:
-        try:
-            from foxhound.core.repo_registry import RepoRegistry
-
-            registry = RepoRegistry(db_instance)
-            repos = registry.list_repos()
-            accessible = sum(1 for r in repos if Path(r.path).is_dir())
-            if repos:
-                if accessible == len(repos):
-                    checks.append(("Registered repos", True, f"{accessible} repos accessible"))
-                else:
-                    checks.append((
-                        "Registered repos",
-                        False,
-                        f"{accessible}/{len(repos)} accessible",
-                    ))
-        except Exception:
-            pass
-
-    # Model tier connectivity checks
-    model_connectivity_ok = False
-    try:
-        from foxhound.core.config import load_config
-        from foxhound.core.models import ModelTier
-
-        config_file = Path.cwd() / CONFIG_NAME
-        if config_file.exists():
-            config = load_config(config_file)
-            from foxhound.adapters.router import ModelRouter
-
-            router = ModelRouter(config)
-            init_errors = router.initialize()
-            if init_errors:
-                for err in init_errors:
-                    checks.append(("Model provider", False, err))
-            else:
-                model_connectivity_ok = True
-
-            # Check each configured tier
-            text_tiers = [ModelTier.REASONING, ModelTier.BALANCED, ModelTier.FAST]
-            for tier in text_tiers:
-                if router.is_tier_configured(tier):
-                    try:
-                        provider_name, model_id, _adapter = router.resolve(tier)
-                        if provider_name in router.authenticated_providers:
-                            checks.append((
-                                f"Tier: {tier.value}",
-                                True,
-                                f"{provider_name}/{model_id}",
-                            ))
-                        else:
-                            checks.append((
-                                f"Tier: {tier.value}",
-                                False,
-                                f"{provider_name}/{model_id} — not authenticated",
-                            ))
-                    except (ValueError, RuntimeError) as exc:
-                        checks.append((f"Tier: {tier.value}", False, str(exc)))
-                else:
-                    checks.append((
-                        f"Tier: {tier.value}", False, "Not configured",
-                    ))
-
-            # Creative tier (optional)
-            if router.is_tier_configured(ModelTier.CREATIVE):
-                checks.append(("Tier: creative", True, "Configured"))
-            else:
-                checks.append(("Tier: creative", True, "Not configured (optional)"))
-    except FileNotFoundError:
-        pass
-    except Exception as exc:
-        checks.append(("Model connectivity", False, str(exc)))
-
-    if db_instance is not None:
-        db_instance.close()
-
-    # Display results
-    table = Table(title="Foxhound Doctor", show_lines=True)
-    table.add_column("Check", style="bold")
-    table.add_column("Status", justify="center")
-    table.add_column("Details")
-
-    all_pass = True
-    for name, passed, detail in checks:
-        icon = "[green]\u2713[/green]" if passed else "[red]\u2717[/red]"
-        if not passed:
-            all_pass = False
-        table.add_row(name, icon, detail)
-
-    console.print(table)
-
-    if all_pass:
-        console.print("\n[bold green]All checks passed.[/bold green]")
-    else:
-        console.print("\n[bold red]Some checks failed.[/bold red] Fix the issues above.")
-        if not benchmark:
-            raise typer.Exit(code=1)
-
-    # Optional benchmark
-    if benchmark:
-        if not model_connectivity_ok:
-            console.print(
-                "\n[yellow]Skipping benchmark — no model providers authenticated.[/yellow]"
-            )
-        else:
-            from foxhound.adapters.benchmark import (
-                format_benchmark_output,
-                run_full_benchmark,
-            )
-
-            configured = [
-                t for t in [ModelTier.REASONING, ModelTier.BALANCED, ModelTier.FAST]
-                if router.is_tier_configured(t)
-            ]
-            console.print("\n[bold]Running model benchmarks...[/bold]")
-            summary = run_full_benchmark(configured, router.complete)
-            console.print(format_benchmark_output(summary))
-
-        if not all_pass:
-            raise typer.Exit(code=1)
+    run_doctor(db_path=_db_path())
 
 
 repo_app = typer.Typer(
@@ -504,44 +216,14 @@ def repo_add(
 @repo_app.command("list")
 def repo_list() -> None:
     """Show all registered repositories."""
-    from foxhound.core.repo_registry import RepoRegistry
-    from foxhound.storage.database import Database
-
     db_path = _db_path()
     if not db_path.exists():
         console.print("[red]Not initialized.[/red] Run [cyan]foxhound init[/cyan] first.")
         raise typer.Exit(code=1)
 
-    db = Database(db_path)
-    try:
-        registry = RepoRegistry(db)
-        repos = registry.list_repos()
-    finally:
-        db.close()
+    from foxhound.tui.mini import run_repos
 
-    if not repos:
-        console.print("[yellow]No repositories registered.[/yellow]")
-        console.print("Run [cyan]foxhound repo add <path>[/cyan] to register one.")
-        return
-
-    table = Table(title="Registered Repositories")
-    table.add_column("Name", style="bold")
-    table.add_column("Language")
-    table.add_column("Branch")
-    table.add_column("Path")
-    table.add_column("ID", style="dim")
-
-    for repo in repos:
-        lang = repo.language_meta.get("primary", "unknown")
-        table.add_row(
-            repo.name,
-            lang,
-            repo.default_branch,
-            repo.path,
-            repo.repo_id[:12],
-        )
-
-    console.print(table)
+    run_repos(db_path=db_path)
 
 
 @repo_app.command("use")
@@ -683,6 +365,9 @@ def scan(
 
 @app.command()
 def scout(
+    query: str = typer.Option(
+        None, "--query", "-q", help="Search keyword to filter across all sources."
+    ),
     language: str = typer.Option(
         None, "--language", "-l", help="Filter by language."
     ),
@@ -695,6 +380,9 @@ def scout(
     refresh: bool = typer.Option(
         False, "--refresh", help="Force fresh fetch regardless of cache."
     ),
+    profile: str = typer.Option(
+        "default", "--profile", "-p", help="Scoring profile name from .foxhound/scoring/."
+    ),
     all_repos: bool = typer.Option(
         False, "--all", help="Run scout for all registered repositories."
     ),
@@ -706,6 +394,7 @@ def scout(
 
     from foxhound.scout.fetcher import ScoutFetcher
     from foxhound.scout.scoring import ScoringPipeline
+    from foxhound.scout.scoring_profile import load_profile, list_profiles
     from foxhound.storage.database import Database
 
     db_path = _db_path()
@@ -714,6 +403,10 @@ def scout(
             "[red]Not initialized.[/red] Run [cyan]foxhound init[/cyan] first."
         )
         raise typer.Exit(code=1)
+
+    foxhound_dir = _foxhound_dir()
+    scoring_profile = load_profile(name=profile, foxhound_dir=foxhound_dir)
+    console.print(f"[dim]Scoring profile: {scoring_profile.name}[/dim]")
 
     db = Database(db_path)
     try:
@@ -735,6 +428,7 @@ def scout(
             language=language,
             min_stars=min_stars,
             limit=limit,
+            query=query,
         )
 
         for r in fetch_summary.results:
@@ -761,81 +455,13 @@ def scout(
                 f"{score_result.passed} passed, {score_result.filtered} filtered"
             )
 
-        # Phase 3: Display and review suggested opportunities
-        from foxhound.core.models import OpportunityState
-        from foxhound.scout.opportunity import OpportunityManager
-
-        mgr = OpportunityManager(db)
-        suggested = mgr.list_by_state(OpportunityState.SUGGESTED)
-
-        if not suggested:
-            console.print(
-                "\n[yellow]No opportunities to review.[/yellow]\n"
-                "Try running with [cyan]--refresh[/cyan] or check API credentials."
-            )
-            return
-
-        console.print(
-            f"\n[cyan]Found {len(suggested)} opportunities to review[/cyan]\n"
-        )
-
-        for item in suggested:
-            evidence = item.evidence or {}
-            lang = evidence.get("language", "")
-            license_type = evidence.get("license_type", "")
-
-            scores = (
-                f"Velocity: {item.credibility_score:.0%}  "
-                f"Improvability: {item.novelty_score:.0%}  "
-                f"Buildability: {item.actionability_score:.0%}  "
-                f"Value: {item.business_value_score:.0%}"
-            )
-
-            source_info = f"[dim]Source: {item.source_type}[/dim]"
-            if item.source_url:
-                source_info += f"  [dim]{item.source_url}[/dim]"
-
-            meta_parts = []
-            if lang:
-                meta_parts.append(f"Language: {lang}")
-            if license_type:
-                meta_parts.append(f"License: {license_type}")
-            if item.tags:
-                meta_parts.append(f"Tags: {', '.join(item.tags)}")
-            meta_str = f"\n[dim]{' | '.join(meta_parts)}[/dim]" if meta_parts else ""
-
-            body = (
-                f"{rich_escape(item.description[:200])}\n\n"
-                f"{scores}\n"
-                f"{source_info}{meta_str}"
-            )
-
-            console.print(Panel(
-                body,
-                title=f"{rich_escape(item.title)} [{item.opportunity_id[:16]}]",
-                border_style="cyan",
-            ))
-
-        # Interactive review
-        from rich.prompt import Prompt
-
-        for item in suggested:
-            action = Prompt.ask(
-                f"\n[bold]{rich_escape(item.title[:50])}[/bold]",
-                choices=["approve", "reject", "skip"],
-                default="skip",
-            )
-
-            if action == "approve":
-                mgr.approve(item.opportunity_id)
-                console.print("[green]Approved.[/green]")
-            elif action == "reject":
-                mgr.reject(item.opportunity_id)
-                console.print("[red]Rejected.[/red]")
-            else:
-                console.print("[dim]Skipped.[/dim]")
     finally:
         db.close()
+
+    # Launch interactive scout inbox
+    from foxhound.tui.mini import run_scout_inbox
+
+    run_scout_inbox(db_path=_db_path())
 
 
 def _load_scout_config() -> object:
@@ -1047,14 +673,12 @@ def log(
         console.print("[red]Not initialized.[/red] Run [cyan]foxhound init[/cyan] first.")
         raise typer.Exit(code=1)
 
-    db = Database(db_path)
-    try:
-        if runs:
-            _show_run_history(db, state=state, since=since, limit=limit)
-        else:
-            _show_work_items(db, state=state, repo_path=repo_path, limit=limit)
-    finally:
-        db.close()
+    from foxhound.tui.mini import run_work_items, run_runs
+
+    if runs:
+        run_runs(db_path=db_path)
+    else:
+        run_work_items(db_path=db_path)
 
 
 def _show_run_history(
@@ -1560,30 +1184,14 @@ def status() -> None:
         console.print("[red]Not initialized.[/red] Run [cyan]foxhound init[/cyan] first.")
         raise typer.Exit(code=1)
 
-    from foxhound.core.coordinator import Coordinator
-    from foxhound.storage.database import Database
+    from foxhound.tui.mini import run_dashboard
 
-    db = Database(db_path)
-    try:
-        coord = Coordinator(db)
-        stats = coord.get_queue_stats()
-    finally:
-        db.close()
-
-    table = Table(title="Job Queue Status")
-    table.add_column("Status", style="bold")
-    table.add_column("Count", justify="right")
-
-    for s, count in stats.items():
-        style = "green" if s == "completed" else "red" if s == "failed" else "cyan"
-        table.add_row(s, f"[{style}]{count}[/{style}]")
-
-    console.print(table)
+    run_dashboard(db_path=db_path)
 
 
 @app.command()
-def tui() -> None:
-    """Launch the operator TUI dashboard."""
+def dashboard() -> None:
+    """Launch Foxhound dashboard."""
     from foxhound.tui.app import FoxhoundApp
 
     tui_app = FoxhoundApp(db_path=_db_path())

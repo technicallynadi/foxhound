@@ -104,19 +104,23 @@ class GitHubConnector:
         days: int = 7,
         min_stars: int = 10,
         limit: int = 30,
+        query: str | None = None,
     ) -> list[RepoMetadata]:
         """Search for recently created/trending repos.
 
         Uses GitHub search API to find repos created in the last N days
-        sorted by stars.
+        sorted by stars. When query is provided, adds it as a keyword filter.
         """
         if self.is_rate_limited():
             return []
 
         since = (datetime.now(UTC) - timedelta(days=days)).strftime("%Y-%m-%d")
-        query = f"created:>{since} stars:>={min_stars}"
+        search_q = f"created:>{since} stars:>={min_stars}"
+        if query:
+            search_q = f"{query} {search_q}"
         if language:
-            query += f" language:{language}"
+            search_q += f" language:{language}"
+        query = search_q
 
         response = self._client.get(
             f"{self.API_BASE}/search/repositories",
