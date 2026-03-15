@@ -176,6 +176,10 @@ class ModelRouter:
         """Total accumulated cost across all requests."""
         return self._total_cost
 
+    def is_tier_configured(self, tier: ModelTier) -> bool:
+        """Check if a tier has a configured model mapping."""
+        return tier.value in self._models_config.tiers
+
     @property
     def authenticated_providers(self) -> set[str]:
         """Set of successfully authenticated provider names."""
