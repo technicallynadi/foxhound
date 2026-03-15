@@ -1,7 +1,8 @@
 """Tests for Milestone 9: Spec Alignment features.
 
 Covers #99 (doctor model validation), #100 (manifest wiring),
-#103 (creative adapter wiring), and #97 (helper workers).
+#103 (creative adapter wiring), #97 (helper workers),
+#101 (notification sinks), #102 (multi-repo management).
 """
 
 from __future__ import annotations
@@ -986,3 +987,245 @@ class TestCapabilitiesMatrixUpdated:
             "security_review_worker", {Capability.REPO_READ, Capability.SHELL}
         )
         assert len(violations) > 0
+
+
+# ── #101: Notification sinks ─────────────────────────────────────────
+
+
+def _make_event(**overrides: Any) -> Any:
+    """Create a minimal EventEnvelope for testing."""
+    from datetime import UTC, datetime
+
+    from foxhound.core.models import EventEnvelope, EventType
+
+    defaults: dict[str, Any] = {
+        "event_id": "evt_test",
+        "event_type": EventType.RUN_COMPLETED,
+        "source_module": "test",
+        "run_id": "run_1",
+        "payload": {"worker": "test", "duration_seconds": 1.5},
+        "timestamp": datetime.now(UTC),
+    }
+    defaults.update(overrides)
+    return EventEnvelope(**defaults)
+
+
+class TestSlackNotificationSink:
+    """Tests for SlackNotificationSink."""
+
+    def test_sink_name(self) -> None:
+        from foxhound.observer.notifications import SlackNotificationSink
+
+        sink = SlackNotificationSink(webhook_url="https://hooks.slack.com/test")
+        assert sink.sink_name == "slack"
+
+    def test_send_formats_message(self) -> None:
+        from unittest.mock import patch as mock_patch
+
+        from foxhound.observer.notifications import (
+            NotificationPriority,
+            SlackNotificationSink,
+        )
+
+        sink = SlackNotificationSink(
+            webhook_url="https://hooks.slack.com/test",
+            channel="#alerts",
+        )
+
+        with mock_patch("foxhound.observer.notifications.urllib.request.urlopen") as mock_url:
+            mock_url.return_value.__enter__ = MagicMock(
+                return_value=MagicMock(status=200)
+            )
+            mock_url.return_value.__exit__ = MagicMock(return_value=False)
+            result = sink.send("Test message", NotificationPriority.ALWAYS, _make_event())
+
+        assert result is True
+        call_args = mock_url.call_args
+        req = call_args[0][0]
+        body = json.loads(req.data)
+        assert "#alerts" in body.get("channel", "")
+        assert "foxhound" in body["text"]
+
+    def test_send_failure_returns_false(self) -> None:
+        from foxhound.observer.notifications import (
+            NotificationPriority,
+            SlackNotificationSink,
+        )
+
+        sink = SlackNotificationSink(webhook_url="https://invalid.example.com/hook")
+        # This will fail because the URL is invalid
+        result = sink.send("test", NotificationPriority.DEFAULT, _make_event())
+        assert result is False
+
+
+class TestDiscordNotificationSink:
+    """Tests for DiscordNotificationSink."""
+
+    def test_sink_name(self) -> None:
+        from foxhound.observer.notifications import DiscordNotificationSink
+
+        sink = DiscordNotificationSink(webhook_url="https://discord.com/api/webhooks/test")
+        assert sink.sink_name == "discord"
+
+    def test_send_formats_embed(self) -> None:
+        from unittest.mock import patch as mock_patch
+
+        from foxhound.observer.notifications import (
+            DiscordNotificationSink,
+            NotificationPriority,
+        )
+
+        sink = DiscordNotificationSink(webhook_url="https://discord.com/test")
+
+        with mock_patch("foxhound.observer.notifications.urllib.request.urlopen") as mock_url:
+            mock_url.return_value.__enter__ = MagicMock(
+                return_value=MagicMock(status=200)
+            )
+            mock_url.return_value.__exit__ = MagicMock(return_value=False)
+            result = sink.send("Alert!", NotificationPriority.ALWAYS, _make_event())
+
+        assert result is True
+        req = mock_url.call_args[0][0]
+        body = json.loads(req.data)
+        assert "embeds" in body
+        assert body["embeds"][0]["color"] == 0xFF0000  # Red for ALWAYS
+
+
+class TestWebhookNotificationSink:
+    """Tests for WebhookNotificationSink."""
+
+    def test_sink_name(self) -> None:
+        from foxhound.observer.notifications import WebhookNotificationSink
+
+        sink = WebhookNotificationSink(endpoint_url="https://example.com/hook")
+        assert sink.sink_name == "webhook"
+
+    def test_send_includes_event_metadata(self) -> None:
+        from unittest.mock import patch as mock_patch
+
+        from foxhound.observer.notifications import (
+            NotificationPriority,
+            WebhookNotificationSink,
+        )
+
+        sink = WebhookNotificationSink(
+            endpoint_url="https://example.com/hook",
+            headers={"X-Token": "secret"},
+        )
+
+        with mock_patch("foxhound.observer.notifications.urllib.request.urlopen") as mock_url:
+            mock_url.return_value.__enter__ = MagicMock(
+                return_value=MagicMock(status=200)
+            )
+            mock_url.return_value.__exit__ = MagicMock(return_value=False)
+            result = sink.send("msg", NotificationPriority.DEFAULT, _make_event())
+
+        assert result is True
+        req = mock_url.call_args[0][0]
+        body = json.loads(req.data)
+        assert body["source"] == "foxhound"
+        assert body["event_type"] == "RunCompleted"
+        assert body["run_id"] == "run_1"
+        assert req.get_header("X-token") == "secret"
+
+    def test_send_failure_logged_not_raised(self) -> None:
+        from foxhound.observer.notifications import (
+            NotificationPriority,
+            WebhookNotificationSink,
+        )
+
+        sink = WebhookNotificationSink(endpoint_url="https://invalid.example.com")
+        result = sink.send("test", NotificationPriority.DEFAULT, _make_event())
+        assert result is False
+
+
+class TestNotificationDispatcherMultiSink:
+    """Tests for dispatcher routing to multiple sinks."""
+
+    def test_dispatch_to_multiple_sinks(self) -> None:
+        from foxhound.observer.notifications import (
+            CliNotificationSink,
+            NotificationDispatcher,
+        )
+
+        dispatcher = NotificationDispatcher()
+        sink1 = CliNotificationSink()
+        sink2 = CliNotificationSink()
+        dispatcher.add_sink(sink1)
+        dispatcher.add_sink(sink2)
+
+        event = _make_event()
+        result = dispatcher.dispatch(event)
+        assert result is True
+        assert len(sink1.messages) == 1
+        assert len(sink2.messages) == 1
+
+    def test_sink_failure_doesnt_block_others(self) -> None:
+        from foxhound.observer.notifications import (
+            CliNotificationSink,
+            NotificationDispatcher,
+        )
+
+        dispatcher = NotificationDispatcher()
+
+        failing_sink = MagicMock()
+        failing_sink.send.return_value = False
+
+        good_sink = CliNotificationSink()
+
+        dispatcher.add_sink(failing_sink)
+        dispatcher.add_sink(good_sink)
+
+        result = dispatcher.dispatch(_make_event())
+        assert result is True
+        assert len(good_sink.messages) == 1
+
+
+class TestBuildSinksFromConfig:
+    """Tests for building sinks from foxhound.yaml config."""
+
+    def test_build_all_sink_types(self) -> None:
+        from foxhound.core.config import NotificationSinkConfig, NotificationsConfig
+        from foxhound.observer.notifications import (
+            DiscordNotificationSink,
+            SlackNotificationSink,
+            WebhookNotificationSink,
+            build_sinks_from_config,
+        )
+
+        config = NotificationsConfig(sinks=[
+            NotificationSinkConfig(type="slack", url="https://slack.com/hook"),
+            NotificationSinkConfig(type="discord", url="https://discord.com/hook"),
+            NotificationSinkConfig(type="webhook", url="https://example.com/hook"),
+        ])
+        sinks = build_sinks_from_config(config)
+        assert len(sinks) == 3
+        assert isinstance(sinks[0], SlackNotificationSink)
+        assert isinstance(sinks[1], DiscordNotificationSink)
+        assert isinstance(sinks[2], WebhookNotificationSink)
+
+    def test_build_unknown_type_skipped(self) -> None:
+        from foxhound.core.config import NotificationSinkConfig, NotificationsConfig
+        from foxhound.observer.notifications import build_sinks_from_config
+
+        config = NotificationsConfig(sinks=[
+            NotificationSinkConfig(type="telegram", url="https://t.me/hook"),
+        ])
+        sinks = build_sinks_from_config(config)
+        assert len(sinks) == 0
+
+    def test_build_empty_config(self) -> None:
+        from foxhound.core.config import NotificationsConfig
+        from foxhound.observer.notifications import build_sinks_from_config
+
+        config = NotificationsConfig()
+        sinks = build_sinks_from_config(config)
+        assert len(sinks) == 0
+
+    def test_config_in_foxhound_yaml(self) -> None:
+        """NotificationsConfig is accessible from FoxhoundConfig."""
+        from foxhound.core.config import FoxhoundConfig
+
+        config = FoxhoundConfig()
+        assert config.notifications.enabled is True
+        assert config.notifications.sinks == []
