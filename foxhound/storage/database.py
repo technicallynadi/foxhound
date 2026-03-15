@@ -842,6 +842,16 @@ class OpportunityStore:
             ).fetchall()
             return [self._row_to_model(row) for row in rows]
 
+    def delete(self, opportunity_id: str) -> bool:
+        """Delete an opportunity by ID."""
+        with self.db.connection() as conn:
+            cursor = conn.execute(
+                "DELETE FROM opportunity_items WHERE opportunity_id = ?",
+                (opportunity_id,),
+            )
+            conn.commit()
+            return cursor.rowcount > 0
+
     def _row_to_model(self, row: sqlite3.Row) -> OpportunityDiscoveryItem:
         """Convert database row to OpportunityDiscoveryItem model."""
         return OpportunityDiscoveryItem(
