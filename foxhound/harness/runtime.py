@@ -27,9 +27,6 @@ from foxhound.harness.worker_protocol import (
     WorkerOutput,
     validate_worker_capabilities,
 )
-from foxhound.sanitization.pipeline import redact_secrets
-
-
 def _utc_now() -> datetime:
     """Return current UTC datetime (timezone-aware)."""
     return datetime.now(UTC)
@@ -261,6 +258,8 @@ class Harness:
     @staticmethod
     def _safe_error_summary(error: str) -> str:
         """Produce a redacted error summary safe for event payloads and storage."""
+        from foxhound.sanitization.pipeline import redact_secrets
+
         truncated = error[:200]
         redacted, _ = redact_secrets(truncated)
         return redacted
