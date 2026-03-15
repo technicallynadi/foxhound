@@ -201,6 +201,28 @@ CREATE TABLE IF NOT EXISTS rule_suggestions (
     reviewed_at TEXT
 );
 
+-- Scout raw opportunities staging table
+CREATE TABLE IF NOT EXISTS scout_raw_opportunities (
+    raw_id TEXT PRIMARY KEY,
+    source TEXT NOT NULL,
+    source_url TEXT NOT NULL,
+    source_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    raw_payload TEXT NOT NULL,
+    fetched_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    scored INTEGER DEFAULT 0,
+    dedupe_hash TEXT NOT NULL UNIQUE
+);
+
+-- Scout fetch metadata table
+CREATE TABLE IF NOT EXISTS scout_fetch_metadata (
+    source TEXT PRIMARY KEY,
+    last_fetched_at TEXT NOT NULL,
+    items_fetched INTEGER DEFAULT 0,
+    rate_limit_hits INTEGER DEFAULT 0
+);
+
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_work_items_repo_state ON work_items(repo_id, state, kind);
 CREATE INDEX IF NOT EXISTS idx_jobs_status_priority ON jobs(status, priority, queued_at);
@@ -210,6 +232,9 @@ CREATE INDEX IF NOT EXISTS idx_runs_state ON runs(state, updated_at);
 CREATE INDEX IF NOT EXISTS idx_events_run ON events(run_id, occurred_at);
 CREATE INDEX IF NOT EXISTS idx_locks_resource ON locks(resource_type, resource_key);
 CREATE INDEX IF NOT EXISTS idx_artifacts_run ON artifacts(run_id, artifact_type);
+CREATE INDEX IF NOT EXISTS idx_raw_opps_source_scored ON scout_raw_opportunities(source, scored);
+CREATE INDEX IF NOT EXISTS idx_raw_opps_dedupe ON scout_raw_opportunities(dedupe_hash);
+CREATE INDEX IF NOT EXISTS idx_raw_opps_expires ON scout_raw_opportunities(expires_at);
 """
 
 
@@ -1128,3 +1153,134 @@ class RuleSuggestionStore:
             )
             conn.commit()
             return cursor.rowcount > 0
+
+
+class RawOpportunityStore:
+    """Storage operations for scout raw opportunity staging records."""
+
+    def __init__(self, db: Database) -> None:
+        self.db = db
+
+    def upsert(
+        self,
+        raw_id: str,
+        source: str,
+        source_url: str,
+        source_id: str,
+        title: str,
+        raw_payload: str,
+        fetched_at: str,
+        expires_at: str,
+        dedupe_hash: str,
+    ) -> bool:
+        """Insert or update a raw opportunity. Returns True if new, False if updated."""
+        with self.db.connection() as conn:
+            existing = conn.execute(
+                "SELECT raw_id FROM scout_raw_opportunities WHERE dedupe_hash = ?",
+                (dedupe_hash,),
+            ).fetchone()
+
+            if existing:
+                conn.execute(
+                    """
+                    UPDATE scout_raw_opportunities
+                    SET raw_payload = ?, fetched_at = ?, title = ?, source_url = ?
+                    WHERE dedupe_hash = ?
+                    """,
+                    (raw_payload, fetched_at, title, source_url, dedupe_hash),
+                )
+                conn.commit()
+                return False
+
+            conn.execute(
+                """
+                INSERT INTO scout_raw_opportunities (
+                    raw_id, source, source_url, source_id, title,
+                    raw_payload, fetched_at, expires_at, scored, dedupe_hash
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
+                """,
+                (raw_id, source, source_url, source_id, title,
+                 raw_payload, fetched_at, expires_at, dedupe_hash),
+            )
+            conn.commit()
+            return True
+
+    def get(self, raw_id: str) -> dict[str, Any] | None:
+        """Get a raw opportunity by ID."""
+        with self.db.connection() as conn:
+            row = conn.execute(
+                "SELECT * FROM scout_raw_opportunities WHERE raw_id = ?",
+                (raw_id,),
+            ).fetchone()
+            return dict(row) if row else None
+
+    def list_unscored(self, source: str | None = None, limit: int = 100) -> list[dict[str, Any]]:
+        """List unscored raw opportunities, optionally filtered by source."""
+        query = "SELECT * FROM scout_raw_opportunities WHERE scored = 0"
+        params: list[Any] = []
+        if source:
+            query += " AND source = ?"
+            params.append(source)
+        query += " ORDER BY fetched_at DESC LIMIT ?"
+        params.append(limit)
+
+        with self.db.connection() as conn:
+            rows = conn.execute(query, params).fetchall()
+            return [dict(row) for row in rows]
+
+    def mark_scored(self, raw_id: str) -> bool:
+        """Mark a raw opportunity as scored."""
+        with self.db.connection() as conn:
+            cursor = conn.execute(
+                "UPDATE scout_raw_opportunities SET scored = 1 WHERE raw_id = ?",
+                (raw_id,),
+            )
+            conn.commit()
+            return cursor.rowcount > 0
+
+    def prune_expired(self) -> int:
+        """Remove expired raw opportunities. Returns count deleted."""
+        now = datetime.now().isoformat()
+        with self.db.connection() as conn:
+            cursor = conn.execute(
+                "DELETE FROM scout_raw_opportunities WHERE expires_at < ?",
+                (now,),
+            )
+            conn.commit()
+            return cursor.rowcount
+
+    def count_by_source(self) -> dict[str, int]:
+        """Count raw opportunities by source."""
+        with self.db.connection() as conn:
+            rows = conn.execute(
+                "SELECT source, COUNT(*) as cnt FROM scout_raw_opportunities GROUP BY source"
+            ).fetchall()
+            return {row["source"]: row["cnt"] for row in rows}
+
+    def get_fetch_metadata(self, source: str) -> dict[str, Any] | None:
+        """Get fetch metadata for a source."""
+        with self.db.connection() as conn:
+            row = conn.execute(
+                "SELECT * FROM scout_fetch_metadata WHERE source = ?",
+                (source,),
+            ).fetchone()
+            return dict(row) if row else None
+
+    def update_fetch_metadata(
+        self,
+        source: str,
+        items_fetched: int = 0,
+        rate_limit_hits: int = 0,
+    ) -> None:
+        """Update fetch metadata for a source."""
+        now = datetime.now().isoformat()
+        with self.db.connection() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO scout_fetch_metadata
+                    (source, last_fetched_at, items_fetched, rate_limit_hits)
+                VALUES (?, ?, ?, ?)
+                """,
+                (source, now, items_fetched, rate_limit_hits),
+            )
+            conn.commit()
