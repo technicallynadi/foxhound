@@ -936,6 +936,128 @@ class PolicyStore:
             return [dict(row) for row in rows]
 
 
+class ArtifactStore:
+    """Storage operations for artifact index records."""
+
+    def __init__(self, db: Database) -> None:
+        self.db = db
+
+    def save(
+        self,
+        artifact_id: str,
+        run_id: str,
+        artifact_type: str,
+        path: str,
+        size_bytes: int = 0,
+        retention_class: str = "B",
+        pinned: bool = False,
+    ) -> None:
+        """Save an artifact index entry."""
+        with self.db.connection() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO artifacts (
+                    artifact_id, run_id, artifact_type, path, size_bytes,
+                    retention_class, pinned, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    artifact_id,
+                    run_id,
+                    artifact_type,
+                    path,
+                    size_bytes,
+                    retention_class,
+                    1 if pinned else 0,
+                    datetime.now().isoformat(),
+                ),
+            )
+            conn.commit()
+
+    def get(self, artifact_id: str) -> dict[str, Any] | None:
+        """Get an artifact by ID."""
+        with self.db.connection() as conn:
+            row = conn.execute(
+                "SELECT * FROM artifacts WHERE artifact_id = ?",
+                (artifact_id,),
+            ).fetchone()
+            if row is None:
+                return None
+            return dict(row)
+
+    def list_by_run(self, run_id: str) -> list[dict[str, Any]]:
+        """List all artifacts for a run."""
+        with self.db.connection() as conn:
+            rows = conn.execute(
+                "SELECT * FROM artifacts WHERE run_id = ? ORDER BY created_at DESC",
+                (run_id,),
+            ).fetchall()
+            return [dict(row) for row in rows]
+
+    def list_by_retention_class(self, retention_class: str) -> list[dict[str, Any]]:
+        """List artifacts by retention class."""
+        with self.db.connection() as conn:
+            rows = conn.execute(
+                "SELECT * FROM artifacts WHERE retention_class = ? ORDER BY created_at ASC",
+                (retention_class,),
+            ).fetchall()
+            return [dict(row) for row in rows]
+
+    def list_unpinned_before(
+        self, retention_class: str, cutoff_iso: str
+    ) -> list[dict[str, Any]]:
+        """List unpinned artifacts older than cutoff for a retention class."""
+        with self.db.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT * FROM artifacts
+                WHERE retention_class = ? AND pinned = 0 AND created_at < ?
+                ORDER BY created_at ASC
+                """,
+                (retention_class, cutoff_iso),
+            ).fetchall()
+            return [dict(row) for row in rows]
+
+    def set_pinned(self, artifact_id: str, pinned: bool) -> bool:
+        """Pin or unpin an artifact."""
+        with self.db.connection() as conn:
+            cursor = conn.execute(
+                "UPDATE artifacts SET pinned = ? WHERE artifact_id = ?",
+                (1 if pinned else 0, artifact_id),
+            )
+            conn.commit()
+            return cursor.rowcount > 0
+
+    def delete(self, artifact_id: str) -> bool:
+        """Delete an artifact index entry."""
+        with self.db.connection() as conn:
+            cursor = conn.execute(
+                "DELETE FROM artifacts WHERE artifact_id = ?",
+                (artifact_id,),
+            )
+            conn.commit()
+            return cursor.rowcount > 0
+
+    def count_by_class(self) -> dict[str, int]:
+        """Count artifacts by retention class."""
+        with self.db.connection() as conn:
+            rows = conn.execute(
+                "SELECT retention_class, COUNT(*) as cnt FROM artifacts GROUP BY retention_class"
+            ).fetchall()
+            return {row["retention_class"]: row["cnt"] for row in rows}
+
+    def total_size_by_class(self) -> dict[str, int]:
+        """Sum artifact sizes by retention class."""
+        with self.db.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT retention_class, COALESCE(SUM(size_bytes), 0) as total
+                FROM artifacts GROUP BY retention_class
+                """
+            ).fetchall()
+            return {row["retention_class"]: row["total"] for row in rows}
+
+
 class RuleSuggestionStore:
     """Storage operations for rule suggestion records."""
 
