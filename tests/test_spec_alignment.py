@@ -1,7 +1,8 @@
 """Tests for Milestone 9: Spec Alignment features.
 
 Covers #99 (doctor model validation), #100 (manifest wiring),
-#103 (creative adapter wiring), and #97 (helper workers).
+#103 (creative adapter wiring), #97 (helper workers),
+#101 (notification sinks), #102 (multi-repo management).
 """
 
 from __future__ import annotations
@@ -986,3 +987,445 @@ class TestCapabilitiesMatrixUpdated:
             "security_review_worker", {Capability.REPO_READ, Capability.SHELL}
         )
         assert len(violations) > 0
+
+
+# ── #102: Multi-repo management ──────────────────────────────────────
+
+
+class TestMultiRepoManagement:
+    """Tests for multi-repo management commands."""
+
+    def test_repo_use_sets_active(self, tmp_path: Path) -> None:
+        """repo use sets the active repo and persists it."""
+        from foxhound.core.repo_registry import RepoInfo, RepoRegistry
+        from foxhound.storage.database import Database
+
+        db = Database(tmp_path / "test.db")
+        fh_dir = tmp_path / ".foxhound"
+        fh_dir.mkdir()
+
+        registry = RepoRegistry(db, foxhound_dir=fh_dir)
+
+        # Manually save a repo
+        from foxhound.core.repo_registry import RepoStore
+
+        store = RepoStore(db)
+        repo = RepoInfo(
+            repo_id="repo_abc",
+            name="test-repo",
+            path=str(tmp_path),
+            default_branch="main",
+        )
+        store.save(repo)
+
+        assert registry.set_active("repo_abc") is True
+        assert registry.active_repo_id == "repo_abc"
+
+        # Verify persistence
+        active_file = fh_dir / "config" / "active_repo"
+        assert active_file.exists()
+        assert active_file.read_text().strip() == "repo_abc"
+
+        db.close()
+
+    def test_repo_use_persists_across_instances(self, tmp_path: Path) -> None:
+        """Active repo persists across RepoRegistry instances."""
+        from foxhound.core.repo_registry import RepoInfo, RepoRegistry, RepoStore
+        from foxhound.storage.database import Database
+
+        db = Database(tmp_path / "test.db")
+        fh_dir = tmp_path / ".foxhound"
+        fh_dir.mkdir()
+
+        store = RepoStore(db)
+        store.save(RepoInfo(
+            repo_id="repo_persist",
+            name="persist-repo",
+            path=str(tmp_path),
+            default_branch="main",
+        ))
+
+        # Set active in first instance
+        reg1 = RepoRegistry(db, foxhound_dir=fh_dir)
+        reg1.set_active("repo_persist")
+
+        # Create new instance — should load from file
+        reg2 = RepoRegistry(db, foxhound_dir=fh_dir)
+        assert reg2.active_repo_id == "repo_persist"
+
+        db.close()
+
+    def test_repo_use_nonexistent(self, tmp_path: Path) -> None:
+        """set_active returns False for nonexistent repo."""
+        from foxhound.core.repo_registry import RepoRegistry
+        from foxhound.storage.database import Database
+
+        db = Database(tmp_path / "test.db")
+        registry = RepoRegistry(db, foxhound_dir=tmp_path)
+        assert registry.set_active("nonexistent") is False
+        db.close()
+
+    def test_repo_remove_clears_active(self, tmp_path: Path) -> None:
+        """Removing active repo clears the active state."""
+        from foxhound.core.repo_registry import RepoInfo, RepoRegistry, RepoStore
+        from foxhound.storage.database import Database
+
+        db = Database(tmp_path / "test.db")
+        fh_dir = tmp_path / ".foxhound"
+        fh_dir.mkdir()
+
+        store = RepoStore(db)
+        store.save(RepoInfo(
+            repo_id="repo_rm",
+            name="rm-repo",
+            path=str(tmp_path),
+            default_branch="main",
+        ))
+
+        registry = RepoRegistry(db, foxhound_dir=fh_dir)
+        registry.set_active("repo_rm")
+        assert registry.active_repo_id == "repo_rm"
+
+        registry.remove("repo_rm")
+        assert registry.active_repo_id is None
+        active_file = fh_dir / "config" / "active_repo"
+        assert not active_file.exists()
+
+        db.close()
+
+    def test_scan_all_flag_accepted(self) -> None:
+        """Scan command accepts --all flag."""
+        from typer.testing import CliRunner
+
+        from foxhound.cli.app import app
+
+        runner = CliRunner()
+        result = runner.invoke(app, ["scan", "--help"])
+        assert "--all" in result.output
+
+    def test_scout_all_flag_accepted(self) -> None:
+        """Scout command accepts --all flag."""
+        from typer.testing import CliRunner
+
+        from foxhound.cli.app import app
+
+        runner = CliRunner()
+        result = runner.invoke(app, ["scout", "--help"])
+        assert "--all" in result.output
+
+    def test_repo_use_command_help(self) -> None:
+        """repo use command exists and has help text."""
+        from typer.testing import CliRunner
+
+        from foxhound.cli.app import app
+
+        runner = CliRunner()
+        result = runner.invoke(app, ["repo", "use", "--help"])
+        assert "active" in result.output.lower() or "Switch" in result.output
+
+
+# ── #101: Notification sinks ─────────────────────────────────────────
+
+
+def _make_event(**overrides: Any) -> Any:
+    """Create a minimal EventEnvelope for testing."""
+    from datetime import UTC, datetime
+
+    from foxhound.core.models import EventEnvelope, EventType
+
+    defaults: dict[str, Any] = {
+        "event_id": "evt_test",
+        "event_type": EventType.RUN_COMPLETED,
+        "source_module": "test",
+        "run_id": "run_1",
+        "payload": {"worker": "test", "duration_seconds": 1.5},
+        "timestamp": datetime.now(UTC),
+    }
+    defaults.update(overrides)
+    return EventEnvelope(**defaults)
+
+
+class TestSlackNotificationSink:
+    """Tests for SlackNotificationSink."""
+
+    def test_sink_name(self) -> None:
+        from foxhound.observer.notifications import SlackNotificationSink
+
+        sink = SlackNotificationSink(webhook_url="https://hooks.slack.com/test")
+        assert sink.sink_name == "slack"
+
+    def test_send_formats_message(self) -> None:
+        from unittest.mock import patch as mock_patch
+
+        from foxhound.observer.notifications import (
+            NotificationPriority,
+            SlackNotificationSink,
+        )
+
+        sink = SlackNotificationSink(
+            webhook_url="https://hooks.slack.com/test",
+            channel="#alerts",
+        )
+
+        with mock_patch("foxhound.observer.notifications.urllib.request.urlopen") as mock_url:
+            mock_url.return_value.__enter__ = MagicMock(
+                return_value=MagicMock(status=200)
+            )
+            mock_url.return_value.__exit__ = MagicMock(return_value=False)
+            result = sink.send("Test message", NotificationPriority.ALWAYS, _make_event())
+
+        assert result is True
+        call_args = mock_url.call_args
+        req = call_args[0][0]
+        body = json.loads(req.data)
+        assert "#alerts" in body.get("channel", "")
+        assert "foxhound" in body["text"]
+
+    def test_send_failure_returns_false(self) -> None:
+        from foxhound.observer.notifications import (
+            NotificationPriority,
+            SlackNotificationSink,
+        )
+
+        sink = SlackNotificationSink(webhook_url="https://invalid.example.com/hook")
+        # This will fail because the URL is invalid
+        result = sink.send("test", NotificationPriority.DEFAULT, _make_event())
+        assert result is False
+
+
+class TestDiscordNotificationSink:
+    """Tests for DiscordNotificationSink."""
+
+    def test_sink_name(self) -> None:
+        from foxhound.observer.notifications import DiscordNotificationSink
+
+        sink = DiscordNotificationSink(webhook_url="https://discord.com/api/webhooks/test")
+        assert sink.sink_name == "discord"
+
+    def test_send_formats_embed(self) -> None:
+        from unittest.mock import patch as mock_patch
+
+        from foxhound.observer.notifications import (
+            DiscordNotificationSink,
+            NotificationPriority,
+        )
+
+        sink = DiscordNotificationSink(webhook_url="https://discord.com/test")
+
+        with mock_patch("foxhound.observer.notifications.urllib.request.urlopen") as mock_url:
+            mock_url.return_value.__enter__ = MagicMock(
+                return_value=MagicMock(status=200)
+            )
+            mock_url.return_value.__exit__ = MagicMock(return_value=False)
+            result = sink.send("Alert!", NotificationPriority.ALWAYS, _make_event())
+
+        assert result is True
+        req = mock_url.call_args[0][0]
+        body = json.loads(req.data)
+        assert "embeds" in body
+        assert body["embeds"][0]["color"] == 0xFF0000  # Red for ALWAYS
+
+
+class TestWebhookNotificationSink:
+    """Tests for WebhookNotificationSink."""
+
+    def test_sink_name(self) -> None:
+        from foxhound.observer.notifications import WebhookNotificationSink
+
+        sink = WebhookNotificationSink(endpoint_url="https://example.com/hook")
+        assert sink.sink_name == "webhook"
+
+    def test_send_includes_event_metadata(self) -> None:
+        from unittest.mock import patch as mock_patch
+
+        from foxhound.observer.notifications import (
+            NotificationPriority,
+            WebhookNotificationSink,
+        )
+
+        sink = WebhookNotificationSink(
+            endpoint_url="https://example.com/hook",
+            headers={"X-Token": "secret"},
+        )
+
+        with mock_patch("foxhound.observer.notifications.urllib.request.urlopen") as mock_url:
+            mock_url.return_value.__enter__ = MagicMock(
+                return_value=MagicMock(status=200)
+            )
+            mock_url.return_value.__exit__ = MagicMock(return_value=False)
+            result = sink.send("msg", NotificationPriority.DEFAULT, _make_event())
+
+        assert result is True
+        req = mock_url.call_args[0][0]
+        body = json.loads(req.data)
+        assert body["source"] == "foxhound"
+        assert body["event_type"] == "RunCompleted"
+        assert body["run_id"] == "run_1"
+        assert req.get_header("X-token") == "secret"
+
+    def test_send_failure_logged_not_raised(self) -> None:
+        from foxhound.observer.notifications import (
+            NotificationPriority,
+            WebhookNotificationSink,
+        )
+
+        sink = WebhookNotificationSink(endpoint_url="https://invalid.example.com")
+        result = sink.send("test", NotificationPriority.DEFAULT, _make_event())
+        assert result is False
+
+
+class TestNotificationDispatcherMultiSink:
+    """Tests for dispatcher routing to multiple sinks."""
+
+    def test_dispatch_to_multiple_sinks(self) -> None:
+        from foxhound.observer.notifications import (
+            CliNotificationSink,
+            NotificationDispatcher,
+        )
+
+        dispatcher = NotificationDispatcher()
+        sink1 = CliNotificationSink()
+        sink2 = CliNotificationSink()
+        dispatcher.add_sink(sink1)
+        dispatcher.add_sink(sink2)
+
+        event = _make_event()
+        result = dispatcher.dispatch(event)
+        assert result is True
+        assert len(sink1.messages) == 1
+        assert len(sink2.messages) == 1
+
+    def test_sink_failure_doesnt_block_others(self) -> None:
+        from foxhound.observer.notifications import (
+            CliNotificationSink,
+            NotificationDispatcher,
+        )
+
+        dispatcher = NotificationDispatcher()
+
+        failing_sink = MagicMock()
+        failing_sink.send.return_value = False
+
+        good_sink = CliNotificationSink()
+
+        dispatcher.add_sink(failing_sink)
+        dispatcher.add_sink(good_sink)
+
+        result = dispatcher.dispatch(_make_event())
+        assert result is True
+        assert len(good_sink.messages) == 1
+
+
+class TestBuildSinksFromConfig:
+    """Tests for building sinks from foxhound.yaml config."""
+
+    def test_build_all_sink_types(self) -> None:
+        from foxhound.core.config import NotificationsConfig, NotificationSinkConfig
+        from foxhound.observer.notifications import (
+            DiscordNotificationSink,
+            SlackNotificationSink,
+            WebhookNotificationSink,
+            build_sinks_from_config,
+        )
+
+        config = NotificationsConfig(sinks=[
+            NotificationSinkConfig(type="slack", url="https://slack.com/hook"),
+            NotificationSinkConfig(type="discord", url="https://discord.com/hook"),
+            NotificationSinkConfig(type="webhook", url="https://example.com/hook"),
+        ])
+        sinks = build_sinks_from_config(config)
+        assert len(sinks) == 3
+        assert isinstance(sinks[0], SlackNotificationSink)
+        assert isinstance(sinks[1], DiscordNotificationSink)
+        assert isinstance(sinks[2], WebhookNotificationSink)
+
+    def test_build_unknown_type_skipped(self) -> None:
+        from foxhound.core.config import NotificationsConfig, NotificationSinkConfig
+        from foxhound.observer.notifications import build_sinks_from_config
+
+        config = NotificationsConfig(sinks=[
+            NotificationSinkConfig(type="telegram", url="https://t.me/hook"),
+        ])
+        sinks = build_sinks_from_config(config)
+        assert len(sinks) == 0
+
+    def test_build_empty_config(self) -> None:
+        from foxhound.core.config import NotificationsConfig
+        from foxhound.observer.notifications import build_sinks_from_config
+
+        config = NotificationsConfig()
+        sinks = build_sinks_from_config(config)
+        assert len(sinks) == 0
+
+    def test_config_in_foxhound_yaml(self) -> None:
+        """NotificationsConfig is accessible from FoxhoundConfig."""
+        from foxhound.core.config import FoxhoundConfig
+
+        config = FoxhoundConfig()
+        assert config.notifications.enabled is True
+        assert config.notifications.sinks == []
+
+
+# ── #98: Textual-based TUI ───────────────────────────────────────────
+
+
+class TestTuiModule:
+    """Tests for the Textual-based TUI module."""
+
+    def test_foxhound_app_importable(self) -> None:
+        """FoxhoundApp can be imported."""
+        from foxhound.tui.app import FoxhoundApp
+
+        assert FoxhoundApp is not None
+
+    def test_app_instantiation(self, tmp_path: Path) -> None:
+        """FoxhoundApp can be instantiated with a db path."""
+        from foxhound.tui.app import FoxhoundApp
+
+        app = FoxhoundApp(db_path=tmp_path / "test.db")
+        assert app.TITLE == "Foxhound"
+
+    def test_tui_command_exists(self) -> None:
+        """foxhound tui command is registered."""
+        from typer.testing import CliRunner
+
+        from foxhound.cli.app import app
+
+        runner = CliRunner()
+        result = runner.invoke(app, ["tui", "--help"])
+        assert "dashboard" in result.output.lower() or "tui" in result.output.lower()
+
+    def test_stats_panel_default(self) -> None:
+        """StatsPanel has default text."""
+        from foxhound.tui.app import StatsPanel
+
+        panel = StatsPanel()
+        assert panel.stats_text == "Loading..."
+
+    def test_work_items_table_importable(self) -> None:
+        """WorkItemsTable and RunsTable importable."""
+        from foxhound.tui.app import RunsTable, WorkItemsTable
+
+        assert WorkItemsTable is not None
+        assert RunsTable is not None
+
+    def test_run_store_list_recent(self, tmp_path: Path) -> None:
+        """RunStore.list_recent returns recent runs."""
+        from foxhound.core.models import RunRecord
+        from foxhound.storage.database import Database, RunStore
+
+        db = Database(tmp_path / "test.db")
+        store = RunStore(db)
+
+        run = RunRecord(
+            run_id="run_tui_test",
+            job_id="job_1",
+            worker_type="ExecutionWorker",
+        )
+        store.save(run)
+
+        recent = store.list_recent(limit=10)
+        assert len(recent) == 1
+        assert recent[0].run_id == "run_tui_test"
+
+        db.close()

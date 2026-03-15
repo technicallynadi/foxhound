@@ -234,9 +234,10 @@ class RepoRegistry:
     workspace mode (multiple registered repos).
     """
 
-    def __init__(self, db: Database) -> None:
+    def __init__(self, db: Database, foxhound_dir: Path | None = None) -> None:
         self._store = RepoStore(db)
-        self._active_repo_id: str | None = None
+        self._foxhound_dir = foxhound_dir or Path.cwd() / ".foxhound"
+        self._active_repo_id: str | None = self._load_active_repo_id()
 
     def register(self, path: Path) -> RepoInfo:
         """Register a repository by path.
@@ -300,8 +301,29 @@ class RepoRegistry:
         """List all registered repos."""
         return self._store.list_all()
 
+    def _load_active_repo_id(self) -> str | None:
+        """Load persisted active repo ID from .foxhound/config/active_repo."""
+        active_file = self._foxhound_dir / "config" / "active_repo"
+        if active_file.exists():
+            repo_id = active_file.read_text().strip()
+            if repo_id and self._store.get(repo_id) is not None:
+                return repo_id
+        return None
+
+    def _save_active_repo_id(self, repo_id: str | None) -> None:
+        """Persist active repo ID to .foxhound/config/active_repo."""
+        config_dir = self._foxhound_dir / "config"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        active_file = config_dir / "active_repo"
+        if repo_id:
+            active_file.write_text(repo_id)
+        elif active_file.exists():
+            active_file.unlink()
+
     def set_active(self, repo_id: str) -> bool:
         """Set the active repo context.
+
+        Persists across CLI invocations via .foxhound/config/active_repo.
 
         Args:
             repo_id: ID of the repo to activate.
@@ -313,6 +335,7 @@ class RepoRegistry:
         if repo is None:
             return False
         self._active_repo_id = repo_id
+        self._save_active_repo_id(repo_id)
         return True
 
     @property
@@ -331,4 +354,5 @@ class RepoRegistry:
         """Remove a repo registration."""
         if self._active_repo_id == repo_id:
             self._active_repo_id = None
+            self._save_active_repo_id(None)
         return self._store.delete(repo_id)
