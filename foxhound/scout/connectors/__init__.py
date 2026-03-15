@@ -9,6 +9,10 @@ from foxhound.scout.connectors.hackernews import (
     HackerNewsConnector,
     HNConnectorConfig,
 )
+from foxhound.scout.connectors.reddit import (
+    RedditConnector,
+    RedditPost,
+)
 
 __all__ = [
     "BaseScoutConnector",
@@ -16,4 +20,6 @@ __all__ = [
     "HackerNewsConnector",
     "HNConnectorConfig",
     "RawOpportunity",
+    "RedditConnector",
+    "RedditPost",
 ]

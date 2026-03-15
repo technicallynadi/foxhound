@@ -16,7 +16,7 @@ from uuid import uuid4
 from pydantic import BaseModel, Field
 
 from foxhound.adapters.github_connector import GitHubConnector, HttpClient, HttpResponse
-from foxhound.adapters.reddit_connector import RedditConnector
+from foxhound.scout.connectors.reddit import RedditConnector
 from foxhound.scout.connectors.hackernews import HackerNewsConnector
 from foxhound.storage.database import Database, RawOpportunityStore
 
