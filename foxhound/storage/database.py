@@ -652,6 +652,15 @@ class RunStore:
             conn.commit()
             return cursor.rowcount > 0
 
+    def list_recent(self, limit: int = 50) -> list[RunRecord]:
+        """List recent runs ordered by creation time."""
+        with self.db.connection() as conn:
+            rows = conn.execute(
+                "SELECT * FROM runs ORDER BY created_at DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+        return [self._row_to_model(row) for row in rows]
+
     def _row_to_model(self, row: sqlite3.Row) -> RunRecord:
         """Convert database row to RunRecord model."""
         return RunRecord(
