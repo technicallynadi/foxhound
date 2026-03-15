@@ -31,7 +31,7 @@ class TestModelTierEnum:
             ModelTier("invalid")
 
     def test_all_tiers(self) -> None:
-        assert len(ModelTier) == 3
+        assert len(ModelTier) == 4
 
     def test_tier_is_string(self) -> None:
         assert isinstance(ModelTier.BALANCED, str)

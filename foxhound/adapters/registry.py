@@ -18,11 +18,13 @@ PROVIDER_TIER_SUGGESTIONS: dict[str, dict[str, str]] = {
         ModelTier.REASONING: "gpt-4.1",
         ModelTier.BALANCED: "gpt-4.1-mini",
         ModelTier.FAST: "gpt-4.1-nano",
+        ModelTier.CREATIVE: "gpt-image-1",
     },
     "google": {
         ModelTier.REASONING: "gemini-2.5-pro",
         ModelTier.BALANCED: "gemini-2.5-flash",
         ModelTier.FAST: "gemini-2.5-flash",
+        ModelTier.CREATIVE: "gemini-2.0-flash-preview-image-generation",
     },
     "deepseek": {
         ModelTier.REASONING: "deepseek-r1",
@@ -98,6 +100,12 @@ def apply_auto_defaults(provider: str, tiers: dict[str, str]) -> dict[str, str]:
 
     for tier in ModelTier:
         if tier.value not in result:
+            # Creative tier is optional — only fill if provider has a suggestion
+            if tier == ModelTier.CREATIVE:
+                if tier.value in suggestions:
+                    result[tier.value] = suggestions[tier.value]
+                continue
+
             if tier.value in suggestions:
                 result[tier.value] = suggestions[tier.value]
             elif ModelTier.BALANCED.value in result:
@@ -133,6 +141,8 @@ def generate_config_yaml(provider: str, api_key_env: str | None = None) -> str:
     ]
 
     for tier in ModelTier:
+        if tier == ModelTier.CREATIVE and tier.value not in suggestions:
+            continue
         model = suggestions.get(tier.value, f"your-{tier.value}-model")
         lines.append(f"    {tier.value}: {model}")
 
