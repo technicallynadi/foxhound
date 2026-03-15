@@ -7,6 +7,8 @@ then routes requests to the appropriate provider.
 import os
 
 from foxhound.adapters.anthropic_adapter import AnthropicAdapter
+from foxhound.adapters.deepseek_adapter import DeepseekAdapter
+from foxhound.adapters.google_adapter import GoogleAdapter
 from foxhound.adapters.openai_adapter import OpenAIAdapter
 from foxhound.adapters.provider import (
     ModelRequest,
@@ -21,6 +23,8 @@ from foxhound.core.models import ModelTier
 ADAPTER_FACTORIES: dict[str, type] = {
     "anthropic": AnthropicAdapter,
     "openai": OpenAIAdapter,
+    "google": GoogleAdapter,
+    "deepseek": DeepseekAdapter,
     "local": OpenAIAdapter,
     "ollama": OpenAIAdapter,
 }

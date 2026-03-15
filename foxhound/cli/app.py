@@ -37,6 +37,21 @@ def _db_path() -> Path:
     return _foxhound_dir() / DB_NAME
 
 
+def _default_config_yaml() -> str:
+    """Return default foxhound.yaml content when no provider is detected."""
+    return (
+        "# Foxhound configuration\n"
+        "# Set your preferred model for each capability tier.\n"
+        "models:\n"
+        "  provider: anthropic\n"
+        "  api_key_env: ANTHROPIC_API_KEY\n"
+        "  tiers:\n"
+        "    reasoning: claude-opus-4.6\n"
+        "    balanced: claude-sonnet-4.6\n"
+        "    fast: claude-haiku-4.5\n"
+    )
+
+
 @app.command()
 def init() -> None:
     """Initialize .foxhound config and local DB."""
@@ -66,19 +81,39 @@ def init() -> None:
     # Create default config if missing
     config_path = Path.cwd() / CONFIG_NAME
     if not config_path.exists():
-        config_path.write_text(
-            "# Foxhound configuration\n"
-            "# Set your preferred model for each capability tier.\n"
-            "# See docs for supported providers and models.\n"
-            "models:\n"
-            "  provider: anthropic\n"
-            "  api_key_env: ANTHROPIC_API_KEY\n"
-            "  tiers:\n"
-            "    reasoning: your-reasoning-model\n"
-            "    balanced: your-balanced-model\n"
-            "    fast: your-fast-model\n"
+        from foxhound.cli.init_flow import (
+            build_config_yaml,
+            detect_providers,
+            get_tier_suggestions,
+            select_provider_non_interactive,
         )
-        console.print(f"[green]Created:[/green] {config_path}")
+
+        detected = detect_providers()
+        if detected:
+            selected = select_provider_non_interactive(detected)
+            if selected:
+                provider, env_var = selected
+                tiers = get_tier_suggestions(provider)
+                console.print(
+                    f"[cyan]Detected provider:[/cyan] {provider} "
+                    f"(via ${env_var})"
+                )
+                for tier_name, model_id in sorted(tiers.items()):
+                    console.print(f"  {tier_name}: {model_id}")
+
+                yaml_content = build_config_yaml(provider, tiers, env_var)
+                config_path.write_text(yaml_content)
+                console.print(f"[green]Created:[/green] {config_path}")
+            else:
+                config_path.write_text(_default_config_yaml())
+                console.print(f"[green]Created:[/green] {config_path}")
+        else:
+            config_path.write_text(_default_config_yaml())
+            console.print(f"[green]Created:[/green] {config_path}")
+            console.print(
+                "[dim]No API keys detected. "
+                "Using defaults — run foxhound doctor to validate.[/dim]"
+            )
     else:
         console.print(f"[yellow]Config exists:[/yellow] {config_path}")
 
