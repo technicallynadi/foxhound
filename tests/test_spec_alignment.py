@@ -1320,7 +1320,7 @@ class TestBuildSinksFromConfig:
     """Tests for building sinks from foxhound.yaml config."""
 
     def test_build_all_sink_types(self) -> None:
-        from foxhound.core.config import NotificationSinkConfig, NotificationsConfig
+        from foxhound.core.config import NotificationsConfig, NotificationSinkConfig
         from foxhound.observer.notifications import (
             DiscordNotificationSink,
             SlackNotificationSink,
@@ -1340,7 +1340,7 @@ class TestBuildSinksFromConfig:
         assert isinstance(sinks[2], WebhookNotificationSink)
 
     def test_build_unknown_type_skipped(self) -> None:
-        from foxhound.core.config import NotificationSinkConfig, NotificationsConfig
+        from foxhound.core.config import NotificationsConfig, NotificationSinkConfig
         from foxhound.observer.notifications import build_sinks_from_config
 
         config = NotificationsConfig(sinks=[
@@ -1364,3 +1364,68 @@ class TestBuildSinksFromConfig:
         config = FoxhoundConfig()
         assert config.notifications.enabled is True
         assert config.notifications.sinks == []
+
+
+# ── #98: Textual-based TUI ───────────────────────────────────────────
+
+
+class TestTuiModule:
+    """Tests for the Textual-based TUI module."""
+
+    def test_foxhound_app_importable(self) -> None:
+        """FoxhoundApp can be imported."""
+        from foxhound.tui.app import FoxhoundApp
+
+        assert FoxhoundApp is not None
+
+    def test_app_instantiation(self, tmp_path: Path) -> None:
+        """FoxhoundApp can be instantiated with a db path."""
+        from foxhound.tui.app import FoxhoundApp
+
+        app = FoxhoundApp(db_path=tmp_path / "test.db")
+        assert app.TITLE == "Foxhound"
+
+    def test_tui_command_exists(self) -> None:
+        """foxhound tui command is registered."""
+        from typer.testing import CliRunner
+
+        from foxhound.cli.app import app
+
+        runner = CliRunner()
+        result = runner.invoke(app, ["tui", "--help"])
+        assert "dashboard" in result.output.lower() or "tui" in result.output.lower()
+
+    def test_stats_panel_default(self) -> None:
+        """StatsPanel has default text."""
+        from foxhound.tui.app import StatsPanel
+
+        panel = StatsPanel()
+        assert panel.stats_text == "Loading..."
+
+    def test_work_items_table_importable(self) -> None:
+        """WorkItemsTable and RunsTable importable."""
+        from foxhound.tui.app import RunsTable, WorkItemsTable
+
+        assert WorkItemsTable is not None
+        assert RunsTable is not None
+
+    def test_run_store_list_recent(self, tmp_path: Path) -> None:
+        """RunStore.list_recent returns recent runs."""
+        from foxhound.core.models import RunRecord
+        from foxhound.storage.database import Database, RunStore
+
+        db = Database(tmp_path / "test.db")
+        store = RunStore(db)
+
+        run = RunRecord(
+            run_id="run_tui_test",
+            job_id="job_1",
+            worker_type="ExecutionWorker",
+        )
+        store.save(run)
+
+        recent = store.list_recent(limit=10)
+        assert len(recent) == 1
+        assert recent[0].run_id == "run_tui_test"
+
+        db.close()

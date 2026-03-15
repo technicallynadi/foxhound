@@ -4,14 +4,19 @@ Routes system events to notification sinks based on severity and event type.
 Supports CLI, Slack, Discord, and generic webhook sinks.
 """
 
+from __future__ import annotations
+
 import json
 import logging
 import urllib.request
 from enum import StrEnum
-from typing import Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 from urllib.error import HTTPError, URLError
 
 from foxhound.core.models import EventEnvelope, EventType
+
+if TYPE_CHECKING:
+    from foxhound.core.config import NotificationsConfig
 
 logger = logging.getLogger(__name__)
 
@@ -163,7 +168,7 @@ class WebhookNotificationSink:
 
 def _post_json(
     url: str,
-    payload: dict,  # noqa: ANN401
+    payload: dict[str, Any],
     sink_label: str,
     extra_headers: dict[str, str] | None = None,
 ) -> bool:
@@ -175,7 +180,8 @@ def _post_json(
             headers.update(extra_headers)
         req = urllib.request.Request(url, data=data, headers=headers)
         with urllib.request.urlopen(req, timeout=10) as resp:
-            return resp.status < 400
+            status: int = resp.status
+            return status < 400
     except (HTTPError, URLError, OSError) as exc:
         logger.warning("%s notification failed: %s", sink_label, exc)
         return False
@@ -297,7 +303,7 @@ class NotificationDispatcher:
 
 
 def build_sinks_from_config(
-    notifications_config: "NotificationsConfig",
+    notifications_config: NotificationsConfig,
 ) -> list[NotificationSink]:
     """Create notification sinks from configuration.
 
@@ -307,8 +313,6 @@ def build_sinks_from_config(
     Returns:
         List of configured and ready sinks.
     """
-    from foxhound.core.config import NotificationsConfig  # noqa: F811
-
     sinks: list[NotificationSink] = []
     for sink_config in notifications_config.sinks:
         if sink_config.type == "slack":

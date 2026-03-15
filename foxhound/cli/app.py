@@ -1581,5 +1581,14 @@ def status() -> None:
     console.print(table)
 
 
+@app.command()
+def tui() -> None:
+    """Launch the operator TUI dashboard."""
+    from foxhound.tui.app import FoxhoundApp
+
+    tui_app = FoxhoundApp(db_path=_db_path())
+    tui_app.run()
+
+
 if __name__ == "__main__":
     app()
