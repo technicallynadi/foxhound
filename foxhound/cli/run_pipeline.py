@@ -6,7 +6,9 @@ report results. Each stage advances the run state machine and emits events.
 """
 
 import hashlib
+import platform
 import time
+import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -14,7 +16,9 @@ from typing import Any
 from foxhound.core.coordinator import Coordinator
 from foxhound.core.event_bus import EventBus
 from foxhound.core.models import (
+    ExecutionStrategy,
     JobType,
+    Manifest,
     ModelTier,
     PolicyRef,
     RecipeRef,
@@ -319,6 +323,28 @@ def run_pipeline(
 
         elapsed = time.time() - start_time
 
+        # Generate and persist manifest
+        _record_manifest(
+            db=db,
+            run=run,
+            job=dispatched,
+            item=item,
+            recipe_ref=recipe_ref,
+            policy_ref=policy_ref,
+            config_hash=config_hash,
+            workspace=workspace,
+            review_verdict=review_verdict_str,
+            branch_name=branch_name,
+            commit_hash=commit_hash,
+            files_changed=files_changed,
+            commands_run=(
+                harness_result.raw_output.commands_run
+                if harness_result.raw_output else []
+            ),
+            total_cost=harness_result.total_cost,
+            duration_seconds=elapsed,
+        )
+
         return RunPipelineResult(
             success=True,
             stage_reached="completed",
@@ -392,3 +418,72 @@ def _build_review_task_envelope(
         timeout_seconds=120,
         execution_mode=ExecutionMode.READ_ONLY,
     )
+
+
+def _build_env_fingerprint() -> str:
+    """Build a fingerprint of the execution environment."""
+    raw = f"{platform.node()}:{platform.python_version()}:{platform.system()}"
+    return hashlib.sha256(raw.encode()).hexdigest()[:16]
+
+
+def _record_manifest(
+    *,
+    db: Database,
+    run: Any,
+    job: Any,
+    item: Any,
+    recipe_ref: RecipeRef,
+    policy_ref: PolicyRef,
+    config_hash: str,
+    workspace: Any,
+    review_verdict: str | None,
+    branch_name: str | None,
+    commit_hash: str | None,
+    files_changed: list[str],
+    commands_run: list[str],
+    total_cost: float,
+    duration_seconds: float,
+) -> str | None:
+    """Generate a Manifest and persist it via ObserverStore.
+
+    Returns the manifest artifact ID, or None on failure.
+    """
+    try:
+        from foxhound.observer.store import ObserverStore
+        from foxhound.storage.database import RunStore
+
+        manifest = Manifest(
+            manifest_id=f"manifest_{uuid.uuid4().hex[:12]}",
+            run_id=run.run_id,
+            work_item_id=item.work_item_id,
+            repo_id=item.repo_id,
+            recipe_ref=recipe_ref,
+            policy_ref=policy_ref,
+            context_pack_hash=config_hash,
+            execution_environment_fingerprint=_build_env_fingerprint(),
+            execution_strategy=ExecutionStrategy.ONE_SHOT,
+            model_provider=job.execution_snapshot.model_tier,
+            model_tier=ModelTier(job.execution_snapshot.model_tier),
+            model_resolved="",
+            workspace_id=workspace.workspace_id,
+            total_cost=total_cost,
+            duration_seconds=duration_seconds,
+            commands_run=commands_run,
+            files_changed=files_changed,
+            branch_ref=branch_name,
+            commit_ref=commit_hash,
+            evaluator_result=review_verdict,
+        )
+
+        artifacts_dir = db._db_path.parent / "artifacts" if hasattr(db, "_db_path") else None
+        observer = ObserverStore(db, artifacts_dir=artifacts_dir)
+        artifact_id = observer.record_manifest(manifest, run.run_id)
+
+        # Update run record with manifest path
+        run_store = RunStore(db)
+        manifest_path = f"manifests/{manifest.manifest_id}.json"
+        run_store.update_manifest_path(run.run_id, manifest_path)
+
+        return artifact_id
+    except Exception:
+        return None

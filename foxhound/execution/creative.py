@@ -12,6 +12,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from foxhound.adapters.image_adapter import ImageAdapter, ImageRequest
+
 logger = logging.getLogger(__name__)
 
 
@@ -123,11 +125,59 @@ def is_creative_available(config: dict[str, Any] | None) -> bool:
     return "creative" in tiers
 
 
+def get_image_adapter_from_config(config: dict[str, Any] | None) -> ImageAdapter | None:
+    """Resolve an image adapter from the model configuration.
+
+    Looks up the creative tier's provider and instantiates the
+    corresponding image adapter from IMAGE_ADAPTER_FACTORIES.
+
+    Args:
+        config: Model configuration dict with provider and tiers.
+
+    Returns:
+        Authenticated ImageAdapter, or None if unavailable.
+    """
+    if not config or not is_creative_available(config):
+        return None
+
+    import os
+
+    from foxhound.adapters.image_adapter import IMAGE_ADAPTER_FACTORIES
+
+    tiers = config.get("tiers", {})
+    creative_model = tiers.get("creative", "")
+
+    # Determine provider from model spec or config
+    if "/" in creative_model:
+        provider_name = creative_model.split("/", 1)[0]
+    else:
+        provider_name = config.get("provider", "")
+
+    factory = IMAGE_ADAPTER_FACTORIES.get(provider_name)
+    if factory is None:
+        return None
+
+    adapter = factory()
+
+    # Resolve API key
+    api_key_env = config.get("api_key_env", f"{provider_name.upper()}_API_KEY")
+    api_key = os.environ.get(api_key_env, "")
+    if not api_key:
+        return None
+
+    base_url = config.get("base_url")
+    if adapter.authenticate(api_key, base_url):
+        result: ImageAdapter = adapter
+        return result
+    return None
+
+
 def run_image_step(
     step_config: ImageStepConfig,
     task_description: str,
     workspace_path: Path,
     creative_available: bool = False,
+    image_adapter: ImageAdapter | None = None,
 ) -> CreativeStepResult:
     """Execute an image generation recipe step.
 
@@ -138,6 +188,7 @@ def run_image_step(
         task_description: Description to fill into the prompt template.
         workspace_path: Path to the workspace for artifact storage.
         creative_available: Whether the creative tier is configured.
+        image_adapter: Optional image adapter for actual generation.
 
     Returns:
         CreativeStepResult with artifact path or skip info.
@@ -155,10 +206,30 @@ def run_image_step(
 
     output_dir = workspace_path / "artifacts" / "images"
     filename = f"{step_config.output}.png"
+    prompt = step_config.prompt_template.format(task_description=task_description)
 
     try:
-        # In production, the image adapter would be injected via the router.
-        # The pipeline structure is ready — adapter wiring connects here.
+        if image_adapter is not None:
+            request = ImageRequest(
+                prompt=prompt,
+                size=step_config.size,
+                output_dir=output_dir,
+                filename=filename,
+            )
+            result = image_adapter.generate(request)
+            if result.error:
+                return CreativeStepResult(
+                    step_name=step_config.name,
+                    error=result.error,
+                )
+            return CreativeStepResult(
+                step_name=step_config.name,
+                artifact_path=result.artifact_path,
+                cost=result.cost,
+                model_id=result.model_id,
+            )
+
+        # No adapter provided — return placeholder result
         return CreativeStepResult(
             step_name=step_config.name,
             artifact_path=output_dir / filename,
@@ -177,6 +248,7 @@ def run_mockup_to_code(
     task_description: str,
     workspace_path: Path,
     creative_available: bool = False,
+    image_adapter: ImageAdapter | None = None,
 ) -> MockupToCodeResult:
     """Execute the mockup-to-code pipeline.
 
@@ -189,6 +261,7 @@ def run_mockup_to_code(
         task_description: What to build.
         workspace_path: Workspace for artifact storage.
         creative_available: Whether the creative tier is configured.
+        image_adapter: Optional image adapter for actual generation.
 
     Returns:
         MockupToCodeResult with both step results.
@@ -206,7 +279,8 @@ def run_mockup_to_code(
     )
 
     mockup_result = run_image_step(
-        mockup_step, task_description, workspace_path, creative_available
+        mockup_step, task_description, workspace_path,
+        creative_available, image_adapter,
     )
     result.mockup_result = mockup_result
     result.total_cost += mockup_result.cost
@@ -237,6 +311,7 @@ def generate_visual_assets(
     workspace_path: Path,
     asset_config: VisualAssetConfig | None = None,
     creative_available: bool = False,
+    image_adapter: ImageAdapter | None = None,
 ) -> VisualAssetResults:
     """Generate visual assets for a deployed product.
 
@@ -249,6 +324,7 @@ def generate_visual_assets(
         workspace_path: Workspace for artifact storage.
         asset_config: Optional configuration for which assets to generate.
         creative_available: Whether the creative tier is configured.
+        image_adapter: Optional image adapter for actual generation.
 
     Returns:
         VisualAssetResults with per-asset results.
@@ -278,7 +354,8 @@ def generate_visual_assets(
         )
 
         step_result = run_image_step(
-            step, product_description, workspace_path, creative_available
+            step, product_description, workspace_path,
+            creative_available, image_adapter,
         )
 
         if step_result.success:

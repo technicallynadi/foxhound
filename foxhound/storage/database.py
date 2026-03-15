@@ -642,6 +642,16 @@ class RunStore:
             conn.commit()
             return cursor.rowcount > 0
 
+    def update_manifest_path(self, run_id: str, manifest_path: str) -> bool:
+        """Set the manifest_path for a run."""
+        with self.db.connection() as conn:
+            cursor = conn.execute(
+                "UPDATE runs SET manifest_path = ?, updated_at = ? WHERE run_id = ?",
+                (manifest_path, datetime.now().isoformat(), run_id),
+            )
+            conn.commit()
+            return cursor.rowcount > 0
+
     def _row_to_model(self, row: sqlite3.Row) -> RunRecord:
         """Convert database row to RunRecord model."""
         return RunRecord(
