@@ -55,7 +55,9 @@ class AnthropicAdapter:
         try:
             self._client = anthropic.Anthropic(**kwargs)
             return True
-        except Exception:
+        except Exception as exc:
+            import logging
+            logging.getLogger(__name__).error("Anthropic client init failed: %s", exc)
             return False
 
     def complete(self, request: ModelRequest) -> ModelResponse:

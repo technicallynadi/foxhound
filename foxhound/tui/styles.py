@@ -35,10 +35,16 @@ APP_CSS = """
 }
 
 .detail-panel {
-    height: 18;
+    height: 22;
     border-top: solid $primary;
-    padding: 1 2;
+    padding: 0;
     background: $surface;
+}
+
+#detail-text {
+    height: 1fr;
+    overflow-y: auto;
+    padding: 1 2;
 }
 
 .detail-panel .label {
@@ -46,16 +52,33 @@ APP_CSS = """
     color: $accent;
 }
 
-#detail-buttons {
-    height: 5;
-    padding: 1 1;
+#detail-buttons-container {
+    height: auto;
+    padding: 0;
+    margin-bottom: 3;
+}
+
+.detail-button-row {
+    height: auto;
+    min-height: 3;
+    padding: 0 1;
+    margin-bottom: 1;
     layout: horizontal;
 }
 
-#detail-buttons Button {
+.detail-button-row Button {
     margin: 0 1;
-    min-width: 16;
+    min-width: 12;
     height: 3;
+}
+
+Button.purple {
+    background: mediumpurple;
+    color: white;
+}
+
+Button.purple:hover, Button.purple:focus {
+    background: plum;
 }
 
 Button {

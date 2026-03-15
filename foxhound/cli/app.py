@@ -1198,5 +1198,42 @@ def dashboard() -> None:
     tui_app.run()
 
 
+@app.command()
+def secret(
+    action: str = typer.Argument(help="set or delete"),
+    name: str = typer.Argument(help="Key name, e.g. ANTHROPIC_API_KEY"),
+) -> None:
+    """Store or remove an API key in the system credential store.
+
+    Uses macOS Keychain, Linux Secret Service, or Windows Credential Manager.
+    """
+    import sys
+
+    from foxhound.adapters.router import delete_credential, store_credential
+
+    if action == "set":
+        console.print(f"Paste your {name} below (input is hidden):")
+        value = typer.prompt("Key", hide_input=True)
+        if not value:
+            console.print("[red]Empty value — nothing stored.[/red]")
+            raise typer.Exit(code=1)
+
+        if store_credential(name, value, sys.platform):
+            console.print(f"[green]✓[/green] {name} stored securely")
+        else:
+            console.print(f"[red]Failed to store {name}.[/red] Platform may not be supported.")
+            raise typer.Exit(code=1)
+
+    elif action == "delete":
+        if delete_credential(name, sys.platform):
+            console.print(f"[green]✓[/green] {name} removed")
+        else:
+            console.print(f"[yellow]{name} not found[/yellow]")
+
+    else:
+        console.print(f"[red]Unknown action '{action}'. Use 'set' or 'delete'.[/red]")
+        raise typer.Exit(code=1)
+
+
 if __name__ == "__main__":
     app()
