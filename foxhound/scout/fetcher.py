@@ -16,8 +16,19 @@ from uuid import uuid4
 from pydantic import BaseModel, Field
 
 from foxhound.adapters.github_connector import GitHubConnector, HttpClient, HttpResponse
-from foxhound.scout.connectors.reddit import RedditConnector
+from foxhound.scout.connectors.base import RawOpportunity
+from foxhound.scout.connectors.devto import DevToConnector
+from foxhound.scout.connectors.github_events import (
+    GitHubEventsConnector,
+)
 from foxhound.scout.connectors.hackernews import HackerNewsConnector
+from foxhound.scout.connectors.lobsters import LobstersConnector
+from foxhound.scout.connectors.newsapi import NewsAPIConnector
+from foxhound.scout.connectors.producthunt import (
+    ProductHuntConnector,
+)
+from foxhound.scout.connectors.reddit import RedditConnector
+from foxhound.scout.connectors.rss import RSSConnector
 from foxhound.storage.database import Database, RawOpportunityStore
 
 logger = logging.getLogger(__name__)
@@ -48,6 +59,12 @@ class ScoutConfig(BaseModel):
         "github_trending": SourceConfig(),
         "reddit": SourceConfig(fetch_interval_hours=12),
         "hackernews": SourceConfig(),
+        "devto": SourceConfig(fetch_interval_hours=12),
+        "lobsters": SourceConfig(),
+        "github_events": SourceConfig(),
+        "newsapi": SourceConfig(enabled=False, fetch_interval_hours=24),
+        "producthunt": SourceConfig(enabled=False, fetch_interval_hours=24),
+        "rss": SourceConfig(fetch_interval_hours=12),
     })
 
     model_config = {"extra": "forbid"}
@@ -151,6 +168,12 @@ class ScoutFetcher:
             client_secret=reddit_client_secret,
         )
         self._hackernews = HackerNewsConnector()
+        self._devto = DevToConnector()
+        self._lobsters = LobstersConnector()
+        self._github_events = GitHubEventsConnector()
+        self._newsapi = NewsAPIConnector()
+        self._producthunt = ProductHuntConnector()
+        self._rss = RSSConnector()
 
     def fetch_all(
         self,
@@ -177,6 +200,20 @@ class ScoutFetcher:
             ),
             "reddit": lambda: self._fetch_reddit(limit=limit, query=query),
             "hackernews": lambda: self._fetch_hackernews(limit=limit, query=query),
+            "devto": lambda: self._fetch_async_connector(self._devto, "devto", limit),
+            "lobsters": lambda: self._fetch_async_connector(
+                self._lobsters, "lobsters", limit,
+            ),
+            "github_events": lambda: self._fetch_async_connector(
+                self._github_events, "github_events", limit,
+            ),
+            "newsapi": lambda: self._fetch_async_connector(
+                self._newsapi, "newsapi", limit,
+            ),
+            "producthunt": lambda: self._fetch_async_connector(
+                self._producthunt, "producthunt", limit,
+            ),
+            "rss": lambda: self._fetch_async_connector(self._rss, "rss", limit),
         }
 
         for source, fetcher_fn in source_fetchers.items():
@@ -339,6 +376,55 @@ class ScoutFetcher:
         self._store.update_fetch_metadata(
             source="reddit",
             items_fetched=len(posts),
+            rate_limit_hits=result.rate_limit_hits,
+        )
+        return result
+
+    def _fetch_async_connector(
+        self, connector: Any, source: str, limit: int = 30
+    ) -> FetchResult:
+        """Fetch from any async BaseScoutConnector and store results."""
+        import asyncio
+
+        result = FetchResult(source=source)
+
+        try:
+            opportunities: list[RawOpportunity] = asyncio.run(connector.fetch())
+        except Exception as exc:
+            logger.error("%s fetch failed: %s", source, exc)
+            result.error = str(exc)
+            return result
+
+        result.items_fetched = len(opportunities)
+
+        expires_at = (
+            datetime.now() + timedelta(days=self._config.retention_days)
+        ).isoformat()
+        now = datetime.now().isoformat()
+
+        for opp in opportunities[:limit]:
+            source_id = opp.source_url
+            dedupe_hash = _make_dedupe_hash(source, source_id)
+
+            is_new = self._store.upsert(
+                raw_id=_make_raw_id(),
+                source=source,
+                source_url=opp.source_url,
+                source_id=source_id,
+                title=opp.title,
+                raw_payload=json.dumps(opp.raw_metadata),
+                fetched_at=now,
+                expires_at=expires_at,
+                dedupe_hash=dedupe_hash,
+            )
+            if is_new:
+                result.new_items += 1
+            else:
+                result.updated_items += 1
+
+        self._store.update_fetch_metadata(
+            source=source,
+            items_fetched=result.items_fetched,
             rate_limit_hits=result.rate_limit_hits,
         )
         return result

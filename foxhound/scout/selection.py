@@ -2,7 +2,8 @@
 
 When a user approves an opportunity, this module handles deep analysis
 and task breakdown generation. Creates executable work items from
-approved opportunities.
+approved opportunities. For repo-type opportunities, handles the
+clone-with-review flow before task generation.
 """
 
 from dataclasses import dataclass, field
@@ -18,6 +19,7 @@ from foxhound.core.models import (
     WorkItemKind,
     WorkItemState,
 )
+from foxhound.scout.clone import CloneConfig, CloneManager, CloneRequest, CloneStatus
 from foxhound.scout.opportunity import OpportunityManager
 from foxhound.storage.database import Database, RawOpportunityStore, WorkItemStore
 
@@ -143,18 +145,39 @@ def _generate_tasks(
     return tasks
 
 
+_REPO_SOURCE_TYPES = {
+    "github_trending", "hackernews", "reddit",
+    "devto", "lobsters", "github_events", "newsapi", "producthunt", "rss",
+}
+
+_REPO_URL_HINTS = ("github.com/", "gitlab.com/", "bitbucket.org/")
+
+
+def _looks_like_repo_url(url: str | None) -> bool:
+    """Check if a source URL looks like a cloneable git repository."""
+    if not url:
+        return False
+    return any(hint in url for hint in _REPO_URL_HINTS)
+
+
 class SelectionPipeline:
     """Handles opportunity selection, deep analysis, and task creation.
 
     Bridges scout discovery with the execution engine by converting
-    approved opportunities into executable work items.
+    approved opportunities into executable work items. For repo-type
+    opportunities, manages the clone-with-review flow.
     """
 
-    def __init__(self, db: Database) -> None:
+    def __init__(
+        self,
+        db: Database,
+        clone_config: CloneConfig | None = None,
+    ) -> None:
         self._db = db
         self._opp_mgr = OpportunityManager(db)
         self._raw_store = RawOpportunityStore(db)
         self._work_item_store = WorkItemStore(db)
+        self._clone_mgr = CloneManager(clone_config)
 
     def deep_analyze(self, opportunity_id: str) -> DeepAnalysis:
         """Run deep analysis on an approved opportunity."""
@@ -228,6 +251,50 @@ class SelectionPipeline:
 
         return created
 
+    def is_repo_opportunity(self, opportunity_id: str) -> bool:
+        """Check if an opportunity points to a cloneable repository."""
+        item = self._opp_mgr.get(opportunity_id)
+        if item is None:
+            return False
+        return _looks_like_repo_url(item.source_url)
+
+    def prepare_clone_review(
+        self, opportunity_id: str
+    ) -> CloneRequest | None:
+        """Prepare a clone request for user review.
+
+        Returns None if the opportunity doesn't point to a repo.
+        Does NOT clone — returns a CloneRequest in PENDING_REVIEW
+        state with disclaimers for the user to review.
+        """
+        item = self._opp_mgr.get(opportunity_id)
+        if item is None:
+            raise ValueError(f"Opportunity {opportunity_id} not found")
+
+        if not _looks_like_repo_url(item.source_url):
+            return None
+
+        return self._clone_mgr.prepare_clone(
+            opportunity_id=opportunity_id,
+            source_url=item.source_url or "",
+        )
+
+    def get_clone_review_summary(
+        self, request: CloneRequest
+    ) -> dict[str, object]:
+        """Get the review summary with disclaimers for user display."""
+        return self._clone_mgr.get_review_summary(request)
+
+    def execute_approved_clone(
+        self, request: CloneRequest
+    ) -> CloneRequest:
+        """Execute a clone after user has approved it.
+
+        The request must have been explicitly set to APPROVED by
+        the caller after the user reviewed the disclaimers.
+        """
+        return self._clone_mgr.execute_clone(request)
+
     def approve_and_generate(
         self,
         opportunity_id: str,
@@ -246,3 +313,34 @@ class SelectionPipeline:
             opportunity_id, analysis, repo_id,
         )
         return analysis, tasks
+
+    def approve_and_clone(
+        self,
+        opportunity_id: str,
+        clone_request: CloneRequest,
+    ) -> tuple[CloneRequest, DeepAnalysis | None, list[WorkItem]]:
+        """Full flow for repo opportunities: clone, analyze, generate tasks.
+
+        The clone_request must already be in APPROVED state (user reviewed
+        disclaimers and confirmed). Returns the clone result, analysis,
+        and generated work items.
+        """
+        item = self._opp_mgr.get(opportunity_id)
+        if item is None:
+            raise ValueError(f"Opportunity {opportunity_id} not found")
+
+        if item.state == OpportunityState.SUGGESTED:
+            self._opp_mgr.approve(opportunity_id)
+
+        result = self._clone_mgr.execute_clone(clone_request)
+
+        if result.status != CloneStatus.CLONED:
+            return result, None, []
+
+        repo_id = str(result.clone_path) if result.clone_path else opportunity_id
+
+        analysis = self.deep_analyze(opportunity_id)
+        tasks = self.create_tasks_from_analysis(
+            opportunity_id, analysis, repo_id,
+        )
+        return result, analysis, tasks
