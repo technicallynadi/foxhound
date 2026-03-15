@@ -249,6 +249,11 @@ class TestCapabilitiesMatrix:
             "analyzer_worker",
             "security_review_worker",
             "code_review_worker",
+            "evidence_validator",
+            "failure_triage_worker",
+            "patch_quality_evaluator_worker",
+            "task_decomposer_worker",
+            "context_gap_analyzer_worker",
         }
         assert set(CAPABILITIES_MATRIX.keys()) == expected
 

@@ -533,3 +533,462 @@ class TestCreativeAdapterWiring:
         refs = build_asset_references(results)
         assert "hero" in refs
         assert "favicon" not in refs
+
+
+# ── #97: Helper workers ──────────────────────────────────────────────
+
+
+def _make_task_envelope(**overrides: Any) -> Any:
+    """Create a minimal TaskEnvelope for testing."""
+    from foxhound.core.models import (
+        ExecutionMode,
+        ExecutionSnapshot,
+        ExecutionStrategy,
+        ModelTier,
+        PolicyRef,
+        RecipeRef,
+        TaskEnvelope,
+    )
+
+    defaults: dict[str, Any] = {
+        "task_id": "test_task",
+        "job_id": "test_job",
+        "run_id": "test_run",
+        "repo_id": "test_repo",
+        "execution_snapshot": ExecutionSnapshot(
+            recipe_ref=RecipeRef(
+                name="r", version="1", content_hash="h", source_scope="b"
+            ),
+            policy_ref=PolicyRef(
+                name="p", version="1", content_hash="h", source_scope="b"
+            ),
+            config_hash="test",
+        ),
+        "budget": 1.0,
+        "timeout_seconds": 120,
+        "execution_mode": ExecutionMode.READ_ONLY,
+        "input_payload": {},
+    }
+    defaults.update(overrides)
+    return TaskEnvelope(**defaults)
+
+
+def _make_runtime(**overrides: Any) -> Any:
+    """Create a minimal RuntimeHandle for testing."""
+    from foxhound.core.models import ExecutionMode
+    from foxhound.harness.worker_protocol import Capability, RuntimeHandle
+
+    defaults: dict[str, Any] = {
+        "execution_mode": ExecutionMode.READ_ONLY,
+        "capabilities": {Capability.REPO_READ},
+        "budget_remaining": 1.0,
+        "timeout_remaining": 120.0,
+    }
+    defaults.update(overrides)
+    return RuntimeHandle(**defaults)
+
+
+class TestSecurityReviewWorker:
+    """Tests for SecurityReviewWorker."""
+
+    def test_attributes(self) -> None:
+        from foxhound.harness.helpers import SecurityReviewWorker
+        from foxhound.harness.worker_protocol import Capability, WorkerClass
+
+        w = SecurityReviewWorker()
+        assert w.worker_name == "security_review_worker"
+        assert w.worker_class == WorkerClass.HELPER
+        assert w.capabilities == {Capability.REPO_READ}
+        assert w.allowed_spawn_targets == []
+
+    def test_validate_input_no_diff(self) -> None:
+        from foxhound.harness.helpers import SecurityReviewWorker
+
+        w = SecurityReviewWorker()
+        result = w.validate_input(_make_task_envelope())
+        assert not result.valid
+
+    def test_validate_input_with_diff(self) -> None:
+        from foxhound.harness.helpers import SecurityReviewWorker
+
+        w = SecurityReviewWorker(diff_text="+ some code")
+        result = w.validate_input(_make_task_envelope())
+        assert result.valid
+
+    def test_execute_finds_hardcoded_secret(self) -> None:
+        from foxhound.harness.helpers import SecurityReviewWorker
+
+        diff = '+ password = "hunter2"\n+ x = 1'
+        w = SecurityReviewWorker(diff_text=diff)
+        output = w.execute(_make_task_envelope(), _make_runtime())
+        findings = output.payload["findings"]
+        assert len(findings) >= 1
+        assert findings[0]["pattern_name"] == "hardcoded_secret"
+        assert findings[0]["severity"] == "critical"
+
+    def test_execute_finds_eval(self) -> None:
+        from foxhound.harness.helpers import SecurityReviewWorker
+
+        diff = "+ result = eval(user_input)"
+        w = SecurityReviewWorker(diff_text=diff)
+        output = w.execute(_make_task_envelope(), _make_runtime())
+        assert output.payload["finding_count"] >= 1
+
+    def test_evaluate_fails_on_critical(self) -> None:
+        from foxhound.harness.helpers import SecurityReviewWorker
+        from foxhound.harness.worker_protocol import SanitizedOutput
+
+        output = SanitizedOutput(payload={
+            "findings": [{"severity": "critical", "pattern_name": "eval_usage"}],
+        })
+        w = SecurityReviewWorker()
+        result = w.evaluate_output(output)
+        assert not result.passed
+
+    def test_evaluate_passes_on_warnings_only(self) -> None:
+        from foxhound.harness.helpers import SecurityReviewWorker
+        from foxhound.harness.worker_protocol import SanitizedOutput
+
+        output = SanitizedOutput(payload={
+            "findings": [{"severity": "warning", "pattern_name": "bind_all"}],
+        })
+        w = SecurityReviewWorker()
+        result = w.evaluate_output(output)
+        assert result.passed
+
+    def test_full_harness_cycle(self) -> None:
+        from foxhound.harness.helpers import SecurityReviewWorker
+
+        w = SecurityReviewWorker(diff_text="+ x = 1\n+ y = 2")
+        task = _make_task_envelope()
+        runtime = _make_runtime()
+
+        v = w.validate_input(task)
+        assert v.valid
+        w.build_context(task)
+        output = w.execute(task, runtime)
+        sanitized = w.sanitize_output(output)
+        evaluated = w.evaluate_output(sanitized)
+        result = w.finalize(evaluated)
+        assert result.status.value == "success"
+
+
+class TestEvidenceValidatorWorker:
+    """Tests for EvidenceValidatorWorker."""
+
+    def test_attributes(self) -> None:
+        from foxhound.harness.helpers import EvidenceValidatorWorker
+        from foxhound.harness.worker_protocol import Capability, WorkerClass
+
+        w = EvidenceValidatorWorker()
+        assert w.worker_name == "evidence_validator"
+        assert w.worker_class == WorkerClass.HELPER
+        assert w.capabilities == {Capability.NETWORK}
+
+    def test_validate_no_evidence(self) -> None:
+        from foxhound.harness.helpers import EvidenceValidatorWorker
+
+        w = EvidenceValidatorWorker()
+        result = w.validate_input(_make_task_envelope())
+        assert not result.valid
+
+    def test_execute_validates_evidence(self) -> None:
+        from foxhound.harness.helpers import EvidenceValidatorWorker
+
+        evidence = [
+            {"title": "Bug report", "source_type": "github_issue", "url": "https://example.com"},
+            {"title": "", "source_type": "unknown"},
+        ]
+        w = EvidenceValidatorWorker(evidence=evidence)
+        task = _make_task_envelope(input_payload={"evidence": evidence})
+        output = w.execute(task, _make_runtime())
+        assert output.payload["total"] == 2
+        assert output.payload["valid_count"] == 1
+
+    def test_trust_labeling(self) -> None:
+        from foxhound.harness.helpers import EvidenceValidatorWorker
+
+        evidence = [
+            {"source_type": "reddit"},
+            {"source_type": "github_issue"},
+        ]
+        w = EvidenceValidatorWorker(evidence=evidence)
+        ctx = w.build_context(_make_task_envelope(input_payload={"evidence": evidence}))
+        assert ctx.trust_labels["evidence_0"] == "untrusted"
+        assert ctx.trust_labels["evidence_1"] == "semi_trusted"
+
+
+class TestFailureTriageWorker:
+    """Tests for FailureTriageWorker."""
+
+    def test_attributes(self) -> None:
+        from foxhound.harness.helpers import FailureTriageWorker
+        from foxhound.harness.worker_protocol import Capability, WorkerClass
+
+        w = FailureTriageWorker()
+        assert w.worker_name == "failure_triage_worker"
+        assert w.worker_class == WorkerClass.HELPER
+        assert w.capabilities == {Capability.REPO_READ}
+
+    def test_classifies_test_failure(self) -> None:
+        from foxhound.harness.helpers import FailureTriageWorker
+
+        w = FailureTriageWorker(failure_output="FAILED test_login - AssertionError")
+        output = w.execute(_make_task_envelope(), _make_runtime())
+        assert output.payload["failure_class"] == "test_failure"
+
+    def test_classifies_import_error(self) -> None:
+        from foxhound.harness.helpers import FailureTriageWorker
+
+        w = FailureTriageWorker(failure_output="ModuleNotFoundError: No module named 'foo'")
+        output = w.execute(_make_task_envelope(), _make_runtime())
+        assert output.payload["failure_class"] == "import_error"
+
+    def test_classifies_unknown(self) -> None:
+        from foxhound.harness.helpers import FailureTriageWorker
+
+        w = FailureTriageWorker(failure_output="something weird happened")
+        output = w.execute(_make_task_envelope(), _make_runtime())
+        assert output.payload["failure_class"] == "unknown"
+
+    def test_validate_no_input(self) -> None:
+        from foxhound.harness.helpers import FailureTriageWorker
+
+        w = FailureTriageWorker()
+        result = w.validate_input(_make_task_envelope())
+        assert not result.valid
+
+    def test_remediation_suggestion(self) -> None:
+        from foxhound.harness.helpers import FailureTriageWorker
+
+        w = FailureTriageWorker(failure_output="TimeoutError: timed out")
+        output = w.execute(_make_task_envelope(), _make_runtime())
+        assert "timeout" in output.payload["remediation"].lower()
+
+
+class TestPatchQualityEvaluatorWorker:
+    """Tests for PatchQualityEvaluatorWorker."""
+
+    def test_attributes(self) -> None:
+        from foxhound.harness.helpers import PatchQualityEvaluatorWorker
+        from foxhound.harness.worker_protocol import Capability, WorkerClass
+
+        w = PatchQualityEvaluatorWorker()
+        assert w.worker_name == "patch_quality_evaluator_worker"
+        assert w.worker_class == WorkerClass.HELPER
+        assert w.capabilities == {Capability.REPO_READ}
+
+    def test_validate_no_diff(self) -> None:
+        from foxhound.harness.helpers import PatchQualityEvaluatorWorker
+
+        w = PatchQualityEvaluatorWorker()
+        result = w.validate_input(_make_task_envelope())
+        assert not result.valid
+
+    def test_quality_score_small_diff(self) -> None:
+        from foxhound.harness.helpers import PatchQualityEvaluatorWorker
+
+        diff = "\n".join([f"+line{i}" for i in range(10)])
+        w = PatchQualityEvaluatorWorker(
+            diff_text=diff, files_changed=["src/main.py", "tests/test_main.py"]
+        )
+        output = w.execute(_make_task_envelope(), _make_runtime())
+        assert output.payload["quality_score"] > 0.5
+        assert output.payload["test_files_count"] == 1
+
+    def test_quality_penalty_no_tests(self) -> None:
+        from foxhound.harness.helpers import PatchQualityEvaluatorWorker
+
+        diff = "\n".join([f"+line{i}" for i in range(10)])
+        w = PatchQualityEvaluatorWorker(
+            diff_text=diff, files_changed=["src/main.py"]
+        )
+        output = w.execute(_make_task_envelope(), _make_runtime())
+        issues = output.payload["issues"]
+        assert any("test" in i.lower() for i in issues)
+
+    def test_quality_penalty_failed_validations(self) -> None:
+        from foxhound.harness.helpers import PatchQualityEvaluatorWorker
+
+        w = PatchQualityEvaluatorWorker(
+            diff_text="+x = 1",
+            validation_results=[{"passed": False, "command": "pytest"}],
+        )
+        output = w.execute(_make_task_envelope(), _make_runtime())
+        assert any("validation" in i.lower() for i in output.payload["issues"])
+
+
+class TestTaskDecomposerWorker:
+    """Tests for TaskDecomposerWorker."""
+
+    def test_attributes(self) -> None:
+        from foxhound.harness.helpers import TaskDecomposerWorker
+        from foxhound.harness.worker_protocol import Capability, WorkerClass
+
+        w = TaskDecomposerWorker()
+        assert w.worker_name == "task_decomposer_worker"
+        assert w.worker_class == WorkerClass.HELPER
+        assert w.capabilities == {Capability.REPO_READ}
+
+    def test_validate_no_description(self) -> None:
+        from foxhound.harness.helpers import TaskDecomposerWorker
+
+        w = TaskDecomposerWorker()
+        result = w.validate_input(_make_task_envelope())
+        assert not result.valid
+
+    def test_decompose_numbered_list(self) -> None:
+        from foxhound.harness.helpers import TaskDecomposerWorker
+
+        desc = "1. Add user model\n2. Create migration\n3. Write tests"
+        w = TaskDecomposerWorker(task_description=desc)
+        output = w.execute(_make_task_envelope(), _make_runtime())
+        assert output.payload["total_subtasks"] == 3
+        subtasks = output.payload["subtasks"]
+        assert subtasks[0]["description"] == "Add user model"
+        assert subtasks[1]["depends_on"] == [1]
+
+    def test_decompose_bullet_list(self) -> None:
+        from foxhound.harness.helpers import TaskDecomposerWorker
+
+        desc = "- Fix the login bug\n- Update the tests"
+        w = TaskDecomposerWorker(task_description=desc)
+        output = w.execute(_make_task_envelope(), _make_runtime())
+        assert output.payload["total_subtasks"] == 2
+
+    def test_decompose_single_task(self) -> None:
+        from foxhound.harness.helpers import TaskDecomposerWorker
+
+        w = TaskDecomposerWorker(task_description="Fix the bug")
+        output = w.execute(_make_task_envelope(), _make_runtime())
+        assert output.payload["total_subtasks"] == 1
+        assert output.payload["estimated_complexity"] == "low"
+
+    def test_complexity_estimation(self) -> None:
+        from foxhound.harness.helpers import TaskDecomposerWorker
+
+        desc = "\n".join([f"- Task {i}: do something" for i in range(8)])
+        w = TaskDecomposerWorker(task_description=desc)
+        output = w.execute(_make_task_envelope(), _make_runtime())
+        assert output.payload["estimated_complexity"] == "high"
+
+
+class TestContextGapAnalyzerWorker:
+    """Tests for ContextGapAnalyzerWorker."""
+
+    def test_attributes(self) -> None:
+        from foxhound.harness.helpers import ContextGapAnalyzerWorker
+        from foxhound.harness.worker_protocol import Capability, WorkerClass
+
+        w = ContextGapAnalyzerWorker()
+        assert w.worker_name == "context_gap_analyzer_worker"
+        assert w.worker_class == WorkerClass.HELPER
+        assert w.capabilities == {Capability.REPO_READ}
+
+    def test_validate_no_failure_output(self) -> None:
+        from foxhound.harness.helpers import ContextGapAnalyzerWorker
+
+        w = ContextGapAnalyzerWorker()
+        result = w.validate_input(_make_task_envelope())
+        assert not result.valid
+
+    def test_detect_missing_file(self) -> None:
+        from foxhound.harness.helpers import ContextGapAnalyzerWorker
+
+        failure = 'File "src/utils.py", line 10, in helper\nNameError'
+        w = ContextGapAnalyzerWorker(
+            failure_output=failure,
+            files_in_context=["src/main.py"],
+        )
+        output = w.execute(_make_task_envelope(), _make_runtime())
+        gaps = output.payload["gaps"]
+        assert any(g["type"] == "missing_file" for g in gaps)
+        assert any("utils.py" in g["reference"] for g in gaps)
+
+    def test_detect_missing_module(self) -> None:
+        from foxhound.harness.helpers import ContextGapAnalyzerWorker
+
+        failure = "ModuleNotFoundError: No module named 'requests'"
+        w = ContextGapAnalyzerWorker(failure_output=failure)
+        output = w.execute(_make_task_envelope(), _make_runtime())
+        gaps = output.payload["gaps"]
+        assert any(g["type"] == "missing_dependency" for g in gaps)
+        assert any("requests" in g["reference"] for g in gaps)
+
+    def test_detect_undefined_name(self) -> None:
+        from foxhound.harness.helpers import ContextGapAnalyzerWorker
+
+        failure = "NameError: name 'helper_func' is not defined"
+        w = ContextGapAnalyzerWorker(failure_output=failure)
+        output = w.execute(_make_task_envelope(), _make_runtime())
+        gaps = output.payload["gaps"]
+        assert any(g["type"] == "undefined_reference" for g in gaps)
+
+    def test_no_gaps_when_all_present(self) -> None:
+        from foxhound.harness.helpers import ContextGapAnalyzerWorker
+
+        failure = "AssertionError: expected True"
+        w = ContextGapAnalyzerWorker(failure_output=failure)
+        output = w.execute(_make_task_envelope(), _make_runtime())
+        assert output.payload["gap_count"] == 0
+
+
+class TestCapabilitiesMatrixUpdated:
+    """Tests that CAPABILITIES_MATRIX includes all helper workers."""
+
+    def test_all_helpers_in_matrix(self) -> None:
+        from foxhound.harness.worker_protocol import CAPABILITIES_MATRIX
+
+        expected = [
+            "security_review_worker",
+            "evidence_validator",
+            "failure_triage_worker",
+            "patch_quality_evaluator_worker",
+            "task_decomposer_worker",
+            "context_gap_analyzer_worker",
+        ]
+        for name in expected:
+            assert name in CAPABILITIES_MATRIX, f"{name} missing from matrix"
+
+    def test_helpers_have_restricted_capabilities(self) -> None:
+        from foxhound.harness.worker_protocol import CAPABILITIES_MATRIX, Capability
+
+        restricted_helpers = [
+            "security_review_worker",
+            "failure_triage_worker",
+            "patch_quality_evaluator_worker",
+            "task_decomposer_worker",
+            "context_gap_analyzer_worker",
+        ]
+        for name in restricted_helpers:
+            caps = CAPABILITIES_MATRIX[name]
+            assert Capability.REPO_WRITE not in caps
+            assert Capability.SHELL not in caps
+            assert Capability.SPAWN not in caps
+
+    def test_evidence_validator_has_network(self) -> None:
+        from foxhound.harness.worker_protocol import CAPABILITIES_MATRIX, Capability
+
+        assert Capability.NETWORK in CAPABILITIES_MATRIX["evidence_validator"]
+
+    def test_worker_validate_capabilities_passes(self) -> None:
+        from foxhound.harness.worker_protocol import (
+            Capability,
+            validate_worker_capabilities,
+        )
+
+        violations = validate_worker_capabilities(
+            "security_review_worker", {Capability.REPO_READ}
+        )
+        assert len(violations) == 0
+
+    def test_worker_validate_capabilities_fails_on_escalation(self) -> None:
+        from foxhound.harness.worker_protocol import (
+            Capability,
+            validate_worker_capabilities,
+        )
+
+        violations = validate_worker_capabilities(
+            "security_review_worker", {Capability.REPO_READ, Capability.SHELL}
+        )
+        assert len(violations) > 0
