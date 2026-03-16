@@ -10,7 +10,7 @@ import html
 import logging
 import re
 import sqlite3
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import httpx
@@ -199,7 +199,7 @@ class HackerNewsConnector:
             return None
 
         posted_at = datetime.fromtimestamp(
-            item.get("time", 0), tz=timezone.utc
+            item.get("time", 0), tz=UTC
         ).isoformat()
 
         return RawOpportunity(
@@ -216,7 +216,7 @@ class HackerNewsConnector:
                 "posted_at": posted_at,
                 "source_feed": source_feed,
             },
-            discovered_at=datetime.now(timezone.utc),
+            discovered_at=datetime.now(UTC),
             trust_level="external_untrusted",
         )
 
@@ -283,7 +283,7 @@ class HackerNewsConnector:
         if not self._db or not opportunities:
             return
 
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         for opp in opportunities:
             hn_id = opp.raw_metadata.get("hn_id")
             if hn_id is None:
@@ -303,11 +303,11 @@ class HackerNewsConnector:
         if not self._db:
             return 0
 
-        cutoff = datetime.now(timezone.utc).isoformat()
+        cutoff = datetime.now(UTC).isoformat()
         # Calculate cutoff by subtracting retention days
         from datetime import timedelta
 
-        cutoff_dt = datetime.now(timezone.utc) - timedelta(
+        cutoff_dt = datetime.now(UTC) - timedelta(
             days=self._config.seen_retention_days
         )
         cutoff = cutoff_dt.isoformat()

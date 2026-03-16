@@ -122,6 +122,7 @@ class ScoutInboxView(Vertical):
         self._opportunity_ids: list[str] = []
         self._query: str = ""
         self._current_button_mode: str = "default"
+        self._summarizing_id: str | None = None
 
     def compose(self) -> ComposeResult:
         yield Input(
@@ -527,30 +528,12 @@ class ScoutInboxView(Vertical):
         lines = self._build_detail_lines(item)
         evidence = item.evidence or {}
 
-        # Show cached summary or fetch from LLM
+        # Show cached summary (generated during foxhound scout)
         cached_summary = evidence.get("llm_summary")
         if cached_summary:
             lines.append("")
             lines.append(f"[bold]Summary:[/bold] {cached_summary}")
-            detail.detail_text = "\n".join(lines)
-        elif self._data.has_router():
-            lines.append("")
-            lines.append("[dim]Loading summary...[/dim]")
-            detail.detail_text = "\n".join(lines)
-
-            summary = await self._data.summarize_opportunity(opp_id)
-
-            current_id = self._get_selected_id()
-            if current_id == opp_id:
-                lines = self._build_detail_lines(item)
-                if summary:
-                    lines.append("")
-                    lines.append(f"[bold]Summary:[/bold] {summary}")
-                detail.detail_text = "\n".join(lines)
-        else:
-            lines.append("")
-            lines.append("[dim]No LLM summary — check API credits and key[/dim]")
-            detail.detail_text = "\n".join(lines)
+        detail.detail_text = "\n".join(lines)
 
         # Show Clone button only for repo URLs — skip if already correct
         needed = "repo" if _is_repo_url(item.source_url) else "default"
@@ -558,6 +541,39 @@ class ScoutInboxView(Vertical):
             self._current_button_mode = needed
             rows = _REPO_ROWS if needed == "repo" else _DEFAULT_ROWS
             await detail.set_button_rows(rows)
+
+    def _run_summary_worker(self, opp_id: str) -> None:
+        """Run summary generation in a Textual worker thread."""
+        import threading
+
+        def _worker() -> None:
+            summary = self._data._do_summarize(opp_id)
+            self._summarizing_id = None
+            self.app.call_from_thread(self._apply_summary, opp_id, summary)
+
+        thread = threading.Thread(target=_worker, daemon=True)
+        thread.start()
+
+    def _apply_summary(self, opp_id: str, summary: str | None) -> None:
+        """Apply summary result back to the detail panel (called from main thread)."""
+        current_id = self._get_selected_id()
+        if current_id != opp_id:
+            return
+
+        detail = self.query_one("#scout-detail", DetailPanel)
+        # Re-fetch item to get current state
+        import asyncio
+        from foxhound.scout.opportunity import OpportunityManager
+        mgr = OpportunityManager(self._data.db)
+        item = mgr.get(opp_id)
+        if item is None:
+            return
+
+        lines = self._build_detail_lines(item)
+        if summary:
+            lines.append("")
+            lines.append(f"[bold]Summary:[/bold] {summary}")
+        detail.detail_text = "\n".join(lines)
 
     def _get_selected_id(self) -> str | None:
         table = self.query_one("#scout-table", DataTable)

@@ -265,12 +265,14 @@ class ScoringPipeline:
         db: Database,
         preferences: ScoringPreferences | None = None,
         router: "ModelRouter | None" = None,
+        topics: list[str] | None = None,
     ) -> None:
         self._db = db
         self._raw_store = RawOpportunityStore(db)
         self._opp_mgr = OpportunityManager(db)
         self._prefs = preferences or ScoringPreferences()
         self._router = router
+        self._topics = topics or []
 
     def score_all(self) -> ScoringResult:
         """Process all unscored raw opportunities."""
@@ -327,11 +329,19 @@ class ScoringPipeline:
         if self._router:
             try:
                 prompt = _build_scoring_prompt(source)
+                system = LLM_SCORING_SYSTEM
+                if self._topics:
+                    topics_str = ", ".join(self._topics)
+                    system += (
+                        f"\n\nThe user is especially interested in these topics: "
+                        f"{topics_str}. Boost the business_value score for "
+                        f"opportunities that are relevant to these topics."
+                    )
                 response = self._router.complete(
                     tier=ModelTier.FAST,
                     messages=[{"role": "user", "content": prompt}],
-                    system=LLM_SCORING_SYSTEM,
-                    max_tokens=256,
+                    system=system,
+                    max_tokens=1024,
                     temperature=0.0,
                 )
                 scores = _parse_llm_scores(response.content)

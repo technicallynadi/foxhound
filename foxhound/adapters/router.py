@@ -39,6 +39,12 @@ _ALLOWED_KEY_NAMES = frozenset({
     "GITHUB_TOKEN",
     "NEWSAPI_API_KEY",
     "PRODUCTHUNT_API_TOKEN",
+    # Notification channel credentials
+    "RESEND_API_KEY",
+    "TWILIO_ACCOUNT_SID",
+    "TWILIO_AUTH_TOKEN",
+    "SLACK_WEBHOOK_URL",
+    "DISCORD_WEBHOOK_URL",
 })
 
 _KEY_NAME_RE = __import__("re").compile(r"^[A-Z][A-Z0-9_]{2,40}$")
@@ -119,20 +125,29 @@ def store_credential(key_name: str, value: str, platform: str) -> bool:
     _validate_key_name(key_name)
 
     if platform == "darwin":
-        # Delete existing entry first
-        subprocess.run(
-            ["security", "delete-generic-password",
-             "-s", SERVICE_NAME, "-a", key_name],
-            capture_output=True, timeout=5,
-        )
-        # Use -T "" for no app access, pipe password via stdin with -w
-        # security add-generic-password reads from stdin when -w has no arg
+        # Delete existing entry first (retry to ensure it's gone)
+        for _ in range(2):
+            subprocess.run(
+                ["security", "delete-generic-password",
+                 "-s", SERVICE_NAME, "-a", key_name],
+                capture_output=True, timeout=5,
+            )
+        # Use -U to update if exists. The macOS security command
+        # requires -w with an inline value (it ignores stdin).
+        # We pass it as an argument — the window is brief (~ms)
+        # and this is a local CLI tool on the user's own machine.
         result = subprocess.run(
             ["security", "add-generic-password",
-             "-s", SERVICE_NAME, "-a", key_name, "-w", value],
+             "-s", SERVICE_NAME, "-a", key_name, "-U", "-w", value],
             capture_output=True, text=True, timeout=5,
         )
-        return result.returncode == 0
+        if result.returncode != 0:
+            return False
+        # Verify the stored value matches
+        stored = _read_credential(key_name, platform)
+        if stored != value:
+            return False
+        return True
 
     elif platform == "linux":
         result = subprocess.run(
@@ -236,22 +251,32 @@ class ModelRouter:
 
             adapter: ProviderAdapter = factory()
 
-            # Validate api_key_env to prevent arbitrary env var exfiltration
-            env_var = provider_config.api_key_env
-            if not env_var.endswith(("_KEY", "_TOKEN", "_SECRET")):
-                errors.append(
-                    f"Provider '{provider_name}': api_key_env "
-                    f"'{env_var}' must end in _KEY, _TOKEN, or _SECRET"
-                )
-                continue
+            # Local providers don't need API keys
+            _LOCAL_PROVIDERS = {"local", "ollama"}
+            if provider_name in _LOCAL_PROVIDERS:
+                api_key = "no-auth"
+            else:
+                # Validate api_key_env to prevent arbitrary env var exfiltration
+                env_var = provider_config.api_key_env
+                if not env_var:
+                    errors.append(
+                        f"Provider '{provider_name}': api_key_env is required"
+                    )
+                    continue
+                if not env_var.endswith(("_KEY", "_TOKEN", "_SECRET")):
+                    errors.append(
+                        f"Provider '{provider_name}': api_key_env "
+                        f"'{env_var}' must end in _KEY, _TOKEN, or _SECRET"
+                    )
+                    continue
 
-            api_key = os.environ.get(env_var, "")
-            if not api_key:
-                errors.append(
-                    f"Provider '{provider_name}': environment variable "
-                    f"'{provider_config.api_key_env}' is not set"
-                )
-                continue
+                api_key = os.environ.get(env_var, "")
+                if not api_key:
+                    errors.append(
+                        f"Provider '{provider_name}': environment variable "
+                        f"'{env_var}' is not set"
+                    )
+                    continue
 
             if adapter.authenticate(api_key, provider_config.base_url):
                 self._adapters[provider_name] = adapter
@@ -282,6 +307,12 @@ class ModelRouter:
             "GITHUB_TOKEN",
             "NEWSAPI_API_KEY",
             "PRODUCTHUNT_API_TOKEN",
+            # Notification channel credentials
+            "RESEND_API_KEY",
+            "TWILIO_ACCOUNT_SID",
+            "TWILIO_AUTH_TOKEN",
+            "SLACK_WEBHOOK_URL",
+            "DISCORD_WEBHOOK_URL",
         ]
 
         for key_name in secret_keys:

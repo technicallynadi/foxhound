@@ -55,6 +55,12 @@ class ScoutConfig(BaseModel):
 
     fetch_interval_hours: float = Field(default=DEFAULT_FETCH_INTERVAL_HOURS)
     retention_days: int = Field(default=DEFAULT_RETENTION_DAYS)
+    limit: int = Field(default=5, description="Max results per source")
+    deep_dive_count: int = Field(default=5, description="Number of top items to scrape")
+    topics: list[str] = Field(
+        default_factory=list,
+        description="Topics to prioritize for deep dive and alerts",
+    )
     sources: dict[str, SourceConfig] = Field(default_factory=lambda: {
         "github_trending": SourceConfig(),
         "reddit": SourceConfig(fetch_interval_hours=12),
