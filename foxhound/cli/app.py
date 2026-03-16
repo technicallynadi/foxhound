@@ -976,6 +976,59 @@ def approve(work_item_id: str) -> None:
 
 
 @app.command()
+def purge(
+    state: str = typer.Option(
+        None, "--state", "-s",
+        help="Only purge items in this state (e.g., suggested, rejected).",
+    ),
+    force: bool = typer.Option(
+        False, "--force", "-f", help="Skip confirmation prompt.",
+    ),
+) -> None:
+    """Delete all work items from the database."""
+    from foxhound.core.models import WorkItemState
+    from foxhound.storage.database import Database, WorkItemStore
+
+    db_path = _db_path()
+    if not db_path.exists():
+        console.print("[red]Not initialized.[/red] Run [cyan]foxhound init[/cyan] first.")
+        raise typer.Exit(code=1)
+
+    state_filter = None
+    if state:
+        try:
+            state_filter = WorkItemState(state)
+        except ValueError:
+            valid = ", ".join(s.value for s in WorkItemState)
+            console.print(f"[red]Invalid state:[/red] {state}. Valid: {valid}")
+            raise typer.Exit(code=1)
+
+    db = Database(db_path)
+    try:
+        store = WorkItemStore(db)
+        items = store.list_all(state=state_filter)
+        count = len(items)
+
+        if count == 0:
+            console.print("[yellow]No work items to purge.[/yellow]")
+            return
+
+        label = f"in state '{state}'" if state else "across all states"
+        console.print(f"Found [bold]{count}[/bold] work items {label}.")
+
+        if not force:
+            from rich.prompt import Confirm
+            if not Confirm.ask(f"Delete {count} work items?", default=False):
+                console.print("[dim]Cancelled.[/dim]")
+                return
+
+        deleted = store.delete_all(state=state_filter)
+        console.print(f"[green]Purged {deleted} work items.[/green]")
+    finally:
+        db.close()
+
+
+@app.command()
 def log(
     state: str = typer.Option(
         None, "--state", "-s", help="Filter by state (e.g., suggested, approved)."
