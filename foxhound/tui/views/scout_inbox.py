@@ -533,7 +533,12 @@ class ScoutInboxView(Vertical):
         if item.matched_topic:
             lines.append(f"  Matched Topic: [bold]{item.matched_topic}[/bold]")
 
-        if desc:
+        # LLM summary
+        llm_summary = evidence.get("llm_summary", "") or item.enrichment_summary
+        if llm_summary:
+            lines.append("")
+            lines.append(f"[italic]{llm_summary}[/italic]")
+        elif desc:
             lines.append("")
             lines.append(desc)
 

@@ -690,6 +690,7 @@ def _generate_summaries(db: "Database", opportunity_ids: list[str]) -> None:
                 summary = re.sub(r"\*{1,2}([^*]+)\*{1,2}", r"\1", summary)
                 summary = summary.strip()
                 item.evidence = evidence | {"llm_summary": summary}
+                item.enrichment_summary = summary
                 mgr._store.save(item)
                 count += 1
                 console.print(f"  [dim]{item.title[:60]}[/dim]")
@@ -757,7 +758,7 @@ def _fire_scout_notifications(
     for i, (score, title, url, summary) in enumerate(worthy, 1):
         link = f"[{title}]({url})" if url else title
         lines.append(f"### {i}. {link}")
-        lines.append(f"**Score:** {score:.0%}")
+        lines.append(f"**Score:** {score:.0f}/35")
         if summary:
             lines.append("")
             lines.append(f"> {summary}")
@@ -767,16 +768,17 @@ def _fire_scout_notifications(
 
     # Send one notification linking to the digest
     top_score = worthy[0][0]
-    priority = "critical" if top_score >= 0.95 else "high" if top_score >= 0.9 else "normal"
+    score_pct = top_score / 35.0
+    priority = "critical" if score_pct >= 0.85 else "high" if score_pct >= 0.7 else "normal"
     trigger_type = (
-        "opportunity_found_critical" if top_score >= 0.95
+        "opportunity_found_critical" if score_pct >= 0.85
         else "opportunity_found_high"
     )
 
     notification = Notification(
         notification_id=f"top_opportunities_{timestamp}",
         title=f"{len(worthy)} new opportunities found",
-        body=f"Top: {worthy[0][1]} (value: {worthy[0][0]:.0%})",
+        body=f"Top: {worthy[0][1]} (score: {worthy[0][0]:.0f}/35)",
         priority=priority,
         trigger_type=trigger_type,
         action_url=str(digest_path),
