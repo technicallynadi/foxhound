@@ -533,12 +533,7 @@ class ScoutInboxView(Vertical):
         if item.matched_topic:
             lines.append(f"  Matched Topic: [bold]{item.matched_topic}[/bold]")
 
-        # LLM summary
-        llm_summary = evidence.get("llm_summary", "") or item.enrichment_summary
-        if llm_summary:
-            lines.append("")
-            lines.append(f"[italic]{llm_summary}[/italic]")
-        elif desc:
+        if desc:
             lines.append("")
             lines.append(desc)
 
@@ -569,7 +564,7 @@ class ScoutInboxView(Vertical):
         evidence = item.evidence or {}
 
         # Show cached summary (generated during foxhound scout)
-        cached_summary = evidence.get("llm_summary")
+        cached_summary = evidence.get("llm_summary") or item.enrichment_summary
         if cached_summary:
             lines.append("")
             lines.append(f"[bold]Summary:[/bold] {cached_summary}")
