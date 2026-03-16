@@ -1,3 +1,6 @@
+# Claude Code (local settings, not project config)
+.claude/
+
 # Foxhound runtime directory (local execution state)
 .foxhound/
 
