@@ -10,9 +10,9 @@ import logging
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
+from foxhound.adapters.registry import get_pipeline_stage_tier
 from foxhound.core.models import (
     ConfidenceLevel,
-    ModelTier,
     OpportunityState,
     SignalTier,
 )
@@ -438,7 +438,7 @@ class ScoringPipeline:
                         f"{topics_str}."
                     )
                 response = self._router.complete(
-                    tier=ModelTier.FAST,
+                    tier=get_pipeline_stage_tier("signal_scoring"),
                     messages=[{"role": "user", "content": prompt}],
                     system=system,
                     max_tokens=1024,

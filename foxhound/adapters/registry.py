@@ -149,7 +149,20 @@ def generate_config_yaml(provider: str, api_key_env: str | None = None) -> str:
     return "\n".join(lines) + "\n"
 
 
-# Default worker tier assignments (spec §5)
+# Default worker tier assignments
+#
+# Pipeline tier mapping:
+#   Signal scoring/classification  → FAST    (cheap, runs on everything)
+#   Topic relevance scoring        → FAST    (keyword + light LLM)
+#   AI exposure analysis           → FAST    (heuristic + light LLM)
+#   TinyFish source navigation     → N/A     (browser agent, not LLM)
+#   Enrichment summary             → BALANCED (quality writing, only high-scoring signals)
+#   Conversation mode (--deep)     → BALANCED (interactive, needs good reasoning)
+#   Task decomposition             → BALANCED (architecture understanding)
+#   Code execution                 → BALANCED or REASONING (depends on complexity)
+#   Code review                    → REASONING (correctness and security matter)
+#   Security review                → REASONING (must not miss vulnerabilities)
+#
 WORKER_DEFAULT_TIERS: dict[str, ModelTier] = {
     "ScoutWorker": ModelTier.FAST,
     "DiscoveryWorker": ModelTier.BALANCED,
@@ -160,8 +173,35 @@ WORKER_DEFAULT_TIERS: dict[str, ModelTier] = {
     "EvidenceValidatorWorker": ModelTier.FAST,
     "FailureTriageWorker": ModelTier.BALANCED,
     "PatchQualityEvaluatorWorker": ModelTier.BALANCED,
-    "TaskDecomposerWorker": ModelTier.REASONING,
+    "TaskDecomposerWorker": ModelTier.BALANCED,
+    "EnrichmentWorker": ModelTier.BALANCED,
 }
+
+
+PIPELINE_STAGE_TIERS: dict[str, ModelTier] = {
+    "signal_scoring": ModelTier.FAST,
+    "signal_classification": ModelTier.FAST,
+    "topic_relevance": ModelTier.FAST,
+    "ai_exposure": ModelTier.FAST,
+    "enrichment_summary": ModelTier.BALANCED,
+    "conversation_deep": ModelTier.BALANCED,
+    "task_decomposition": ModelTier.BALANCED,
+    "code_execution": ModelTier.BALANCED,
+    "code_review": ModelTier.REASONING,
+    "security_review": ModelTier.REASONING,
+}
+
+
+def get_pipeline_stage_tier(stage: str) -> ModelTier:
+    """Get the default model tier for a pipeline stage.
+
+    Args:
+        stage: Pipeline stage name (e.g., 'signal_scoring', 'enrichment_summary').
+
+    Returns:
+        Default model tier for the stage (falls back to balanced).
+    """
+    return PIPELINE_STAGE_TIERS.get(stage, ModelTier.BALANCED)
 
 
 def get_worker_default_tier(worker_type: str) -> ModelTier:

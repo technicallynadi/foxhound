@@ -8,7 +8,7 @@ and optional LLM scoring.
 import logging
 from typing import TYPE_CHECKING
 
-from foxhound.core.models import ModelTier
+from foxhound.adapters.registry import get_pipeline_stage_tier
 
 if TYPE_CHECKING:
     from foxhound.adapters.router import ModelRouter
@@ -102,7 +102,7 @@ def score_topic_relevance(
                 f"User topics:\n{topics_str}"
             )
             response = router.complete(
-                tier=ModelTier.FAST,
+                tier=get_pipeline_stage_tier("topic_relevance"),
                 messages=[{"role": "user", "content": prompt}],
                 system=LLM_TOPIC_SYSTEM,
                 max_tokens=128,
