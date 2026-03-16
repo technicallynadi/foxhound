@@ -48,6 +48,10 @@ class ModelsConfig(BaseModel):
     def resolve_tier(self, tier: ModelTier) -> tuple[str, str]:
         """Resolve a tier to (provider_name, model_identifier).
 
+        If the requested tier isn't configured, falls back through
+        balanced → fast → reasoning → any configured tier. This means
+        a user with a single model gets that model for every stage.
+
         Args:
             tier: The model tier to resolve.
 
@@ -55,11 +59,23 @@ class ModelsConfig(BaseModel):
             Tuple of (provider_name, model_id).
 
         Raises:
-            ValueError: If the tier is not configured.
+            ValueError: If no tiers are configured at all.
         """
         model_spec = self.tiers.get(tier.value)
         if not model_spec:
-            raise ValueError(f"No model configured for tier '{tier.value}'")
+            # Fallback order: balanced → fast → reasoning → creative → any
+            for fallback in ("balanced", "fast", "reasoning", "creative"):
+                if fallback in self.tiers:
+                    model_spec = self.tiers[fallback]
+                    break
+            if not model_spec:
+                if self.tiers:
+                    model_spec = next(iter(self.tiers.values()))
+                else:
+                    raise ValueError(
+                        f"No model configured for tier '{tier.value}' "
+                        "and no other tiers to fall back to"
+                    )
 
         if "/" in model_spec:
             provider_name, model_id = model_spec.split("/", 1)
