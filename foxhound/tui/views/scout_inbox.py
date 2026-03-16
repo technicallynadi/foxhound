@@ -134,7 +134,7 @@ class ScoutInboxView(Vertical):
 
     def on_mount(self) -> None:
         table = self.query_one("#scout-table", ScoutInboxTable)
-        table.add_columns("Score", "Source", "Title", "Tags")
+        table.add_columns("Tier", "Score", "Source", "Title", "Topic")
         table.cursor_type = "row"
         table.zebra_stripes = True
         self.call_after_refresh(self._load_data)
@@ -445,26 +445,29 @@ class ScoutInboxView(Vertical):
                 if q in item.title.lower()
                 or q in (item.description or "").lower()
                 or q in item.source_type.lower()
+                or q in (item.matched_topic or "").lower()
+                or (item.signal_tier and q in item.signal_tier.value)
                 or any(q in tag.lower() for tag in (item.tags or []))
             ]
         else:
             items = all_items
 
-        items.sort(key=lambda x: x.business_value_score, reverse=True)
+        items.sort(key=lambda x: x.opportunity_score, reverse=True)
 
         for item in items:
+            tier_text = item.signal_tier.value if item.signal_tier else "—"
             score_text = (
-                f"{item.business_value_score:.0%}"
-                if item.business_value_score > 0
+                f"{item.opportunity_score:.0f}/35"
+                if item.opportunity_score > 0
                 else "pending"
             )
-            tags = ", ".join(item.tags[:3]) if item.tags else ""
             source = item.source_type
             if len(source) > 12:
                 source = source[:11] + "…"
             title = item.title[:50]
+            topic = item.matched_topic[:20] if item.matched_topic else ""
 
-            table.add_row(score_text, source, title, tags)
+            table.add_row(tier_text, score_text, source, title, topic)
             self._opportunity_ids.append(item.opportunity_id)
 
         if not items:
@@ -478,40 +481,72 @@ class ScoutInboxView(Vertical):
         """Build the detail text lines for an opportunity."""
         evidence = item.evidence or {}
         llm_scored = evidence.get("llm_scored", False)
-
-        if item.business_value_score > 0:
-            score_label = "LLM" if llm_scored else "Heuristic"
-            scores = (
-                f"Credibility: {item.credibility_score:.0%}  "
-                f"Novelty: {item.novelty_score:.0%}  "
-                f"Actionability: {item.actionability_score:.0%}  "
-                f"Value: {item.business_value_score:.0%}  "
-                f"[dim]({score_label})[/dim]"
-            )
-        else:
-            scores = "Scores: pending"
+        score_label = "LLM" if llm_scored else "Heuristic"
 
         url = item.source_url or ""
         desc = item.description[:200] if item.description else ""
+
+        # Signal tier badge
+        tier_display = item.signal_tier.value.upper() if item.signal_tier else "UNCLASSIFIED"
+        tier_colors = {
+            "PAIN": "bold red", "WORKAROUND": "bold yellow",
+            "REPEATED_QUESTION": "bold cyan", "FEATURE_GAP": "blue", "TREND": "dim",
+        }
+        tier_style = tier_colors.get(tier_display, "dim")
+
+        # Confidence badge
+        conf = item.confidence_level.value if hasattr(item, "confidence_level") else "low"
+        conf_colors = {"high": "bold green", "medium": "bold yellow", "low": "dim"}
+        conf_style = conf_colors.get(conf, "dim")
+
+        lines = [
+            f"[bold]{item.title}[/bold]",
+            f"Source: {item.source_type}  {url}",
+            "",
+            f"[{tier_style}]■ {tier_display}[/{tier_style}]  "
+            f"Score: [bold]{item.opportunity_score:.0f}/35[/bold]  "
+            f"Confidence: [{conf_style}]{conf.upper()}[/{conf_style}]  "
+            f"[dim]({score_label})[/dim]",
+        ]
+
+        # 6-dimension scores
+        if item.opportunity_score > 0:
+            lines.append(
+                f"  Pain: {item.problem_intensity:.0f}  "
+                f"Freq: {item.frequency:.0f}  "
+                f"Workaround: {item.workaround_presence:.0f}  "
+                f"Market: {item.market_potential:.0f}  "
+                f"Feasibility: {item.build_feasibility:.0f}  "
+                f"Topic: {item.topic_relevance:.0f}"
+            )
+
+        # AI exposure
+        if item.ai_exposure_angle:
+            angle = item.ai_exposure_angle.value
+            angle_style = "bold magenta" if angle == "disruption" else "bold green"
+            lines.append(
+                f"  AI Exposure: {item.ai_exposure_score:.0f}/10 "
+                f"[{angle_style}]{angle.upper()}[/{angle_style}]"
+            )
+
+        # Matched topic
+        if item.matched_topic:
+            lines.append(f"  Matched Topic: [bold]{item.matched_topic}[/bold]")
+
+        if desc:
+            lines.append("")
+            lines.append(desc)
+
+        # Metadata
         lang = evidence.get("language", "")
         license_t = evidence.get("license_type", "")
-
         meta_parts = []
         if lang:
             meta_parts.append(f"Language: {lang}")
         if license_t:
             meta_parts.append(f"License: {license_t}")
-        meta = " | ".join(meta_parts) if meta_parts else ""
-
-        lines = [
-            f"[bold]{item.title}[/bold]",
-            f"Source: {item.source_type}  {url}",
-            scores,
-        ]
-        if desc:
-            lines.append(desc)
-        if meta:
-            lines.append(f"[dim]{meta}[/dim]")
+        if meta_parts:
+            lines.append(f"[dim]{' | '.join(meta_parts)}[/dim]")
 
         return lines
 
