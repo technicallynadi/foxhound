@@ -149,6 +149,17 @@ class ScoutConfig(BaseModel):
     score_thresholds: ScoutScoreThresholds = Field(
         default_factory=ScoutScoreThresholds
     )
+    tier_overrides: dict[str, str] = Field(
+        default_factory=dict,
+        description=(
+            "Override which model tier a pipeline stage uses. "
+            "Keys are stage names (signal_scoring, signal_classification, "
+            "topic_relevance, ai_exposure, enrichment_summary, "
+            "conversation_deep, task_decomposition, code_execution, "
+            "code_review, security_review). Values are tier names "
+            "(fast, balanced, reasoning)."
+        ),
+    )
 
 
 class FoxhoundConfig(BaseModel):

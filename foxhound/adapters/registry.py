@@ -192,15 +192,37 @@ PIPELINE_STAGE_TIERS: dict[str, ModelTier] = {
 }
 
 
+_user_tier_overrides: dict[str, ModelTier] = {}
+
+
+def apply_tier_overrides(overrides: dict[str, str]) -> None:
+    """Apply user tier overrides from foxhound.yaml scout.tier_overrides.
+
+    Args:
+        overrides: Mapping of stage name to tier name (e.g., {"signal_scoring": "balanced"}).
+    """
+    _user_tier_overrides.clear()
+    for stage, tier_name in overrides.items():
+        try:
+            _user_tier_overrides[stage] = ModelTier(tier_name)
+        except ValueError:
+            pass
+
+
 def get_pipeline_stage_tier(stage: str) -> ModelTier:
-    """Get the default model tier for a pipeline stage.
+    """Get the model tier for a pipeline stage, respecting user overrides.
+
+    Checks user overrides first (from foxhound.yaml scout.tier_overrides),
+    then falls back to the default PIPELINE_STAGE_TIERS mapping.
 
     Args:
         stage: Pipeline stage name (e.g., 'signal_scoring', 'enrichment_summary').
 
     Returns:
-        Default model tier for the stage (falls back to balanced).
+        Model tier for the stage (falls back to balanced).
     """
+    if stage in _user_tier_overrides:
+        return _user_tier_overrides[stage]
     return PIPELINE_STAGE_TIERS.get(stage, ModelTier.BALANCED)
 
 
