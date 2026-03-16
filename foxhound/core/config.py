@@ -131,10 +131,24 @@ class ScoutCloneConfig(BaseModel):
     )
 
 
+class ScoutScoreThresholds(BaseModel):
+    """Configurable score thresholds for opportunity confidence levels."""
+
+    high: float = Field(default=25.0, description="Score threshold for high confidence (max 35)")
+    medium: float = Field(default=18.0, description="Score threshold for medium confidence")
+
+
 class ScoutConfig(BaseModel):
     """Scout configuration from foxhound.yaml."""
 
     clone: ScoutCloneConfig = Field(default_factory=ScoutCloneConfig)
+    topics: list[str] = Field(
+        default_factory=list,
+        description="User topics of interest for semantic signal matching (1-20 topics)",
+    )
+    score_thresholds: ScoutScoreThresholds = Field(
+        default_factory=ScoutScoreThresholds
+    )
 
 
 class FoxhoundConfig(BaseModel):

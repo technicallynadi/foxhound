@@ -34,10 +34,12 @@ class ScoringProfile(BaseModel):
 
     criteria: dict[str, CriteriaBlock] = Field(
         default_factory=lambda: {
-            "velocity": CriteriaBlock(),
-            "improvability": CriteriaBlock(),
-            "buildability": CriteriaBlock(),
-            "value": CriteriaBlock(),
+            "problem_intensity": CriteriaBlock(),
+            "frequency": CriteriaBlock(),
+            "workaround_presence": CriteriaBlock(),
+            "market_potential": CriteriaBlock(),
+            "build_feasibility": CriteriaBlock(),
+            "topic_relevance": CriteriaBlock(),
         },
         description="Per-metric scoring criteria for the LLM",
     )
@@ -76,27 +78,37 @@ def _default_profile() -> ScoringProfile:
     """Return the built-in default scoring profile."""
     return ScoringProfile(
         name="default",
-        description="General-purpose opportunity scoring",
+        description="Opportunity engine scoring — 6-dimension evaluation",
         criteria={
-            "velocity": CriteriaBlock(rules=[
-                "High if the project is trending in the last 48 hours",
-                "Boost if growth is accelerating, not just high absolute numbers",
-                "Consider comment/discussion volume as a signal of interest",
+            "problem_intensity": CriteriaBlock(rules=[
+                "High if users express frustration, complaints, or wasted time",
+                "Boost if language indicates strong emotional intensity",
+                "Low if the discussion is neutral or exploratory",
             ]),
-            "improvability": CriteriaBlock(rules=[
-                "High if documentation is thin or missing",
-                "High if there are open issues labeled good-first-issue or help-wanted",
-                "Low if the project already has many active contributors",
+            "frequency": CriteriaBlock(rules=[
+                "High if the problem appears across multiple sources (Reddit, HN, GitHub)",
+                "Boost if the issue has been raised repeatedly over time",
+                "Low if it appears in only one discussion or thread",
             ]),
-            "buildability": CriteriaBlock(rules=[
-                "High if the project has a permissive license (MIT, Apache-2.0, BSD)",
-                "Boost if the project uses a well-known language and framework",
-                "Low if the project has complex build requirements or dependencies",
+            "workaround_presence": CriteriaBlock(rules=[
+                "High if users describe scripts, internal tools, or manual processes",
+                "Boost if multiple independent workarounds exist for the same problem",
+                "Low if no one has attempted to solve the problem yet",
             ]),
-            "value": CriteriaBlock(rules=[
-                "High if the project solves a real developer pain point",
-                "Boost if the project is in an underserved niche",
-                "Low if the space is already crowded with similar tools",
+            "market_potential": CriteriaBlock(rules=[
+                "High if the problem affects a broad audience or large community",
+                "Boost if the industry is growing or underserved",
+                "Low if the problem is hyper-niche with few affected users",
+            ]),
+            "build_feasibility": CriteriaBlock(rules=[
+                "High if an MVP can be built with existing APIs and frameworks",
+                "Boost if the project uses well-known languages and has low complexity",
+                "Low if the solution requires novel research or complex infrastructure",
+            ]),
+            "topic_relevance": CriteriaBlock(rules=[
+                "High if the signal directly addresses a user-configured topic",
+                "Boost if the signal spans multiple user topics",
+                "Low if the signal is only tangentially related to user interests",
             ]),
         },
     )

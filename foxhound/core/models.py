@@ -67,6 +67,43 @@ class OpportunityState(StrEnum):
     CONVERTED_TO_PROJECT = "converted_to_project"
 
 
+class SignalTier(StrEnum):
+    """Signal classification tiers ordered by evidence strength.
+
+    Tier 1-3 are primary targets. Tier 4-5 are lower priority.
+    """
+
+    PAIN = "pain"
+    WORKAROUND = "workaround"
+    REPEATED_QUESTION = "repeated_question"
+    FEATURE_GAP = "feature_gap"
+    TREND = "trend"
+
+
+SIGNAL_TIER_RANK: dict["SignalTier", int] = {
+    SignalTier.PAIN: 1,
+    SignalTier.WORKAROUND: 2,
+    SignalTier.REPEATED_QUESTION: 3,
+    SignalTier.FEATURE_GAP: 4,
+    SignalTier.TREND: 5,
+}
+
+
+class AIExposureAngle(StrEnum):
+    """AI exposure analysis angle for an opportunity."""
+
+    DISRUPTION = "disruption"
+    GREENFIELD = "greenfield"
+
+
+class ConfidenceLevel(StrEnum):
+    """Opportunity confidence level derived from composite score."""
+
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
+
+
 class RiskLevel(StrEnum):
     """Risk classification for work items."""
 
@@ -318,7 +355,65 @@ class OpportunityDiscoveryItem(BaseModel):
     trust_level: TrustLevel = Field(
         default=TrustLevel.UNTRUSTED, description="Always untrusted for scout items"
     )
-    state: OpportunityState = Field(default=OpportunityState.OBSERVED, description="Current state")
+    state: OpportunityState = Field(
+        default=OpportunityState.OBSERVED, description="Current state"
+    )
+
+    # Signal classification
+    signal_tier: SignalTier | None = Field(
+        default=None, description="Signal tier (pain, workaround, etc.)"
+    )
+    signal_type: str = Field(default="", description="Signal type label for display")
+
+    # 6-dimension scoring (each 0-5)
+    problem_intensity: float = Field(
+        default=0.0, ge=0.0, le=5.0, description="How painful the problem is (weight 2x)"
+    )
+    frequency: float = Field(
+        default=0.0, ge=0.0, le=5.0, description="How often the issue appears across sources"
+    )
+    workaround_presence: float = Field(
+        default=0.0, ge=0.0, le=5.0, description="Whether users built workarounds"
+    )
+    market_potential: float = Field(
+        default=0.0, ge=0.0, le=5.0, description="How many users might be affected"
+    )
+    build_feasibility: float = Field(
+        default=0.0, ge=0.0, le=5.0, description="How easily an MVP could be built"
+    )
+    topic_relevance: float = Field(
+        default=0.0, ge=0.0, le=5.0, description="How closely it matches user topics"
+    )
+    opportunity_score: float = Field(
+        default=0.0, ge=0.0, le=35.0, description="Composite score (max 35)"
+    )
+    confidence_level: ConfidenceLevel = Field(
+        default=ConfidenceLevel.LOW, description="Score-derived confidence level"
+    )
+
+    # AI exposure analysis
+    ai_exposure_score: float = Field(
+        default=0.0, ge=0.0, le=10.0, description="AI exposure scale (0-10)"
+    )
+    ai_exposure_angle: AIExposureAngle | None = Field(
+        default=None, description="Disruption or greenfield angle"
+    )
+
+    # Enrichment and matching
+    matched_topic: str = Field(default="", description="Which user topic matched")
+    enrichment_summary: str = Field(default="", description="TinyFish enrichment summary")
+    distribution_channels: list[str] = Field(
+        default_factory=list, description="Identified distribution channels"
+    )
+
+    # Build artifact hints
+    recommended_product: str = Field(default="", description="Suggested product concept")
+    mvp_features: list[str] = Field(default_factory=list, description="Minimal MVP features")
+    suggested_stack: str = Field(default="", description="Suggested tech stack")
+    estimated_build_time: str = Field(default="", description="Estimated build time")
+    estimated_build_cost: str = Field(default="", description="Estimated build cost")
+
+    # Legacy scores (kept for backward compatibility during migration)
     credibility_score: float = Field(
         default=0.0, ge=0.0, le=1.0, description="Source credibility score"
     )
@@ -331,6 +426,7 @@ class OpportunityDiscoveryItem(BaseModel):
     business_value_score: float = Field(
         default=0.0, ge=0.0, le=1.0, description="Business value score"
     )
+
     evidence: dict[str, Any] = Field(
         default_factory=dict, description="Raw evidence from source"
     )
@@ -341,6 +437,28 @@ class OpportunityDiscoveryItem(BaseModel):
     )
 
     model_config = {"extra": "forbid"}
+
+    def compute_opportunity_score(self) -> float:
+        """Compute composite opportunity score from 6 dimensions."""
+        score = (
+            (self.problem_intensity * 2)
+            + self.frequency
+            + self.workaround_presence
+            + self.market_potential
+            + self.build_feasibility
+            + self.topic_relevance
+        )
+        return min(score, 35.0)
+
+    def derive_confidence_level(
+        self, high: float = 25.0, medium: float = 18.0
+    ) -> ConfidenceLevel:
+        """Derive confidence level from opportunity score."""
+        if self.opportunity_score >= high:
+            return ConfidenceLevel.HIGH
+        if self.opportunity_score >= medium:
+            return ConfidenceLevel.MEDIUM
+        return ConfidenceLevel.LOW
 
 
 # =============================================================================

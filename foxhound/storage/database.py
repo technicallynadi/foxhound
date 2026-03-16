@@ -9,6 +9,8 @@ from pathlib import Path
 from typing import Any
 
 from foxhound.core.models import (
+    AIExposureAngle,
+    ConfidenceLevel,
     EventEnvelope,
     EventSeverity,
     EventType,
@@ -24,6 +26,7 @@ from foxhound.core.models import (
     RiskLevel,
     RunRecord,
     RunState,
+    SignalTier,
     TrustLevel,
     WorkItem,
     WorkItemKind,
@@ -137,6 +140,32 @@ CREATE TABLE IF NOT EXISTS opportunity_items (
     source_fingerprint TEXT NOT NULL,
     trust_level TEXT NOT NULL,
     state TEXT NOT NULL,
+    -- Signal classification
+    signal_tier TEXT,
+    signal_type TEXT DEFAULT '',
+    -- 6-dimension scoring (each 0-5)
+    problem_intensity REAL DEFAULT 0.0,
+    frequency REAL DEFAULT 0.0,
+    workaround_presence REAL DEFAULT 0.0,
+    market_potential REAL DEFAULT 0.0,
+    build_feasibility REAL DEFAULT 0.0,
+    topic_relevance REAL DEFAULT 0.0,
+    opportunity_score REAL DEFAULT 0.0,
+    confidence_level TEXT DEFAULT 'low',
+    -- AI exposure
+    ai_exposure_score REAL DEFAULT 0.0,
+    ai_exposure_angle TEXT,
+    -- Enrichment and matching
+    matched_topic TEXT DEFAULT '',
+    enrichment_summary TEXT DEFAULT '',
+    distribution_channels TEXT,
+    -- Build artifact hints
+    recommended_product TEXT DEFAULT '',
+    mvp_features TEXT,
+    suggested_stack TEXT DEFAULT '',
+    estimated_build_time TEXT DEFAULT '',
+    estimated_build_cost TEXT DEFAULT '',
+    -- Legacy scores
     credibility_score REAL DEFAULT 0.0,
     novelty_score REAL DEFAULT 0.0,
     actionability_score REAL DEFAULT 0.0,
@@ -807,10 +836,31 @@ class OpportunityStore:
                 """
                 INSERT OR REPLACE INTO opportunity_items (
                     opportunity_id, title, description, source_type, source_url,
-                    source_fingerprint, trust_level, state, credibility_score,
-                    novelty_score, actionability_score, business_value_score,
-                    evidence, tags, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    source_fingerprint, trust_level, state,
+                    signal_tier, signal_type,
+                    problem_intensity, frequency, workaround_presence,
+                    market_potential, build_feasibility, topic_relevance,
+                    opportunity_score, confidence_level,
+                    ai_exposure_score, ai_exposure_angle,
+                    matched_topic, enrichment_summary, distribution_channels,
+                    recommended_product, mvp_features, suggested_stack,
+                    estimated_build_time, estimated_build_cost,
+                    credibility_score, novelty_score, actionability_score,
+                    business_value_score, evidence, tags,
+                    created_at, updated_at
+                ) VALUES (
+                    ?, ?, ?, ?, ?, ?, ?, ?,
+                    ?, ?,
+                    ?, ?, ?, ?, ?, ?,
+                    ?, ?,
+                    ?, ?,
+                    ?, ?, ?,
+                    ?, ?, ?,
+                    ?, ?,
+                    ?, ?, ?, ?,
+                    ?, ?,
+                    ?, ?
+                )
                 """,
                 (
                     item.opportunity_id,
@@ -821,6 +871,26 @@ class OpportunityStore:
                     item.source_fingerprint,
                     item.trust_level.value,
                     item.state.value,
+                    item.signal_tier.value if item.signal_tier else None,
+                    item.signal_type,
+                    item.problem_intensity,
+                    item.frequency,
+                    item.workaround_presence,
+                    item.market_potential,
+                    item.build_feasibility,
+                    item.topic_relevance,
+                    item.opportunity_score,
+                    item.confidence_level.value,
+                    item.ai_exposure_score,
+                    item.ai_exposure_angle.value if item.ai_exposure_angle else None,
+                    item.matched_topic,
+                    item.enrichment_summary,
+                    json.dumps(item.distribution_channels),
+                    item.recommended_product,
+                    json.dumps(item.mvp_features),
+                    item.suggested_stack,
+                    item.estimated_build_time,
+                    item.estimated_build_cost,
                     item.credibility_score,
                     item.novelty_score,
                     item.actionability_score,
@@ -867,6 +937,8 @@ class OpportunityStore:
 
     def _row_to_model(self, row: sqlite3.Row) -> OpportunityDiscoveryItem:
         """Convert database row to OpportunityDiscoveryItem model."""
+        signal_tier_val = row["signal_tier"]
+        ai_angle_val = row["ai_exposure_angle"]
         return OpportunityDiscoveryItem(
             opportunity_id=row["opportunity_id"],
             title=row["title"],
@@ -876,6 +948,32 @@ class OpportunityStore:
             source_fingerprint=row["source_fingerprint"],
             trust_level=TrustLevel(row["trust_level"]),
             state=OpportunityState(row["state"]),
+            signal_tier=SignalTier(signal_tier_val) if signal_tier_val else None,
+            signal_type=row["signal_type"] or "",
+            problem_intensity=row["problem_intensity"] or 0.0,
+            frequency=row["frequency"] or 0.0,
+            workaround_presence=row["workaround_presence"] or 0.0,
+            market_potential=row["market_potential"] or 0.0,
+            build_feasibility=row["build_feasibility"] or 0.0,
+            topic_relevance=row["topic_relevance"] or 0.0,
+            opportunity_score=row["opportunity_score"] or 0.0,
+            confidence_level=ConfidenceLevel(row["confidence_level"] or "low"),
+            ai_exposure_score=row["ai_exposure_score"] or 0.0,
+            ai_exposure_angle=AIExposureAngle(ai_angle_val) if ai_angle_val else None,
+            matched_topic=row["matched_topic"] or "",
+            enrichment_summary=row["enrichment_summary"] or "",
+            distribution_channels=(
+                json.loads(row["distribution_channels"])
+                if row["distribution_channels"]
+                else []
+            ),
+            recommended_product=row["recommended_product"] or "",
+            mvp_features=(
+                json.loads(row["mvp_features"]) if row["mvp_features"] else []
+            ),
+            suggested_stack=row["suggested_stack"] or "",
+            estimated_build_time=row["estimated_build_time"] or "",
+            estimated_build_cost=row["estimated_build_cost"] or "",
             credibility_score=row["credibility_score"],
             novelty_score=row["novelty_score"],
             actionability_score=row["actionability_score"],
