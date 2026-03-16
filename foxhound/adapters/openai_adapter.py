@@ -99,6 +99,16 @@ class OpenAIAdapter:
 
         choice = response.choices[0] if response.choices else None
         content = choice.message.content or "" if choice else ""
+
+        # Some models (e.g. Qwen3 via Ollama) put chain-of-thought in a
+        # "reasoning" field and leave content empty until thinking is done.
+        # Fall back to reasoning content when content is empty.
+        if not content and choice:
+            raw_msg = choice.message.model_extra or {}
+            reasoning = raw_msg.get("reasoning", "")
+            if reasoning:
+                content = reasoning
+
         stop_reason = choice.finish_reason if choice else None
 
         usage_data = response.usage

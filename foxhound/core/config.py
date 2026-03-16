@@ -16,7 +16,7 @@ from foxhound.core.models import ModelTier
 class ProviderConfig(BaseModel):
     """Configuration for a single model provider."""
 
-    api_key_env: str = Field(..., description="Environment variable holding the API key")
+    api_key_env: str | None = Field(default=None, description="Environment variable holding the API key")
     base_url: str | None = Field(default=None, description="Custom API base URL")
 
 
@@ -108,11 +108,41 @@ class NotificationsConfig(BaseModel):
     )
 
 
+class ScoutCloneConfig(BaseModel):
+    """Configuration for cloning repos discovered by scout."""
+
+    clone_dir: str = Field(
+        default=".foxhound/cloned",
+        description="Directory for cloned repos (relative to workspace root)",
+    )
+    shallow_clone: bool = Field(
+        default=True, description="Use --depth 1 for clones"
+    )
+    auto_add_to_targets: bool = Field(
+        default=False,
+        description="Automatically register cloned repos as scan targets",
+    )
+    max_repo_size_mb: int = Field(
+        default=500, description="Max allowed repo size in MB"
+    )
+    allowed_hosts: list[str] = Field(
+        default_factory=lambda: ["github.com", "gitlab.com", "bitbucket.org"],
+        description="Git hosts allowed for cloning",
+    )
+
+
+class ScoutConfig(BaseModel):
+    """Scout configuration from foxhound.yaml."""
+
+    clone: ScoutCloneConfig = Field(default_factory=ScoutCloneConfig)
+
+
 class FoxhoundConfig(BaseModel):
     """Top-level foxhound.yaml configuration."""
 
     models: ModelsConfig = Field(default_factory=ModelsConfig)
     notifications: NotificationsConfig = Field(default_factory=NotificationsConfig)
+    scout: ScoutConfig = Field(default_factory=ScoutConfig)
 
 
 def load_config(config_path: Path) -> FoxhoundConfig:

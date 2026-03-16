@@ -18,6 +18,7 @@ class DoctorView(Vertical):
     def __init__(self, data: TUIData, **kwargs: object) -> None:
         super().__init__(**kwargs)
         self._data = data
+        self._initial_mount = True
 
     def compose(self) -> ComposeResult:
         """Build the doctor layout."""
@@ -35,7 +36,10 @@ class DoctorView(Vertical):
         self.call_after_refresh(self._run_checks)
 
     def on_show(self) -> None:
-        """Re-run checks when view becomes visible."""
+        """Re-run checks when view becomes visible (skip initial mount)."""
+        if self._initial_mount:
+            self._initial_mount = False
+            return
         self.call_after_refresh(self._run_checks)
 
     async def on_button_pressed(self, event: Button.Pressed) -> None:

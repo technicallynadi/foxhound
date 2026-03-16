@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from textual.app import ComposeResult
-from textual.containers import Horizontal, Vertical
+from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.message import Message
 from textual.reactive import reactive
 from textual.widgets import Button, Static
@@ -45,7 +45,8 @@ class DetailPanel(Vertical):
         self.add_class("detail-panel")
 
     def compose(self) -> ComposeResult:
-        yield Static("Select an item to view details.", id="detail-text")
+        with VerticalScroll(id="detail-scroll"):
+            yield Static("Select an item to view details.", id="detail-text")
         with Vertical(id="detail-buttons-container"):
             for row in self._button_rows:
                 with Horizontal(classes="detail-button-row"):

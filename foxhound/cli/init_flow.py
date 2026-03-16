@@ -6,6 +6,36 @@ and generates foxhound.yaml with user-confirmed configuration.
 
 import os
 
+NOTIFICATIONS_YAML = (
+    "\n"
+    "# Notification channels — set enabled: true and configure env vars to activate.\n"
+    "notifications:\n"
+    "  enabled: true\n"
+    "  channels:\n"
+    "    desktop:\n"
+    "      enabled: true\n"
+    "    email:\n"
+    "      enabled: false\n"
+    "      api_key_env: RESEND_API_KEY\n"
+    "      to_address_env: USER_EMAIL\n"
+    "      # from_address: foxhound@notifications.foxhound.dev\n"
+    "    sms:\n"
+    "      enabled: false\n"
+    "      account_sid_env: TWILIO_ACCOUNT_SID\n"
+    "      auth_token_env: TWILIO_AUTH_TOKEN\n"
+    "      from_number_env: TWILIO_FROM_NUMBER\n"
+    "      to_number_env: USER_PHONE_NUMBER\n"
+    "    slack:\n"
+    "      enabled: false\n"
+    "      webhook_env: SLACK_WEBHOOK_URL\n"
+    "      # channel: '#foxhound'\n"
+    "    discord:\n"
+    "      enabled: false\n"
+    "      webhook_env: DISCORD_WEBHOOK_URL\n"
+    "    web_push:\n"
+    "      enabled: true\n"
+)
+
 from foxhound.adapters.registry import (
     PROVIDER_API_KEY_DEFAULTS,
     apply_auto_defaults,
@@ -66,7 +96,7 @@ def build_config_yaml(
     for tier_name, model_id in sorted(tiers.items()):
         lines.append(f"    {tier_name}: {model_id}")
 
-    return "\n".join(lines) + "\n"
+    return "\n".join(lines) + "\n" + NOTIFICATIONS_YAML
 
 
 def select_provider_non_interactive(

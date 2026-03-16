@@ -41,9 +41,12 @@ APP_CSS = """
     background: $surface;
 }
 
-#detail-text {
+#detail-scroll {
     height: 1fr;
-    overflow-y: auto;
+}
+
+#detail-text {
+    height: auto;
     padding: 1 2;
 }
 
