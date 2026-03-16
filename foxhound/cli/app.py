@@ -491,7 +491,7 @@ def _deep_dive_top_opportunities(db: "Database", scout_config: object) -> None:
     """Scrape page content for the highest-scoring opportunities.
 
     Fetches the actual page text for the top N opportunities by
-    business_value_score. If topics are configured, items matching
+    opportunity_score. If topics are configured, items matching
     those topics are prioritized.
     """
     import re
@@ -518,12 +518,12 @@ def _deep_dive_top_opportunities(db: "Database", scout_config: object) -> None:
     def _topic_boost(item: object) -> float:
         """Boost score for items matching user topics."""
         if not topics:
-            return item.business_value_score
+            return item.opportunity_score
         searchable = f"{item.title} {item.description or ''} {' '.join((item.evidence or {}).get('tags', []))}".lower()
         for topic in topics:
             if topic in searchable:
-                return item.business_value_score + 1.0  # Boost to top
-        return item.business_value_score
+                return item.opportunity_score + 35.0
+        return item.opportunity_score
 
     candidates.sort(key=_topic_boost, reverse=True)
     top = candidates[:top_n]
@@ -726,8 +726,8 @@ def _fire_scout_notifications(
         if item is None:
             continue
 
-        score = item.business_value_score
-        if score < 0.5:
+        score = item.opportunity_score
+        if score < 18.0:
             continue
 
         evidence = item.evidence or {}

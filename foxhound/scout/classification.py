@@ -7,7 +7,8 @@ Tier 1 (pain) signals are highest value; Tier 5 (trend) are lowest.
 import logging
 from typing import TYPE_CHECKING
 
-from foxhound.core.models import ModelTier, SignalTier
+from foxhound.adapters.registry import get_pipeline_stage_tier
+from foxhound.core.models import SignalTier
 
 if TYPE_CHECKING:
     from foxhound.adapters.router import ModelRouter
@@ -115,7 +116,7 @@ def classify_signal(
         try:
             prompt = f"<external_content>\n{text[:500]}\n</external_content>"
             response = router.complete(
-                tier=ModelTier.FAST,
+                tier=get_pipeline_stage_tier("signal_classification"),
                 messages=[{"role": "user", "content": prompt}],
                 system=LLM_CLASSIFICATION_SYSTEM,
                 max_tokens=32,

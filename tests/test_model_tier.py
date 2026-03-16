@@ -205,7 +205,7 @@ class TestFoxhoundConfig:
         assert provider == "openai"
         assert model == "gpt-4.1-mini"
 
-    def test_resolve_tier_missing(self, tmp_path: Path) -> None:
+    def test_resolve_tier_missing_falls_back(self, tmp_path: Path) -> None:
         from foxhound.core.config import load_config
 
         config_path = tmp_path / "foxhound.yaml"
@@ -217,8 +217,9 @@ class TestFoxhoundConfig:
             "    balanced: claude-sonnet-4.6\n"
         )
         config = load_config(config_path)
-        with pytest.raises(ValueError, match="No model configured"):
-            config.models.resolve_tier(ModelTier.REASONING)
+        provider, model = config.models.resolve_tier(ModelTier.REASONING)
+        assert provider == "anthropic"
+        assert model == "claude-sonnet-4.6"
 
     def test_resolve_tier_unknown_provider(self, tmp_path: Path) -> None:
         from foxhound.core.config import load_config
@@ -1000,7 +1001,7 @@ class TestCreativeTierConfig:
         assert provider == "openai"
         assert model == "gpt-image-1"
 
-    def test_config_without_creative_tier(self) -> None:
+    def test_config_without_creative_tier_falls_back(self) -> None:
         from foxhound.core.config import ModelsConfig
 
         config = ModelsConfig(
@@ -1012,8 +1013,10 @@ class TestCreativeTierConfig:
                 "fast": "claude-haiku-4.5",
             },
         )
-        with pytest.raises(ValueError, match="No model configured for tier 'creative'"):
-            config.resolve_tier(ModelTier.CREATIVE)
+        # Missing creative falls back to balanced
+        provider, model = config.resolve_tier(ModelTier.CREATIVE)
+        assert provider == "anthropic"
+        assert model == "claude-sonnet-4.6"
 
     def test_creative_tier_with_provider_prefix(self) -> None:
         from foxhound.core.config import ModelsConfig, ProviderConfig

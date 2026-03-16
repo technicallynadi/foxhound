@@ -109,7 +109,7 @@ Foxhound operates as a pipeline: discover opportunities, approve them, execute i
 Two discovery modes feed the pipeline:
 
 - **Repo-native scanning** (`foxhound scan`) — Scanners analyze your repository for TODOs, dependency issues, and code quality signals. Each finding becomes a work item with risk level and confidence metadata.
-- **External scouting** (`foxhound scout`) — Eight connectors pull signals from GitHub Trending, Reddit, HackerNews, Dev.to, Product Hunt, Lobsters, NewsAPI, and RSS feeds. Raw opportunities are scored on star velocity, improvability, buildability, and business value using configurable scoring profiles.
+- **External scouting** (`foxhound scout`) — Connectors pull signals from GitHub Trending, Reddit, HackerNews, Dev.to, Lobsters, Product Hunt, RSS feeds, and more. Signals are classified into tiers (pain, workaround, repeated question, feature gap, trend), scored on 6 dimensions, and matched against your configured topics of interest.
 
 ### 2. Approve
 
@@ -155,6 +155,84 @@ Foxhound references capability tiers, not model names. You map tiers to models i
 | `reasoning` | Code review, complex builds, architecture decisions |
 | `balanced`  | Standard execution, discovery, maintenance          |
 | `fast`      | Scout scoring, simple fixes, style checks           |
+
+### Pipeline Tier Mapping
+
+Each pipeline stage has a default tier. These defaults ensure cheap models handle high-volume scoring while expensive models are reserved for quality-critical stages:
+
+| Stage | Default Tier | Why |
+| ----- | ------------ | --- |
+| Signal scoring | `fast` | High volume, cheap, runs on everything |
+| Signal classification | `fast` | Keyword matching + light LLM |
+| Topic relevance | `fast` | Keyword matching + light LLM |
+| AI exposure analysis | `fast` | Heuristic + light LLM |
+| Enrichment summary | `balanced` | Quality writing, only runs on high-scoring signals |
+| Conversation (--deep) | `balanced` | Interactive, needs good reasoning |
+| Task decomposition | `balanced` | Needs to understand architecture |
+| Code execution | `balanced` | Standard execution |
+| Code review | `reasoning` | Correctness and security matter |
+| Security review | `reasoning` | Must not miss vulnerabilities |
+
+Override any stage in `foxhound.yaml` if you want a different tier:
+
+```yaml
+scout:
+  tier_overrides:
+    signal_scoring: balanced      # Use a stronger model for scoring
+    enrichment_summary: reasoning # Use the best model for summaries
+```
+
+### Opportunity Scoring
+
+Scout signals are scored on 6 dimensions (each 0–5):
+
+| Dimension | Weight | What it measures |
+| --------- | ------ | ---------------- |
+| Problem intensity | 2x | How painful the problem is |
+| Frequency | 1x | How often it appears across sources |
+| Workaround presence | 1x | Whether users built scripts/tools to solve it |
+| Market potential | 1x | How many users might be affected |
+| Build feasibility | 1x | How easily an MVP could be built |
+| Topic relevance | 1x | How closely it matches your configured topics |
+
+**Composite score** = (problem_intensity × 2) + frequency + workaround_presence + market_potential + build_feasibility + topic_relevance. Maximum: **35**.
+
+Default confidence thresholds (configurable):
+- **25+**: High confidence — strong opportunity
+- **18–24**: Medium confidence — worth investigating
+- **Below 18**: Low confidence — likely noise
+
+```yaml
+scout:
+  topics:
+    - "developer productivity CLI tools"
+    - "restaurant and food service technology"
+    - "AI agent tooling and infrastructure"
+  score_thresholds:
+    high: 25
+    medium: 18
+```
+
+### Signal Classification
+
+Every signal is classified into a tier based on evidence strength:
+
+| Tier | Type | Indicators |
+| ---- | ---- | ---------- |
+| 1 | **Pain** | "I hate this", "waste of time", "so manual" |
+| 2 | **Workaround** | "We wrote a script", "built an internal tool" |
+| 3 | **Repeated question** | "Is there a tool for", "how do people solve" |
+| 4 | **Feature gap** | "Would be perfect if it supported", "feature request" |
+| 5 | **Trend** | "Someone should build", "AI for everything" |
+
+Foxhound prioritizes Tier 1–3 signals. The tier is displayed on every opportunity card.
+
+### AI Exposure Analysis
+
+Each opportunity is analyzed for AI exposure (0–10 scale) to identify two types of opportunity:
+
+- **High exposure (7–10) = Disruption gaps** — Industries being reshaped by AI with active pain signals
+- **Low exposure (0–3) = Untapped greenfield** — Industries lacking basic digital tooling
 
 ## Scout Connectors
 

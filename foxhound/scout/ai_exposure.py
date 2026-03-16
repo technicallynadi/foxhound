@@ -7,7 +7,8 @@ High exposure (7-10) = disruption gaps. Low exposure (0-3) = greenfield.
 import logging
 from typing import TYPE_CHECKING
 
-from foxhound.core.models import AIExposureAngle, ModelTier
+from foxhound.adapters.registry import get_pipeline_stage_tier
+from foxhound.core.models import AIExposureAngle
 
 if TYPE_CHECKING:
     from foxhound.adapters.router import ModelRouter
@@ -90,7 +91,7 @@ def score_ai_exposure(
 
             prompt = f"<external_content>\n{text[:500]}\n</external_content>"
             response = router.complete(
-                tier=ModelTier.FAST,
+                tier=get_pipeline_stage_tier("ai_exposure"),
                 messages=[{"role": "user", "content": prompt}],
                 system=LLM_EXPOSURE_SYSTEM,
                 max_tokens=64,

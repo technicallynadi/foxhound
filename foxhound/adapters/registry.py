@@ -149,7 +149,20 @@ def generate_config_yaml(provider: str, api_key_env: str | None = None) -> str:
     return "\n".join(lines) + "\n"
 
 
-# Default worker tier assignments (spec §5)
+# Default worker tier assignments
+#
+# Pipeline tier mapping:
+#   Signal scoring/classification  → FAST    (cheap, runs on everything)
+#   Topic relevance scoring        → FAST    (keyword + light LLM)
+#   AI exposure analysis           → FAST    (heuristic + light LLM)
+#   TinyFish source navigation     → N/A     (browser agent, not LLM)
+#   Enrichment summary             → BALANCED (quality writing, only high-scoring signals)
+#   Conversation mode (--deep)     → BALANCED (interactive, needs good reasoning)
+#   Task decomposition             → BALANCED (architecture understanding)
+#   Code execution                 → BALANCED or REASONING (depends on complexity)
+#   Code review                    → REASONING (correctness and security matter)
+#   Security review                → REASONING (must not miss vulnerabilities)
+#
 WORKER_DEFAULT_TIERS: dict[str, ModelTier] = {
     "ScoutWorker": ModelTier.FAST,
     "DiscoveryWorker": ModelTier.BALANCED,
@@ -160,8 +173,57 @@ WORKER_DEFAULT_TIERS: dict[str, ModelTier] = {
     "EvidenceValidatorWorker": ModelTier.FAST,
     "FailureTriageWorker": ModelTier.BALANCED,
     "PatchQualityEvaluatorWorker": ModelTier.BALANCED,
-    "TaskDecomposerWorker": ModelTier.REASONING,
+    "TaskDecomposerWorker": ModelTier.BALANCED,
+    "EnrichmentWorker": ModelTier.BALANCED,
 }
+
+
+PIPELINE_STAGE_TIERS: dict[str, ModelTier] = {
+    "signal_scoring": ModelTier.FAST,
+    "signal_classification": ModelTier.FAST,
+    "topic_relevance": ModelTier.FAST,
+    "ai_exposure": ModelTier.FAST,
+    "enrichment_summary": ModelTier.BALANCED,
+    "conversation_deep": ModelTier.BALANCED,
+    "task_decomposition": ModelTier.BALANCED,
+    "code_execution": ModelTier.BALANCED,
+    "code_review": ModelTier.REASONING,
+    "security_review": ModelTier.REASONING,
+}
+
+
+_user_tier_overrides: dict[str, ModelTier] = {}
+
+
+def apply_tier_overrides(overrides: dict[str, str]) -> None:
+    """Apply user tier overrides from foxhound.yaml scout.tier_overrides.
+
+    Args:
+        overrides: Mapping of stage name to tier name (e.g., {"signal_scoring": "balanced"}).
+    """
+    _user_tier_overrides.clear()
+    for stage, tier_name in overrides.items():
+        try:
+            _user_tier_overrides[stage] = ModelTier(tier_name)
+        except ValueError:
+            pass
+
+
+def get_pipeline_stage_tier(stage: str) -> ModelTier:
+    """Get the model tier for a pipeline stage, respecting user overrides.
+
+    Checks user overrides first (from foxhound.yaml scout.tier_overrides),
+    then falls back to the default PIPELINE_STAGE_TIERS mapping.
+
+    Args:
+        stage: Pipeline stage name (e.g., 'signal_scoring', 'enrichment_summary').
+
+    Returns:
+        Model tier for the stage (falls back to balanced).
+    """
+    if stage in _user_tier_overrides:
+        return _user_tier_overrides[stage]
+    return PIPELINE_STAGE_TIERS.get(stage, ModelTier.BALANCED)
 
 
 def get_worker_default_tier(worker_type: str) -> ModelTier:
