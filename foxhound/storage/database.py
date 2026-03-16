@@ -430,6 +430,19 @@ class WorkItemStore:
             conn.commit()
             return cursor.rowcount > 0
 
+    def delete_all(self, state: WorkItemState | None = None) -> int:
+        """Delete all work items, optionally filtered by state. Returns count deleted."""
+        with self.db.connection() as conn:
+            if state is not None:
+                cursor = conn.execute(
+                    "DELETE FROM work_items WHERE state = ?",
+                    (state.value,),
+                )
+            else:
+                cursor = conn.execute("DELETE FROM work_items")
+            conn.commit()
+            return cursor.rowcount
+
     def _row_to_model(self, row: sqlite3.Row) -> WorkItem:
         """Convert database row to WorkItem model."""
         return WorkItem(

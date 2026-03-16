@@ -224,6 +224,42 @@ class TestWorkItemStore:
         retrieved = work_item_store.get("wi_delete")
         assert retrieved is None
 
+    def test_delete_all(self, work_item_store: WorkItemStore) -> None:
+        for i in range(3):
+            item = WorkItem(
+                work_item_id=f"wi_purge_{i}",
+                repo_id="repo_purge",
+                title=f"Purge item {i}",
+                source_type="todo_todo",
+                source_fingerprint=f"fp_purge_{i}",
+                state=WorkItemState.SUGGESTED,
+            )
+            work_item_store.save(item)
+
+        deleted = work_item_store.delete_all()
+        assert deleted == 3
+        assert work_item_store.list_all() == []
+
+    def test_delete_all_by_state(self, work_item_store: WorkItemStore) -> None:
+        for i, state in enumerate(
+            [WorkItemState.SUGGESTED, WorkItemState.SUGGESTED, WorkItemState.APPROVED]
+        ):
+            item = WorkItem(
+                work_item_id=f"wi_state_{i}",
+                repo_id="repo_state",
+                title=f"State item {i}",
+                source_type="todo_todo",
+                source_fingerprint=f"fp_state_{i}",
+                state=state,
+            )
+            work_item_store.save(item)
+
+        deleted = work_item_store.delete_all(state=WorkItemState.SUGGESTED)
+        assert deleted == 2
+        remaining = work_item_store.list_all()
+        assert len(remaining) == 1
+        assert remaining[0].state == WorkItemState.APPROVED
+
 
 class TestJobStore:
     """Test Job storage operations."""
