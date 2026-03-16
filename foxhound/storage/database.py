@@ -299,6 +299,44 @@ class Database:
         with self.connection() as conn:
             conn.executescript(SCHEMA_SQL)
             conn.commit()
+            self._migrate_opportunity_columns(conn)
+
+    def _migrate_opportunity_columns(self, conn: sqlite3.Connection) -> None:
+        """Add opportunity engine columns to existing databases."""
+        cursor = conn.execute("PRAGMA table_info(opportunity_items)")
+        existing = {row[1] for row in cursor.fetchall()}
+        if not existing:
+            return
+
+        migrations: list[tuple[str, str]] = [
+            ("signal_tier", "TEXT"),
+            ("signal_type", "TEXT DEFAULT ''"),
+            ("problem_intensity", "REAL DEFAULT 0.0"),
+            ("frequency", "REAL DEFAULT 0.0"),
+            ("workaround_presence", "REAL DEFAULT 0.0"),
+            ("market_potential", "REAL DEFAULT 0.0"),
+            ("build_feasibility", "REAL DEFAULT 0.0"),
+            ("topic_relevance", "REAL DEFAULT 0.0"),
+            ("opportunity_score", "REAL DEFAULT 0.0"),
+            ("confidence_level", "TEXT DEFAULT 'low'"),
+            ("ai_exposure_score", "REAL DEFAULT 0.0"),
+            ("ai_exposure_angle", "TEXT"),
+            ("matched_topic", "TEXT DEFAULT ''"),
+            ("enrichment_summary", "TEXT DEFAULT ''"),
+            ("distribution_channels", "TEXT"),
+            ("recommended_product", "TEXT DEFAULT ''"),
+            ("mvp_features", "TEXT"),
+            ("suggested_stack", "TEXT DEFAULT ''"),
+            ("estimated_build_time", "TEXT DEFAULT ''"),
+            ("estimated_build_cost", "TEXT DEFAULT ''"),
+        ]
+
+        for col_name, col_type in migrations:
+            if col_name not in existing:
+                conn.execute(
+                    f"ALTER TABLE opportunity_items ADD COLUMN {col_name} {col_type}"
+                )
+        conn.commit()
 
     @contextmanager
     def connection(self) -> Iterator[sqlite3.Connection]:
