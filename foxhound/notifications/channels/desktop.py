@@ -37,6 +37,8 @@ class DesktopNotificationChannel:
 
     async def send(self, notification: Notification) -> bool:
         """Send an OS-level desktop notification."""
+        if self._method is None:
+            return False
         try:
             if self._method == "osascript":
                 return self._send_osascript(notification)

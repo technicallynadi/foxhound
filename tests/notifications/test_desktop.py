@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -36,52 +36,73 @@ class TestDesktopNotificationChannel:
         assert result is False
 
     @pytest.mark.asyncio
-    async def test_send_calls_notifier_with_correct_args(self):
+    async def test_send_osascript_calls_subprocess(self):
         channel = DesktopNotificationChannel()
-        mock_notifier = MagicMock()
-        mock_notifier.send = AsyncMock(return_value=None)
-        channel._notifier = mock_notifier
+        channel._method = "osascript"
 
-        notification = _make_notification(title="Big Find", body="Check this out", priority="high")
-        result = await channel.send(notification)
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+
+        with patch("subprocess.run", return_value=mock_result) as mock_run:
+            notification = _make_notification(title="Big Find", body="Check this out")
+            result = await channel.send(notification)
 
         assert result is True
-        mock_notifier.send.assert_awaited_once_with(
-            title="Big Find",
-            message="Check this out",
-            urgency="critical",
-        )
+        args = mock_run.call_args[0][0]
+        assert args[0] == "osascript"
 
     @pytest.mark.asyncio
     async def test_send_returns_false_on_exception(self):
         channel = DesktopNotificationChannel()
-        mock_notifier = MagicMock()
-        mock_notifier.send = AsyncMock(side_effect=RuntimeError("dbus failed"))
-        channel._notifier = mock_notifier
+        channel._method = "osascript"
 
-        result = await channel.send(_make_notification())
+        with patch("subprocess.run", side_effect=RuntimeError("failed")):
+            result = await channel.send(_make_notification())
         assert result is False
 
+    @pytest.mark.asyncio
+    async def test_send_notify_send(self):
+        channel = DesktopNotificationChannel()
+        channel._method = "notify-send"
+
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+
+        with patch("subprocess.run", return_value=mock_result) as mock_run:
+            result = await channel.send(_make_notification(priority="high"))
+
+        assert result is True
+        args = mock_run.call_args[0][0]
+        assert args[0] == "notify-send"
+        assert "critical" in args  # high maps to critical urgency
+
+    # -- AppleScript sanitization --
+
     @pytest.mark.parametrize(
-        ("priority", "expected_urgency"),
+        ("input_text", "expected_contains"),
         [
-            ("low", "low"),
-            ("normal", "normal"),
-            ("high", "critical"),
-            ("critical", "critical"),
-            ("unknown", "normal"),
+            ('hello "world"', 'hello \\"world\\"'),
+            ("test\\backslash", "test\\\\backslash"),
+            ('a\\" & do shell script "evil"', None),  # should not contain unescaped quote
         ],
     )
-    def test_urgency_mapping(self, priority: str, expected_urgency: str):
-        channel = DesktopNotificationChannel()
-        assert channel._map_urgency(priority) == expected_urgency
+    def test_sanitize_for_applescript(self, input_text, expected_contains):
+        result = DesktopNotificationChannel._sanitize_for_applescript(input_text)
+        if expected_contains:
+            assert expected_contains in result
+        # Ensure no unescaped quotes (every " preceded by \)
+        import re
+        unescaped = re.findall(r'(?<!\\)"', result)
+        assert len(unescaped) == 0
 
-    def test_configure_without_library_sets_notifier_none(self):
+    def test_sanitize_strips_control_chars(self):
+        result = DesktopNotificationChannel._sanitize_for_applescript("hello\x00world\x07")
+        assert "\x00" not in result
+        assert "\x07" not in result
+        assert "hello" in result
+
+    def test_configure_sets_method(self):
         channel = DesktopNotificationChannel()
-        with patch.dict("sys.modules", {"desktop_notifier": None}):
-            with patch(
-                "foxhound.notifications.channels.desktop.DesktopNotificationChannel.configure"
-            ) as mock_configure:
-                mock_configure.side_effect = lambda config: None
-                channel.configure({})
-        assert channel._notifier is None
+        with patch("sys.platform", "darwin"):
+            channel.configure({})
+        assert channel._method is not None

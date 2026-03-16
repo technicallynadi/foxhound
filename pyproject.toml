@@ -44,6 +44,12 @@ dev = [
     "mypy>=1.0",
     "types-pyyaml>=6.0",
 ]
+sms = [
+    "twilio>=9.0",
+]
+email = [
+    "resend>=2.0",
+]
 
 [project.scripts]
 foxhound = "foxhound.cli.app:app"
