@@ -29,6 +29,14 @@ uv sync --dev
 uv sync
 ```
 
+### Optional extras
+
+SMS and email notifications have optional dependencies:
+
+```bash
+uv sync --dev --extra sms --extra email
+```
+
 ### Global install (use `foxhound` from anywhere)
 
 ```bash
@@ -226,15 +234,31 @@ Each opportunity is analyzed for AI exposure (0–10 scale) to identify two type
 - **High exposure (7–10) = Disruption gaps** — Industries being reshaped by AI with active pain signals
 - **Low exposure (0–3) = Untapped greenfield** — Industries lacking basic digital tooling
 
-## Scout API Keys
+## Scout Connectors
 
-The scout connectors work without API keys but with reduced capacity. Keys are optional and set via environment variables:
+Eight connectors are available out of the box:
+
+| Connector        | Source                          | Auth Required |
+| ---------------- | ------------------------------- | ------------- |
+| **GitHub**       | Trending repos, star velocity   | Optional      |
+| **Reddit**       | Subreddit posts and discussions | Optional      |
+| **HackerNews**   | Top stories, search, rankings   | No            |
+| **Dev.to**       | Articles and discussions        | No            |
+| **Product Hunt** | Product launches                | No            |
+| **Lobsters**     | Curated tech news               | No            |
+| **NewsAPI**      | News aggregation                | Yes           |
+| **RSS**          | Any RSS/Atom feed               | No            |
+
+### Scout API Keys
+
+Most connectors work without API keys but with reduced capacity. Keys are optional and set via environment variables:
 
 ```bash
 export GITHUB_TOKEN="ghp_..."            # GitHub personal access token
 export REDDIT_CLIENT_ID="..."            # Reddit OAuth app client ID
 export REDDIT_CLIENT_SECRET="..."        # Reddit OAuth app client secret
-# HackerNews requires no credentials
+export NEWS_API_KEY="..."                # NewsAPI key (required for NewsAPI connector)
+# HackerNews, Dev.to, Product Hunt, Lobsters, RSS require no credentials
 ```
 
 ### Without API keys
@@ -330,6 +354,38 @@ notifications:
 
 SMS is reserved for critical events only (score above 0.95, critical build failures) to avoid noise.
 
+## Dashboard
+
+Foxhound includes a terminal UI built on Textual. Launch it with:
+
+```bash
+foxhound dashboard
+```
+
+The dashboard provides views for work items, scout inbox, run history, repository management, diagnostics, and retention status — all navigable from a sidebar.
+
+## Multi-Repo Support
+
+Foxhound can manage multiple repositories from a single install:
+
+```bash
+foxhound repo add /path/to/project    # Register a repository
+foxhound repo list                     # Show all registered repos
+foxhound repo use <repo_id>           # Switch active repository context
+```
+
+## Model Providers
+
+Foxhound supports multiple model providers. Each provider can be assigned to any capability tier.
+
+| Provider      | Models                              | Auth              |
+| ------------- | ----------------------------------- | ----------------- |
+| **Anthropic** | Claude Opus, Sonnet, Haiku          | API key           |
+| **OpenAI**    | GPT-4o, GPT-4o-mini, o1, etc.      | API key           |
+| **DeepSeek**  | DeepSeek Chat, Coder                | API key           |
+| **Google**    | Gemini Pro, Flash                   | API key           |
+| **Local**     | Ollama, LM Studio, vLLM (any model)| None (local)      |
+
 ## Local Models
 
 Foxhound supports local models (Ollama, LM Studio, vLLM) through any OpenAI-compatible endpoint. No API key required for local providers.
@@ -355,13 +411,51 @@ Run these commands from the repository you want foxhound to operate on, not from
 
 ```bash
 cd your-project/
-foxhound init          # Initialize foxhound in this repo
-foxhound scan          # Run discovery scanners
-foxhound scout         # Run external opportunity discovery
-foxhound approve <id>  # Approve/edit/reject a work item
-foxhound run <id>      # Execute approved item
-foxhound analyze       # Summarize failures and suggestions
-foxhound doctor        # Validate environment and configuration
+
+# Setup
+foxhound init                  # Initialize foxhound in this repo
+foxhound doctor                # Validate environment and configuration
+
+# Discovery
+foxhound scan                  # Run repo-native discovery scanners
+foxhound scout                 # Run external opportunity discovery
+
+# Workflow
+foxhound approve <id>          # Approve/edit/reject a work item
+foxhound run <id>              # Execute approved item
+foxhound log                   # Show run history and work items
+foxhound status                # Show current pipeline status
+foxhound analyze               # Summarize failures and suggestions
+
+# Dashboard
+foxhound dashboard             # Open the TUI dashboard
+
+# Multi-repo
+foxhound repo add <path>       # Register a repository
+foxhound repo list             # Show all registered repos
+foxhound repo use <repo_id>   # Switch active repository context
+
+# Secrets
+foxhound secret set <key>      # Store a credential in the system keychain
+foxhound secret get <key>      # Retrieve a stored credential
+foxhound secret list           # List stored credential keys
+
+# Maintenance
+foxhound clear                 # Clear work items and runs
+foxhound rebuild               # Rebuild database indexes
+foxhound retention-status      # Show retention policy status
+foxhound retention-prune       # Remove old artifacts
+foxhound retention-compact     # Compact database
+```
+
+## Retention
+
+Foxhound stores run history, artifacts, and event logs in a local SQLite database. Over time this grows. Built-in retention management keeps it in check:
+
+```bash
+foxhound retention-status      # See current DB size and artifact counts
+foxhound retention-prune       # Remove artifacts older than the retention window
+foxhound retention-compact     # Vacuum the database to reclaim disk space
 ```
 
 ## Running Tests
