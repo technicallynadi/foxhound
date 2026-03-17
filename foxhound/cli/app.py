@@ -16,7 +16,7 @@ from rich.table import Table
 
 app = typer.Typer(
     name="foxhound",
-    help="Sniff out ideas worth building. Ship them fast.",
+    help="Scout ideas worth building. Ship them fast.",
     no_args_is_help=False,
     invoke_without_command=True,
 )
@@ -24,7 +24,7 @@ app = typer.Typer(
 
 @app.callback()
 def _default_callback(ctx: typer.Context) -> None:
-    """Sniff out ideas worth building. Ship them fast."""
+    """Scout ideas worth building. Ship them fast."""
     if ctx.invoked_subcommand is not None:
         return
 

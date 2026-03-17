@@ -4,6 +4,12 @@
 # Foxhound runtime directory (local execution state)
 .foxhound/
 
+# Reference images (local only)
+images/
+*.png
+*.jpg
+*.jpeg
+
 # Documentation specs (converted from docx, kept local)
 docs/
 

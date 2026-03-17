@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "foxhound"
 version = "0.1.0"
-description = "Sniff out ideas worth building. Ship them fast."
+description = "Scout ideas worth building.Turn them into real systems."
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.13"
@@ -34,6 +34,8 @@ dependencies = [
     "desktop-notifier>=6.0",
     "twilio>=9.0",
     "resend>=2.0",
+    "fastapi>=0.115.0",
+    "uvicorn>=0.34.0",
 ]
 
 [project.optional-dependencies]

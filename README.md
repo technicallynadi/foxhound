@@ -1,6 +1,6 @@
 # Foxhound
 
-Sniff out ideas worth building. Ship them fast.
+Scout ideas worth building.Turn them into real systems.
 
 Foxhound is a product discovery engine that scans engineering signals, finds opportunities, creates work items, and builds improvements with your approval. It's a Python CLI distributed via PyPI.
 
@@ -160,25 +160,25 @@ Foxhound references capability tiers, not model names. You map tiers to models i
 
 Each pipeline stage has a default tier. These defaults ensure cheap models handle high-volume scoring while expensive models are reserved for quality-critical stages:
 
-| Stage | Default Tier | Why |
-| ----- | ------------ | --- |
-| Signal scoring | `fast` | High volume, cheap, runs on everything |
-| Signal classification | `fast` | Keyword matching + light LLM |
-| Topic relevance | `fast` | Keyword matching + light LLM |
-| AI exposure analysis | `fast` | Heuristic + light LLM |
-| Enrichment summary | `balanced` | Quality writing, only runs on high-scoring signals |
-| Conversation (--deep) | `balanced` | Interactive, needs good reasoning |
-| Task decomposition | `balanced` | Needs to understand architecture |
-| Code execution | `balanced` | Standard execution |
-| Code review | `reasoning` | Correctness and security matter |
-| Security review | `reasoning` | Must not miss vulnerabilities |
+| Stage                 | Default Tier | Why                                                |
+| --------------------- | ------------ | -------------------------------------------------- |
+| Signal scoring        | `fast`       | High volume, cheap, runs on everything             |
+| Signal classification | `fast`       | Keyword matching + light LLM                       |
+| Topic relevance       | `fast`       | Keyword matching + light LLM                       |
+| AI exposure analysis  | `fast`       | Heuristic + light LLM                              |
+| Enrichment summary    | `balanced`   | Quality writing, only runs on high-scoring signals |
+| Conversation (--deep) | `balanced`   | Interactive, needs good reasoning                  |
+| Task decomposition    | `balanced`   | Needs to understand architecture                   |
+| Code execution        | `balanced`   | Standard execution                                 |
+| Code review           | `reasoning`  | Correctness and security matter                    |
+| Security review       | `reasoning`  | Must not miss vulnerabilities                      |
 
 Override any stage in `foxhound.yaml` if you want a different tier:
 
 ```yaml
 scout:
   tier_overrides:
-    signal_scoring: balanced      # Use a stronger model for scoring
+    signal_scoring: balanced # Use a stronger model for scoring
     enrichment_summary: reasoning # Use the best model for summaries
 ```
 
@@ -186,18 +186,19 @@ scout:
 
 Scout signals are scored on 6 dimensions (each 0–5):
 
-| Dimension | Weight | What it measures |
-| --------- | ------ | ---------------- |
-| Problem intensity | 2x | How painful the problem is |
-| Frequency | 1x | How often it appears across sources |
-| Workaround presence | 1x | Whether users built scripts/tools to solve it |
-| Market potential | 1x | How many users might be affected |
-| Build feasibility | 1x | How easily an MVP could be built |
-| Topic relevance | 1x | How closely it matches your configured topics |
+| Dimension           | Weight | What it measures                              |
+| ------------------- | ------ | --------------------------------------------- |
+| Problem intensity   | 2x     | How painful the problem is                    |
+| Frequency           | 1x     | How often it appears across sources           |
+| Workaround presence | 1x     | Whether users built scripts/tools to solve it |
+| Market potential    | 1x     | How many users might be affected              |
+| Build feasibility   | 1x     | How easily an MVP could be built              |
+| Topic relevance     | 1x     | How closely it matches your configured topics |
 
 **Composite score** = (problem_intensity × 2) + frequency + workaround_presence + market_potential + build_feasibility + topic_relevance. Maximum: **35**.
 
 Default confidence thresholds (configurable):
+
 - **25+**: High confidence — strong opportunity
 - **18–24**: Medium confidence — worth investigating
 - **Below 18**: Low confidence — likely noise
@@ -217,13 +218,13 @@ scout:
 
 Every signal is classified into a tier based on evidence strength:
 
-| Tier | Type | Indicators |
-| ---- | ---- | ---------- |
-| 1 | **Pain** | "I hate this", "waste of time", "so manual" |
-| 2 | **Workaround** | "We wrote a script", "built an internal tool" |
-| 3 | **Repeated question** | "Is there a tool for", "how do people solve" |
-| 4 | **Feature gap** | "Would be perfect if it supported", "feature request" |
-| 5 | **Trend** | "Someone should build", "AI for everything" |
+| Tier | Type                  | Indicators                                            |
+| ---- | --------------------- | ----------------------------------------------------- |
+| 1    | **Pain**              | "I hate this", "waste of time", "so manual"           |
+| 2    | **Workaround**        | "We wrote a script", "built an internal tool"         |
+| 3    | **Repeated question** | "Is there a tool for", "how do people solve"          |
+| 4    | **Feature gap**       | "Would be perfect if it supported", "feature request" |
+| 5    | **Trend**             | "Someone should build", "AI for everything"           |
 
 Foxhound prioritizes Tier 1–3 signals. The tier is displayed on every opportunity card.
 
@@ -378,13 +379,13 @@ foxhound repo use <repo_id>           # Switch active repository context
 
 Foxhound supports multiple model providers. Each provider can be assigned to any capability tier.
 
-| Provider      | Models                              | Auth              |
-| ------------- | ----------------------------------- | ----------------- |
-| **Anthropic** | Claude Opus, Sonnet, Haiku          | API key           |
-| **OpenAI**    | GPT-4o, GPT-4o-mini, o1, etc.      | API key           |
-| **DeepSeek**  | DeepSeek Chat, Coder                | API key           |
-| **Google**    | Gemini Pro, Flash                   | API key           |
-| **Local**     | Ollama, LM Studio, vLLM (any model)| None (local)      |
+| Provider      | Models                              | Auth         |
+| ------------- | ----------------------------------- | ------------ |
+| **Anthropic** | Claude Opus, Sonnet, Haiku          | API key      |
+| **OpenAI**    | GPT-4o, GPT-4o-mini, o1, etc.       | API key      |
+| **DeepSeek**  | DeepSeek Chat, Coder                | API key      |
+| **Google**    | Gemini Pro, Flash                   | API key      |
+| **Local**     | Ollama, LM Studio, vLLM (any model) | None (local) |
 
 ## Local Models
 
