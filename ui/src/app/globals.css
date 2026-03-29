@@ -504,6 +504,12 @@ select.input option {
     max-width: 100vw !important;
   }
 
+  /* --- Kill min-height: 100vh scroll traps --- */
+  section[style*="min-height"],
+  section[style*="minHeight"] {
+    min-height: auto !important;
+  }
+
   /* --- Kill nested scroll traps on mobile --- */
   /* Demo components: let them flow naturally, no fixed height or inner scroll */
   [style*="overflow"][style*="height: 100%"],

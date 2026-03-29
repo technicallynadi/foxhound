@@ -16,7 +16,7 @@ export default function LandingPage() {
       {/* ═══ HERO ═══ */}
       <section
         style={{
-          minHeight: "100vh",
+          minHeight: "100dvh",
           display: "flex",
           flexDirection: "column",
           justifyContent: "center",
