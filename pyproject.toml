@@ -8,7 +8,7 @@ dependencies = [
     "sqlalchemy[asyncio]",
     "asyncpg",
     "httpx",
-    "pydantic",
+    "pydantic[email]",
     "pydantic-settings",
     "python-dotenv",
     "python-multipart",
