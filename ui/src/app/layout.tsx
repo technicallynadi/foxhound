@@ -25,11 +25,11 @@ const jetbrainsMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: "Foxhound — Stop Applying. Start Interviewing.",
-  description: "Your personal AI career agent. Foxhound finds matching jobs, fills out real application forms, tracks every submission, and follows up with hiring managers.",
+  description: "Your personal career agent. Foxhound finds matching jobs, fills out real application forms, tracks every submission, and follows up with hiring managers.",
   keywords: ["job search", "career agent", "AI", "auto apply", "job applications", "career changer"],
   openGraph: {
     title: "Foxhound — Stop Applying. Start Interviewing.",
-    description: "Your personal AI career agent. Upload your resume, find matching jobs, and let Foxhound apply for you with screenshot proof of every submission.",
+    description: "Your personal career agent. Upload your resume, find matching jobs, and let Foxhound apply for you with screenshot proof of every submission.",
     type: "website",
     siteName: "Foxhound",
     url: "https://usefoxhound.com",
@@ -45,7 +45,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "Foxhound — Stop Applying. Start Interviewing.",
-    description: "AI career agent that finds jobs, applies with precision, and proves every submission with a screenshot.",
+    description: "Personal career agent that finds jobs, applies with precision, and proves every submission with a screenshot.",
     images: ["/opengraph-image"],
   },
   metadataBase: new URL("https://usefoxhound.com"),
