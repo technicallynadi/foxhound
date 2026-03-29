@@ -28,7 +28,7 @@ EXPOSE 8080
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
-    CMD curl -f http://localhost:8080/v1/health || exit 1
+    CMD curl -f http://localhost:8080/health || exit 1
 
 # Run with single worker (required for in-memory token store)
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080", "--workers", "1", "--timeout-keep-alive", "120"]
