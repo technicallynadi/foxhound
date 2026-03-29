@@ -578,7 +578,6 @@ export default function LandingPage() {
               letterSpacing: "0.03em",
             }}
           >
-            Free during beta. No credit card required.
           </p>
         </ScrollReveal>
       </section>

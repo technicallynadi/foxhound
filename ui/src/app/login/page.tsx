@@ -86,12 +86,6 @@ export default function LoginPage() {
             </p>
           )}
 
-          <p style={{
-            fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--t3)',
-            marginTop: 20, letterSpacing: '0.04em',
-          }}>
-            Free during beta. No credit card required.
-          </p>
         </div>
       </div>
     </main>
