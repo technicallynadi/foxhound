@@ -118,7 +118,7 @@ export default function FormFillDemo() {
         <span style={{ color: statusColor }}>{status}</span>
       </div>
 
-      <div style={{ padding: 20, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+      <div className="form-demo-grid" style={{ padding: 20, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
         {FIELDS.map((f) => (
           <div key={f.id} style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
             <label style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--t3)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>

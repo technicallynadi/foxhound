@@ -15,6 +15,7 @@ export default function LandingPage() {
 
       {/* ═══ HERO ═══ */}
       <section
+        className="landing-hero"
         style={{
           minHeight: "100dvh",
           display: "flex",
@@ -22,19 +23,22 @@ export default function LandingPage() {
           justifyContent: "center",
           alignItems: "center",
           textAlign: "center",
-          padding: "var(--section-py) var(--section-px) 100px",
+          paddingTop: 120,
+          paddingBottom: 80,
+          paddingLeft: "var(--section-px)",
+          paddingRight: "var(--section-px)",
           position: "relative",
           zIndex: 1,
         }}
       >
-        {/* Glows */}
+        {/* Glows — clamped to viewport to prevent horizontal overflow */}
         <div
           style={{
             position: "absolute",
             top: "-10%",
             left: "35%",
-            width: 900,
-            height: 900,
+            width: "min(900px, 100vw)",
+            height: "min(900px, 100vw)",
             background:
               "radial-gradient(circle, rgba(139,92,246,0.12) 0%, rgba(99,102,241,0.04) 40%, transparent 60%)",
             pointerEvents: "none",
@@ -74,7 +78,7 @@ export default function LandingPage() {
         </div>
 
         {/* Headline */}
-        <div style={{ position: "relative", marginBottom: 24 }}>
+        <div style={{ position: "relative", marginBottom: 24, maxWidth: "100%", overflow: "hidden" }}>
           <div
             aria-hidden="true"
             style={{
@@ -82,8 +86,9 @@ export default function LandingPage() {
               top: "50%",
               left: "50%",
               transform: "translate(-50%, -50%)",
+              width: "100%",
               fontFamily: "var(--font-display)",
-              fontSize: "clamp(52px, 12vw, 150px)",
+              fontSize: "clamp(44px, 12vw, 150px)",
               fontWeight: 700,
               letterSpacing: "-0.05em",
               lineHeight: 0.88,
@@ -96,7 +101,7 @@ export default function LandingPage() {
               pointerEvents: "none",
               userSelect: "none",
               animation: "ghost-pulse 5s ease-in-out infinite",
-              whiteSpace: "nowrap",
+              textAlign: "center",
             }}
           >
             STOP APPLYING.
@@ -104,7 +109,7 @@ export default function LandingPage() {
           <h1
             style={{
               fontFamily: "var(--font-display)",
-              fontSize: "clamp(52px, 12vw, 150px)",
+              fontSize: "clamp(44px, 12vw, 150px)",
               fontWeight: 700,
               letterSpacing: "-0.05em",
               lineHeight: 0.88,
@@ -115,7 +120,7 @@ export default function LandingPage() {
           >
             STOP APPLYING.
             <br />
-            <span style={{ fontSize: "clamp(36px, 8vw, 100px)" }}>
+            <span className="hero-sub" style={{ fontSize: "clamp(28px, 8vw, 100px)" }}>
               START <TypingHeadline />
             </span>
           </h1>
@@ -156,10 +161,9 @@ export default function LandingPage() {
         </ScrollReveal>
 
         <div
+          className="hero-badge"
           style={{
-            position: "absolute",
-            bottom: 28,
-            right: 48,
+            marginTop: 40,
             fontFamily: "var(--font-mono)",
             fontSize: 10,
             color: "var(--t3)",
@@ -287,6 +291,7 @@ export default function LandingPage() {
               style={{ padding: "64px 0", borderBottom: "1px solid var(--b)" }}
             >
               <div
+                className="feature-row"
                 style={{
                   display: "grid",
                   gridTemplateColumns: "48px 1fr",
@@ -382,6 +387,7 @@ export default function LandingPage() {
 
         <ScrollReveal delay={3}>
           <div
+            className="landing-jobs-grid"
             style={{
               display: "grid",
               gridTemplateColumns: "repeat(3, 1fr)",
@@ -568,20 +574,22 @@ export default function LandingPage() {
             </Link>
           </div>
         </ScrollReveal>
-        <ScrollReveal delay={3}>
-          <p
-            style={{
-              fontFamily: "var(--font-mono)",
-              fontSize: 11,
-              color: "var(--t3)",
-              marginTop: 16,
-              letterSpacing: "0.03em",
-            }}
-          >
-          </p>
-        </ScrollReveal>
       </section>
 
+      {/* Footer */}
+      <footer
+        style={{
+          textAlign: "center",
+          padding: "32px var(--section-px)",
+          fontFamily: "var(--font-mono)",
+          fontSize: 11,
+          color: "var(--t3)",
+          letterSpacing: "0.04em",
+          borderTop: "1px solid var(--b)",
+        }}
+      >
+        © 2026 Foxhound
+      </footer>
     </>
   );
 }
