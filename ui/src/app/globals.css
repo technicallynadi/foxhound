@@ -504,6 +504,30 @@ select.input option {
     max-width: 100vw !important;
   }
 
+  /* --- Kill nested scroll traps on mobile --- */
+  /* Demo components: let them flow naturally, no fixed height or inner scroll */
+  [style*="overflow"][style*="height: 100%"],
+  [style*="overflow-y: auto"],
+  [style*="overflowY"] {
+    overflow: visible !important;
+    overflow-y: visible !important;
+    height: auto !important;
+    max-height: none !important;
+  }
+
+  /* Keep the ticker overflow hidden (it needs it for the scroll animation) */
+  .ticker {
+    overflow: hidden !important;
+    height: 42px !important;
+  }
+
+  /* Keep the job modal scrollable */
+  [style*="maxHeight: 85vh"],
+  [style*="max-height: 85vh"] {
+    overflow: auto !important;
+    max-height: 85vh !important;
+  }
+
   /* All sections: clamp padding to 20px */
   section,
   main > div > section {
