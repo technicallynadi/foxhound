@@ -1,4 +1,4 @@
-app = "foxhound-api"
+app = "foxhound"
 primary_region = "iad"
 
 [build]
