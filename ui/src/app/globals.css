@@ -502,7 +502,6 @@ select.input option {
   main > section,
   main > div {
     max-width: 100vw !important;
-    overflow-x: hidden !important;
   }
 
   /* All sections: clamp padding to 20px */
@@ -702,7 +701,6 @@ select.input option {
   /* Mobile nav overlay: contain within viewport */
   [style*="position: fixed"][style*="zIndex"] {
     max-width: 100vw !important;
-    overflow-x: hidden !important;
   }
 
   /* Modal: full-screen on mobile */

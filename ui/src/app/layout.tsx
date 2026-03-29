@@ -46,7 +46,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Foxhound — Stop Applying. Start Interviewing.",
     description: "AI career agent that finds jobs, applies with precision, and proves every submission with a screenshot.",
-    images: ["/og-image.png"],
+    images: ["/opengraph-image"],
   },
   metadataBase: new URL("https://usefoxhound.com"),
 };
