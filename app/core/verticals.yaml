@@ -1,0 +1,373 @@
+verticals:
+  property_management:
+    aliases:
+      - property management
+      - property manager tools
+      - rental operations
+      - landlord software
+      - rental management
+    domain_terms:
+      - tenant
+      - lease
+      - rent
+      - maintenance
+      - vendor
+      - inspection
+      - landlord
+      - eviction
+      - property manager
+      - rental
+      - unit
+      - building
+      - apartment
+      - HOA
+      - security deposit
+      - vacancy
+      - turnover
+    role_terms:
+      - property manager
+      - landlord
+      - leasing agent
+      - maintenance coordinator
+      - building manager
+      - tenant
+      - real estate investor
+    workflow_terms:
+      - maintenance request
+      - lease renewal
+      - rent collection
+      - inspection scheduling
+      - tenant screening
+      - move-in
+      - move-out
+      - vendor coordination
+      - work order
+      - eviction process
+      - security deposit
+    tool_terms:
+      - appfolio
+      - buildium
+      - yardi
+      - rentmanager
+      - propertyware
+      - cozy
+      - avail
+      - turbotenant
+      - zillow rental manager
+    hard_negatives:
+      - day in the life
+      - hate my job
+      - industry is frustrating
+      - my boss is awful
+      - reading this thread
+      - rant about tenants
+      - worst part about
+    seed_urls:
+      review:
+        - https://www.g2.com/categories/property-management
+        - https://www.capterra.com/property-management-software/
+      comparison:
+        - https://alternativeto.net/software/appfolio/
+        - https://alternativeto.net/software/buildium/
+    communities:
+      main: propertymanagement
+      primary:
+        - propertymanagement
+        - landlord
+      secondary:
+        - realestateinvesting
+        - realestate
+      fallback:
+        - smallbusiness
+
+  ai_developer_tooling:
+    aliases:
+      - ai developer tooling
+      - ai coding tools
+      - coding copilots
+      - developer ai tools
+      - ai code assistants
+    domain_terms:
+      - copilot
+      - cursor
+      - prompt
+      - code generation
+      - debugging
+      - repository
+      - AI coding
+      - LLM
+      - code review
+      - autocomplete
+      - suggestion
+      - hallucination
+      - technical debt
+      - AI assistant
+      - code quality
+      - tech
+      - coding
+    role_terms:
+      - developer
+      - engineer
+      - tech lead
+      - software engineer
+      - programmer
+      - devops
+      - SRE
+      - full stack
+      - frontend
+      - backend
+    workflow_terms:
+      - code review
+      - debugging
+      - verification
+      - pull request
+      - code generation
+      - testing
+      - deployment
+      - refactoring
+      - bug fixing
+      - CI/CD
+    tool_terms:
+      - github
+      - vscode
+      - copilot
+      - cursor
+      - codeium
+      - tabnine
+      - chatgpt
+      - claude
+      - codex
+      - devin
+      - aider
+      - continue.dev
+      - MCP
+    hard_negatives:
+      - AI is overhyped
+      - will replace engineers
+      - job market is terrible
+      - just a trend
+      - AI bubble
+      - learn to code
+    seed_urls:
+      review:
+        - https://www.g2.com/categories/ai-code-assistants
+      comparison:
+        - https://alternativeto.net/software/github-copilot/
+        - https://alternativeto.net/software/cursor/
+    communities:
+      main: LocalLLaMA
+      primary:
+        - LocalLLaMA
+
+  ai_agent_security:
+    aliases:
+      - ai agent security
+      - agent security
+      - securing ai agents
+      - ai agent safety
+      - ai agent monitoring
+      - ai agent reliability
+      - prompt injection
+      - agent audit trails
+    domain_terms:
+      - ai agent
+      - ai agents
+      - agent workflow
+      - agent misuse
+      - prompt injection
+      - security vulnerability
+      - security vulnerabilities
+      - audit trail
+      - decision logs
+      - human approval
+      - sandboxing
+      - production monitoring
+      - compliance logging
+      - delegated permissions
+      - tool use
+      - agent autonomy
+      - model update
+      - runtime risk
+    role_terms:
+      - security engineer
+      - platform engineer
+      - devops
+      - sre
+      - compliance officer
+      - ai engineer
+      - ml engineer
+    workflow_terms:
+      - prompt injection defense
+      - production agent deployment
+      - agent monitoring
+      - decision logging
+      - human in the loop
+      - approval gating
+      - sandbox isolation
+      - audit and compliance
+      - permission controls
+      - runtime defense
+    tool_terms:
+      - agentops
+      - langsmith
+      - langfuse
+      - openai agents sdk
+      - crewai
+      - autogen
+      - openai
+      - claude
+      - microsoft agent framework
+      - fides
+      - owasp
+    hard_negatives:
+      - ai will replace jobs
+      - ai hype
+      - sci fi
+      - general cyber attack news
+    seed_urls:
+      workflow:
+        - https://github.blog/ai-and-ml/generative-ai/under-the-hood-security-architecture-of-github-agentic-workflows/
+        - https://www.microsoft.com/en-us/security/blog/2026/01/23/runtime-risk-realtime-defense-securing-ai-agents/
+      comparison:
+        - https://owasp.org/www-project-top-10-for-large-language-model-applications/
+    communities:
+      main: cybersecurity
+      primary:
+        - cybersecurity
+        - devops
+        - LocalLLaMA
+      secondary:
+        - artificial
+        - machinelearning
+      fallback:
+        - experienceddevs
+        - startups
+        - programming
+      secondary:
+        - MachineLearning
+        - ExperiencedDevs
+        - webdev
+      fallback:
+        - startups
+        - SaaS
+
+  restaurant_operations:
+    aliases:
+      - restaurant operations
+      - restaurant management
+      - food service operations
+      - kitchen management
+    domain_terms:
+      - restaurant
+      - kitchen
+      - menu
+      - order
+      - reservation
+      - table
+      - server
+      - FOH
+      - BOH
+      - food cost
+      - POS
+      - inventory
+      - shift
+      - tip
+    role_terms:
+      - restaurant owner
+      - chef
+      - manager
+      - server
+      - bartender
+      - kitchen manager
+      - general manager
+    workflow_terms:
+      - order management
+      - inventory tracking
+      - shift scheduling
+      - table management
+      - food costing
+      - tip distribution
+      - vendor ordering
+      - menu planning
+    tool_terms:
+      - toast
+      - square
+      - clover
+      - resy
+      - opentable
+      - 7shifts
+      - hotschedules
+      - marketman
+      - lightspeed
+    hard_negatives:
+      - restaurant recommendations
+      - best food in
+      - where to eat
+      - food review
+    communities:
+      main: restaurateur
+      primary:
+        - restaurateur
+        - KitchenConfidential
+      secondary:
+        - foodservice
+        - smallbusiness
+      fallback:
+        - Entrepreneur
+
+  recruiting:
+    aliases:
+      - recruiting
+      - talent acquisition
+      - hiring tools
+      - recruitment software
+    domain_terms:
+      - candidate
+      - hiring
+      - interview
+      - resume
+      - job posting
+      - ATS
+      - recruiter
+      - talent
+      - pipeline
+      - offer letter
+      - onboarding
+    role_terms:
+      - recruiter
+      - hiring manager
+      - talent acquisition
+      - HR manager
+      - sourcers
+    workflow_terms:
+      - candidate screening
+      - interview scheduling
+      - offer management
+      - pipeline tracking
+      - sourcing
+      - reference checks
+      - onboarding
+    tool_terms:
+      - greenhouse
+      - lever
+      - workday
+      - icims
+      - linkedin recruiter
+      - ashby
+      - gem
+      - goodtime
+    hard_negatives:
+      - looking for a job
+      - job market sucks
+      - nobody is hiring
+      - resume tips
+    communities:
+      main: recruiting
+      primary:
+        - recruiting
+        - humanresources
+      secondary:
+        - recruitinghell
+        - jobs
+      fallback:
+        - smallbusiness

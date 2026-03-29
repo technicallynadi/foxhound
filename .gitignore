@@ -1,0 +1,75 @@
+# Environment & secrets
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+*.egg
+.venv/
+venv/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Screenshots & images
+*.png
+
+# Data directory
+data/
+
+# Claude Code / IDE agents
+.claude/
+.agents/
+ui/.agents/
+
+# Old docs
+docs/
+
+# Node
+ui/node_modules/
+ui/.next/
+ui/out/
+
+# Test artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+E2E_TEST_RESULTS.json
+smoke_tests/
+
+# All markdown files
+*.md
+!README.md
+
+# Other generated docs
+*.html
+*.pptx
+
+# Local config
+.foxhound/
+old-foxhound/
+
+# Scripts — local dev/test only
+scripts/
+
+# Screenshots
+Screenshot*

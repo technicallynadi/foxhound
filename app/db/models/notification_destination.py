@@ -1,0 +1,27 @@
+from datetime import datetime, timezone
+
+from sqlalchemy import Boolean, DateTime, String, Text
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.db.session import Base
+
+TZDateTime = DateTime(timezone=True)
+
+
+class NotificationDestination(Base):
+    __tablename__ = "notification_destinations"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    label: Mapped[str] = mapped_column(String, index=True)
+    channel: Mapped[str] = mapped_column(String, index=True)
+    audience_type: Mapped[str] = mapped_column(String, default="human", index=True)
+    destination_config_json: Mapped[str] = mapped_column(Text, default="{}")
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(
+        TZDateTime, default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        TZDateTime,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
