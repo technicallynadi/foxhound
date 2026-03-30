@@ -92,6 +92,7 @@ class FoxhoundAgent:
         history = await self._load_history(db, session.id)
         system = await build_system_prompt(db, user_id, channel)
         messages = self._history_to_messages(history)
+        messages = self._fix_tool_pairs(messages)
 
         # 4. Tool_use loop
         tool_calls_log: list[dict] = []
@@ -227,6 +228,10 @@ class FoxhoundAgent:
         history = await self._load_history(db, session.id)
         system = await build_system_prompt(db, user_id, channel)
         messages = self._history_to_messages(history)
+
+        # Fix corrupt history: ensure every tool_use has a matching tool_result
+        messages = self._fix_tool_pairs(messages)
+
         full_response = ""
 
         while budget.can_continue():
@@ -348,6 +353,61 @@ class FoxhoundAgent:
         db.add(session)
         await db.flush()
         return session
+
+    def _fix_tool_pairs(self, messages: list[dict]) -> list[dict]:
+        """Ensure every tool_use block has a matching tool_result.
+
+        If the last assistant message has tool_use blocks without corresponding
+        tool_result responses, add synthetic error results so the conversation
+        can continue without Anthropic rejecting the request.
+        """
+        if len(messages) < 2:
+            return messages
+
+        # Find all tool_use IDs in the last assistant message
+        last_assistant = None
+        last_assistant_idx = -1
+        for i in range(len(messages) - 1, -1, -1):
+            if messages[i].get("role") == "assistant":
+                last_assistant = messages[i]
+                last_assistant_idx = i
+                break
+
+        if not last_assistant or not isinstance(last_assistant.get("content"), list):
+            return messages
+
+        tool_use_ids = set()
+        for block in last_assistant["content"]:
+            if isinstance(block, dict) and block.get("type") == "tool_use":
+                tool_use_ids.add(block["id"])
+            elif hasattr(block, "type") and block.type == "tool_use":
+                tool_use_ids.add(block.id)
+
+        if not tool_use_ids:
+            return messages
+
+        # Check if there's a user message after with matching tool_results
+        tool_result_ids = set()
+        for msg in messages[last_assistant_idx + 1:]:
+            if msg.get("role") == "user":
+                content = msg.get("content", [])
+                if isinstance(content, list):
+                    for block in content:
+                        if isinstance(block, dict) and block.get("type") == "tool_result":
+                            tool_result_ids.add(block.get("tool_use_id"))
+
+        missing = tool_use_ids - tool_result_ids
+        if not missing:
+            return messages
+
+        # Add synthetic tool_result for missing IDs
+        logger.warning("Fixing %d orphaned tool_use blocks in history", len(missing))
+        synthetic_results = [
+            {"type": "tool_result", "tool_use_id": tid, "content": "Error: previous request was interrupted. Please try again."}
+            for tid in missing
+        ]
+        messages.append({"role": "user", "content": synthetic_results})
+        return messages
 
     async def _load_history(self, db: AsyncSession, session_id: str) -> list[AgentMessage]:
         """Load the last N messages for this session."""
