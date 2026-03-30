@@ -62,6 +62,20 @@ def create_file_token(bucket: str, path: str) -> str:
     return token
 
 
+@router.options("/serve/{token}")
+async def serve_file_preflight(token: str):
+    """Handle CORS preflight for file serve — allows any origin."""
+    return Response(
+        content="",
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+            "Access-Control-Max-Age": "600",
+        },
+    )
+
+
 @router.get("/serve/{token}")
 async def serve_file(token: str):
     """Serve a private file via a short-lived token.

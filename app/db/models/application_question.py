@@ -26,6 +26,7 @@ class ApplicationQuestion(Base):
     field_label: Mapped[str] = mapped_column(String)
     field_name: Mapped[str | None] = mapped_column(String, nullable=True)
     field_type: Mapped[str] = mapped_column(String, default="text")
+    options_json: Mapped[str] = mapped_column(Text, default="[]")
 
     # Classification: "auto" | "draft_and_approve" | "ask_directly"
     category: Mapped[str] = mapped_column(String)

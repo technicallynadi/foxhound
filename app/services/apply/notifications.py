@@ -330,10 +330,13 @@ async def send_conversation_question(
 
     for i, q in enumerate(questions, 1):
         lines.append(f"Q{i}: {q['question']}")
+        options = q.get("options", [])
+        if options:
+            lines.append(f"   Options: {' | '.join(str(o) for o in options)}")
         if q.get("suggested_answer"):
             lines.append(f"   Suggested: {q['suggested_answer']}")
             lines.append(f"   Reply 'approve {i}' to accept, or send your answer")
-        else:
+        elif not options:
             lines.append(f"   Please reply with your answer")
         lines.append("")
 

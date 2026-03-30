@@ -127,6 +127,7 @@ def build_prompt(
     job: JobListing,
     answers: list[dict] | None = None,
     scan_fields: list[dict] | None = None,
+    resume_b64: str | None = None,
 ) -> str:
     """Build the complete TinyFish application prompt.
 
@@ -142,16 +143,10 @@ def build_prompt(
     custom_block = build_custom_questions_block(answers or [])
     dropdown_block = build_dropdown_selections_block(scan_fields, profile)
 
-    resume_url = ""
+    resume_chunks: list[str] = []
     resume_filename = _safe_js_filename(profile.resume_filename)
-    if profile.resume_storage_path:
-        parts = profile.resume_storage_path.split("/", 1)
-        if len(parts) == 2:
-            token = create_file_token(parts[0], parts[1])
-            # Use public Fly URL so TinyFish (cloud browser) can fetch the resume
-            # The /api/v1/files/serve endpoint has Access-Control-Allow-Origin: *
-            fly_url = os.environ.get("FOXHOUND_PUBLIC_URL", settings.APP_BASE_URL).rstrip("/")
-            resume_url = f"{fly_url}/api/v1/files/serve/{token}"
+    if resume_b64:
+        resume_chunks = _build_resume_chunks(resume_b64, resume_filename)
 
     # Build the goal prompt
     sections = [
@@ -169,18 +164,16 @@ def build_prompt(
         "3. For dropdowns, select the exact option text listed",
     ]
 
-    if resume_url:
-        steps.append(
-            f"4. Upload resume: run in address bar: javascript:void((async()=>{{const r=await fetch('{resume_url}');"
-            f"const b=await r.blob();const f=new File([b],'{resume_filename}',"
-            f"{{type:'application/pdf'}});const dt=new DataTransfer();dt.items.add(f);"
-            f"const inputs=document.querySelectorAll('input[type=file]');"
-            f"if(inputs.length===0)return;const input=inputs[0];input.files=dt.files;"
-            f"input.dispatchEvent(new Event('change',{{bubbles:true}}));"
-            f"input.dispatchEvent(new Event('input',{{bubbles:true}}))}})())"
-        )
-        steps.append(f"{len(steps)+1}. Click the Submit / Apply button")
-        steps.append(f"{len(steps)+1}. Wait for the confirmation page")
+    if resume_chunks:
+        step_num = 4
+        steps.append(f"{step_num}. Upload resume by running these commands IN ORDER in the address bar:")
+        for i, chunk_js in enumerate(resume_chunks):
+            step_num += 1
+            steps.append(f"   {step_num}. Run in address bar: {chunk_js}")
+        step_num += 1
+        steps.append(f"{step_num}. Click the Submit / Apply button")
+        step_num += 1
+        steps.append(f"{step_num}. Wait for the confirmation page")
     else:
         steps.append("4. Click the Submit / Apply button")
         steps.append("5. Wait for the confirmation page")
@@ -213,3 +206,45 @@ def _safe_js_filename(name: str | None) -> str:
     if not safe.lower().endswith(".pdf"):
         safe = "resume.pdf"
     return safe
+
+
+CHUNK_SIZE = 4000  # chars per chunk — safe for JS URL length
+
+
+def _build_resume_chunks(b64_data: str, filename: str) -> list[str]:
+    """Split base64 resume into chunked JS commands for CSP-safe injection.
+
+    Each chunk appends to window.__rc (resume chunks) via address bar JS.
+    The final chunk assembles the File and injects into the file input.
+    This bypasses CSP connect-src because there are no network requests.
+    """
+    chunks = [b64_data[i:i + CHUNK_SIZE] for i in range(0, len(b64_data), CHUNK_SIZE)]
+    js_commands = []
+
+    # First: initialize the array
+    js_commands.append("javascript:void(window.__rc=[])")
+
+    # Middle: push each chunk
+    for chunk in chunks:
+        js_commands.append(f"javascript:void(window.__rc.push('{chunk}'))")
+
+    # Final: assemble and inject into file input
+    assemble = (
+        f"javascript:void((function(){{"
+        f"var b=atob(window.__rc.join(''));"
+        f"var a=new Uint8Array(b.length);"
+        f"for(var i=0;i<b.length;i++)a[i]=b.charCodeAt(i);"
+        f"var f=new File([a],'{filename}',{{type:'application/pdf'}});"
+        f"var dt=new DataTransfer();"
+        f"dt.items.add(f);"
+        f"var inp=document.querySelector('input[type=file]');"
+        f"if(inp){{inp.files=dt.files;"
+        f"inp.dispatchEvent(new Event('change',{{bubbles:true}}));"
+        f"inp.dispatchEvent(new Event('input',{{bubbles:true}}));"
+        f"document.title='RESUME_UPLOADED'}}"
+        f"else{{document.title='NO_FILE_INPUT'}}"
+        f"}})())"
+    )
+    js_commands.append(assemble)
+
+    return js_commands

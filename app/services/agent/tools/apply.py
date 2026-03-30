@@ -440,8 +440,19 @@ async def _load_pending_questions(db: AsyncSession, application_id: str) -> list
     )
     questions = []
     for pq in result.scalars():
-        q: dict = {"index": pq.question_index, "question": pq.field_label, "category": pq.category}
+        q: dict = {
+            "index": pq.question_index,
+            "question": pq.field_label,
+            "category": pq.category,
+            "field_type": pq.field_type,
+        }
         if pq.draft_answer:
             q["suggested_answer"] = pq.draft_answer
+        try:
+            opts = json.loads(pq.options_json or "[]")
+            if opts:
+                q["options"] = opts
+        except (json.JSONDecodeError, TypeError):
+            pass
         questions.append(q)
     return questions

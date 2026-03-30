@@ -122,7 +122,7 @@ class ApplicationOrchestrator:
                 from app.services.apply.notifications import send_conversation_question
 
                 questions_for_user = [
-                    {"question": f["label"], "field_type": f["field_type"]}
+                    {"question": f["label"], "field_type": f["field_type"], "options": f.get("options", [])}
                     for f in needs_input
                 ]
                 # Also include narrative drafts for approval
@@ -146,6 +146,7 @@ class ApplicationOrchestrator:
                         question_index=idx,
                         field_label=q["question"],
                         field_type=q.get("field_type", "text"),
+                        options_json=json.dumps(q.get("options", [])),
                         category="draft_and_approve" if q.get("suggested_answer") else "ask_directly",
                         draft_answer=q.get("suggested_answer"),
                         status="pending",
@@ -169,6 +170,10 @@ class ApplicationOrchestrator:
                     "needs_approval": False,
                 })
 
+        # 5.5. Upload resume via CDP before TinyFish fills the form
+        resume_uploaded = await self._upload_resume_via_cdp(job.apply_url, profile)
+        logger.info("Resume upload via CDP: %s", "success" if resume_uploaded else "skipped/failed")
+
         # 6. PHASE 2: Build TinyFish prompt and fill + submit
         #    Pass scan_fields so the prompt only includes profile fields the form has.
         app.status = "in_progress"
@@ -176,7 +181,9 @@ class ApplicationOrchestrator:
             {"label": f.label, "field_type": f.field_type, "required": f.required, "options": f.options}
             for f in scan_result.fields
         ]
-        prompt = build_prompt(profile, job, custom_answers, scan_fields=raw_fields)
+        # Skip JS resume injection if CDP upload worked
+        resume_b64 = None if resume_uploaded else await self._get_resume_b64(profile)
+        prompt = build_prompt(profile, job, custom_answers, scan_fields=raw_fields, resume_b64=resume_b64)
 
         # 7. Execute TinyFish fill call
         t0 = time.monotonic()
@@ -241,7 +248,26 @@ class ApplicationOrchestrator:
         elif app.status == "needs_manual":
             await self._send_needs_manual_notification(profile, app, job)
 
-        await db.commit()
+        try:
+            await db.commit()
+        except Exception as commit_err:
+            logger.warning("Session commit failed, retrying with fresh session: %s", commit_err)
+            from app.db.session import async_session
+            async with async_session() as fresh_db:
+                fresh_app = await fresh_db.get(Application, app.id)
+                if fresh_app:
+                    fresh_app.status = app.status
+                    fresh_app.tinyfish_status = app.tinyfish_status
+                    fresh_app.tinyfish_duration_ms = app.tinyfish_duration_ms
+                    fresh_app.tinyfish_streaming_url = app.tinyfish_streaming_url
+                    fresh_app.fields_filled_json = app.fields_filled_json
+                    fresh_app.error_type = app.error_type
+                    fresh_app.error_message = app.error_message
+                    fresh_app.screenshot_storage_path = app.screenshot_storage_path
+                    if app.submitted_at:
+                        fresh_app.submitted_at = app.submitted_at
+                    await fresh_db.commit()
+
         return app
 
     async def resume_fill(self, db: AsyncSession, application_id: str) -> Application:
@@ -255,8 +281,13 @@ class ApplicationOrchestrator:
 
         custom_answers = json.loads(app.custom_answers_json or "[]")
 
+        # Upload resume via CDP before filling
+        resume_uploaded = await self._upload_resume_via_cdp(job.apply_url, profile)
+        logger.info("Phase 2 resume upload via CDP: %s", "success" if resume_uploaded else "skipped/failed")
+
         # Build prompt and execute TinyFish
-        prompt = build_prompt(profile, job, custom_answers)
+        resume_b64 = None if resume_uploaded else await self._get_resume_b64(profile)
+        prompt = build_prompt(profile, job, custom_answers, resume_b64=resume_b64)
 
         logger.info("Phase 2: Starting TinyFish fill for %s at %s", job.company, job.apply_url)
         t0 = time.monotonic()
@@ -306,8 +337,143 @@ class ApplicationOrchestrator:
         if app.status == "submitted":
             profile.applications_this_month += 1
 
-        await db.commit()
+        # Use a fresh DB session for the commit — the original may have timed out
+        # during the long TinyFish call
+        try:
+            await db.commit()
+        except Exception as commit_err:
+            logger.warning("Original session commit failed, retrying with fresh session: %s", commit_err)
+            from app.db.session import async_session
+            async with async_session() as fresh_db:
+                # Re-fetch and update the application in the fresh session
+                fresh_app = await fresh_db.get(Application, app.id)
+                if fresh_app:
+                    fresh_app.status = app.status
+                    fresh_app.tinyfish_status = app.tinyfish_status
+                    fresh_app.tinyfish_duration_ms = app.tinyfish_duration_ms
+                    fresh_app.tinyfish_streaming_url = app.tinyfish_streaming_url
+                    fresh_app.fields_filled_json = app.fields_filled_json
+                    fresh_app.error_type = app.error_type
+                    fresh_app.error_message = app.error_message
+                    fresh_app.screenshot_storage_path = app.screenshot_storage_path
+                    if app.submitted_at:
+                        fresh_app.submitted_at = app.submitted_at
+                    if app.screenshot_captured_at:
+                        fresh_app.screenshot_captured_at = app.screenshot_captured_at
+                    await fresh_db.commit()
+                    logger.info("Saved application result via fresh session")
+
         return app
+
+    async def _upload_resume_via_cdp(self, apply_url: str, profile: UserProfile) -> bool:
+        """Upload resume to a job form using TinyFish's CDP browser session.
+
+        1. POST /v1/browser → get cdp_url
+        2. Playwright connects via CDP → navigates to job page
+        3. Playwright uploads resume via set_input_files()
+        4. Returns True if successful
+
+        This runs BEFORE the TinyFish agent call so the resume field
+        is already populated when TinyFish fills the rest of the form.
+        """
+        if not profile.resume_storage_path:
+            logger.info("No resume to upload")
+            return False
+
+        try:
+            import httpx
+            from app.services.storage.supabase_storage import download_file
+
+            # Download resume bytes
+            parts = profile.resume_storage_path.split("/", 1)
+            if len(parts) != 2:
+                return False
+            pdf_bytes = await download_file(parts[0], parts[1])
+            filename = profile.resume_filename or "resume.pdf"
+            logger.info("Resume downloaded: %d bytes", len(pdf_bytes))
+
+            # Create TinyFish CDP browser session
+            api_key = settings.tinyfish_api_key
+            async with httpx.AsyncClient(timeout=30.0) as http:
+                resp = await http.post(
+                    "https://agent.tinyfish.ai/v1/browser",
+                    headers={"X-API-Key": api_key, "Content-Type": "application/json"},
+                    json={"url": apply_url},
+                )
+                resp.raise_for_status()
+                session = resp.json()
+
+            cdp_url = session.get("cdp_url")
+            session_id = session.get("session_id")
+            if not cdp_url:
+                logger.warning("No cdp_url in browser session response")
+                return False
+
+            logger.info("CDP session created: %s", session_id)
+
+            # Connect Playwright via CDP and upload
+            from playwright.async_api import async_playwright
+
+            async with async_playwright() as p:
+                browser = await p.chromium.connect_over_cdp(cdp_url)
+                context = browser.contexts[0] if browser.contexts else await browser.new_context()
+                page = context.pages[0] if context.pages else await context.new_page()
+
+                # Navigate to the job application page
+                await page.goto(apply_url, wait_until="networkidle", timeout=30_000)
+                logger.info("CDP: navigated to %s", apply_url)
+
+                # Scroll down to find the form
+                await page.evaluate("window.scrollTo(0, document.body.scrollHeight / 2)")
+                await page.wait_for_timeout(2000)
+
+                # Find file input and upload
+                file_input = await page.query_selector('input[type="file"]')
+                if not file_input:
+                    # Try scrolling more
+                    await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+                    await page.wait_for_timeout(2000)
+                    file_input = await page.query_selector('input[type="file"]')
+
+                if file_input:
+                    await file_input.set_input_files({
+                        "name": filename,
+                        "mimeType": "application/pdf",
+                        "buffer": pdf_bytes,
+                    })
+                    logger.info("CDP: resume uploaded via set_input_files")
+
+                    # Verify upload
+                    await page.wait_for_timeout(1000)
+                    title = await page.title()
+                    logger.info("CDP: page title after upload: %s", title)
+
+                    await browser.close()
+                    return True
+                else:
+                    logger.warning("CDP: no file input found on page")
+                    await browser.close()
+                    return False
+
+        except Exception as e:
+            logger.warning("CDP resume upload failed: %s", e)
+            return False
+
+    async def _get_resume_b64(self, profile: UserProfile) -> str | None:
+        """Download resume from Supabase and return as base64 string."""
+        if not profile.resume_storage_path:
+            return None
+        try:
+            import base64
+            from app.services.storage.supabase_storage import download_file
+            parts = profile.resume_storage_path.split("/", 1)
+            if len(parts) != 2:
+                return None
+            data = await download_file(parts[0], parts[1])
+            return base64.b64encode(data).decode()
+        except Exception as e:
+            logger.warning("Failed to download resume for b64 encoding: %s", e)
+            return None
 
     async def _get_profile(self, db: AsyncSession, user_id: str) -> UserProfile:
         result = await db.execute(
