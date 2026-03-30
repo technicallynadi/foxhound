@@ -5,12 +5,16 @@ import ToolResultCard from './ToolResultCard';
 
 interface Props {
   message: AgentMessage;
+  onSend?: (message: string) => void;
 }
 
-export default function MessageBubble({ message }: Props) {
+export default function MessageBubble({ message, onSend }: Props) {
   if (message.toolResult && message.toolName) {
-    return <ToolResultCard toolName={message.toolName} data={message.toolResult} />;
+    return <ToolResultCard toolName={message.toolName} data={message.toolResult} onSend={onSend} />;
   }
+
+  // Don't render empty assistant messages (typing indicator handles this)
+  if (!message.content && message.role === 'assistant') return null;
 
   const isUser = message.role === 'user';
 

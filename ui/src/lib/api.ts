@@ -141,6 +141,25 @@ export async function updateBlocklist(body: { blacklist?: string[]; whitelist?: 
   });
 }
 
+// ─── Matches ───
+
+export async function getMatches(params?: { min_score?: number; page?: number; per_page?: number }) {
+  const qs = new URLSearchParams();
+  if (params?.min_score) qs.set('min_score', String(params.min_score));
+  if (params?.page) qs.set('page', String(params.page));
+  if (params?.per_page) qs.set('per_page', String(params.per_page));
+  const query = qs.toString();
+  return request<{
+    items: Array<{
+      match_id: string;
+      match_score: number;
+      job: { id: string; title: string; company: string; location: string; remote_type: string | null; ats_type: string; apply_url: string };
+    }>;
+    page: number;
+    per_page: number;
+  }>(`/api/v1/matches${query ? `?${query}` : ''}`);
+}
+
 // ─── Applications ───
 
 export async function listApplications(params?: { status?: string; page?: number; per_page?: number }) {

@@ -1,22 +1,22 @@
 'use client';
 
-import { useRef, useState, type KeyboardEvent } from 'react';
+import { useRef, type KeyboardEvent } from 'react';
 
 interface Props {
   onSend: (message: string) => void;
-  disabled?: boolean;
   placeholder?: string;
+  value: string;
+  onChange: (v: string) => void;
 }
 
-export default function ChatInput({ onSend, disabled, placeholder }: Props) {
-  const [value, setValue] = useState('');
+export default function ChatInput({ onSend, placeholder, value, onChange }: Props) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const handleSend = () => {
     const trimmed = value.trim();
-    if (!trimmed || disabled) return;
+    if (!trimmed) return;
     onSend(trimmed);
-    setValue('');
+    onChange('');
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
   };
 
@@ -43,11 +43,10 @@ export default function ChatInput({ onSend, disabled, placeholder }: Props) {
       <textarea
         ref={textareaRef}
         value={value}
-        onChange={(e) => setValue(e.target.value)}
+        onChange={(e) => onChange(e.target.value)}
         onKeyDown={handleKeyDown}
         onInput={handleInput}
         placeholder={placeholder || 'Ask Foxhound...'}
-        disabled={disabled}
         rows={1}
         className="input"
         style={{
@@ -58,13 +57,13 @@ export default function ChatInput({ onSend, disabled, placeholder }: Props) {
       />
       <button
         onClick={handleSend}
-        disabled={disabled || !value.trim()}
+        disabled={!value.trim()}
         aria-label="Send message"
         style={{
           width: 38, height: 38, borderRadius: 6, border: 'none',
           background: value.trim() ? 'var(--v)' : 'rgba(255,255,255,0.04)',
           color: value.trim() ? 'white' : 'var(--t3)',
-          cursor: value.trim() && !disabled ? 'pointer' : 'default',
+          cursor: value.trim() ? 'pointer' : 'default',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           fontSize: 14, fontWeight: 700, flexShrink: 0,
           transition: 'background 120ms ease-out, color 120ms ease-out',

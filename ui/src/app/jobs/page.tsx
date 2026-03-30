@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import ScrollReveal from '@/components/landing/ScrollReveal';
 import AppNav from '@/components/AppNav';
+import { useAuth } from '@/lib/auth-context';
+import { useAgent } from '@/components/agent/AgentProvider';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
 const PER_PAGE = 50;
@@ -114,9 +116,20 @@ function JobCard({ job, onClick }: { job: Job; onClick: () => void }) {
 
 function JobDetailModal({ job, onClose }: { job: Job; onClose: () => void }) {
   const router = useRouter();
+  const { user } = useAuth();
+  const { send, open } = useAgent();
 
   function handleApplyWithFoxhound() {
-    router.push('/login');
+    if (!user) {
+      router.push('/login');
+      return;
+    }
+    // Logged in — open agent and trigger apply
+    open();
+    onClose();
+    setTimeout(() => {
+      send(`Apply to ${job.company} — ${job.title}`);
+    }, 300);
   }
   return (
     <div
@@ -184,7 +197,7 @@ function JobDetailModal({ job, onClose }: { job: Job; onClose: () => void }) {
             Apply with Foxhound →
           </button>
           <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--t3)', marginTop: 10, letterSpacing: '0.04em' }}>
-            Coming soon — join the beta to get early access
+            {user ? 'Your agent will scan and fill this form' : 'Join the beta to get early access'}
           </p>
         </div>
       </div>

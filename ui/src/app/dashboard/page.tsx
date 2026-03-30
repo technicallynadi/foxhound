@@ -5,10 +5,10 @@ import Link from 'next/link';
 import AuthGuard from '@/components/AuthGuard';
 import AppNav from '@/components/AppNav';
 import ScrollReveal from '@/components/landing/ScrollReveal';
-import { getDashboard } from '@/lib/api';
+import { getDashboard, getMatches, uploadResume } from '@/lib/api';
 
 interface DashboardData {
-  profile: { name: string; tier: string; applications_this_month: number; monthly_limit: number; autopilot_enabled: boolean; profile_complete: boolean };
+  profile: { name: string; tier: string; applications_this_month: number; monthly_limit: number; autopilot_enabled: boolean; profile_complete: boolean; resume_filename: string | null };
   applications: { total: number; by_status: Record<string, number>; recent: Array<{ application_id: string; company: string; title: string; status: string; created_at: string; submitted_at?: string }> };
   matches: { total: number; top_score: number | null };
   pending_questions: number;
@@ -19,24 +19,38 @@ const STATUS_COLORS: Record<string, string> = {
   waiting_user_input: 'var(--warning)', failed: 'var(--error)', needs_manual: 'var(--warning)',
 };
 
+interface MatchItem {
+  match_id: string;
+  match_score: number;
+  job: { id: string; title: string; company: string; location: string; remote_type: string | null; ats_type: string; apply_url: string };
+}
+
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
+  const [matches, setMatches] = useState<MatchItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [noProfile, setNoProfile] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadMsg, setUploadMsg] = useState('');
 
-  /* eslint-disable react-hooks/set-state-in-effect -- async API call sets state in .then() */
+  /* eslint-disable react-hooks/set-state-in-effect -- async API calls set state in .then() */
   useEffect(() => {
-    getDashboard()
-      .then((d) => {
-        const result = d as Record<string, unknown>;
+    Promise.allSettled([
+      getDashboard(),
+      getMatches({ per_page: 10 }),
+    ]).then(([dashResult, matchResult]) => {
+      if (dashResult.status === 'fulfilled') {
+        const result = dashResult.value as Record<string, unknown>;
         if (result.error === 'no_profile') {
           setNoProfile(true);
         } else {
-          setData(d as unknown as DashboardData);
+          setData(dashResult.value as unknown as DashboardData);
         }
-      })
-      .catch(() => { /* API unavailable — show empty state */ })
-      .finally(() => setLoading(false));
+      }
+      if (matchResult.status === 'fulfilled') {
+        setMatches((matchResult.value as { items: MatchItem[] }).items || []);
+      }
+    }).finally(() => setLoading(false));
   }, []); /* eslint-enable react-hooks/set-state-in-effect */
 
   const greeting = () => {
@@ -108,6 +122,48 @@ export default function DashboardPage() {
               </div>
             </ScrollReveal>
 
+            {/* Resume upload */}
+            <ScrollReveal delay={2}>
+              <div style={{
+                background: 'var(--sf)', border: '1px solid var(--b)', borderRadius: 12,
+                padding: '16px 24px', marginTop: 16,
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              }}>
+                <div>
+                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--vl)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                    Resume
+                  </div>
+                  <div style={{ fontSize: 13, color: 'var(--t3)', marginTop: 2 }}>
+                    {data.profile.resume_filename || 'No resume uploaded'}
+                    {uploadMsg && <span style={{ color: uploadMsg.includes('Updated') ? 'var(--g)' : 'var(--error)', marginLeft: 8 }}>{uploadMsg}</span>}
+                  </div>
+                </div>
+                <label style={{
+                  fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--t3)',
+                  letterSpacing: '0.04em', textTransform: 'uppercase',
+                  padding: '8px 16px', borderRadius: 6, cursor: 'pointer',
+                  border: '1px solid var(--b)', background: 'transparent',
+                  transition: 'all 0.2s',
+                }}>
+                  <input type="file" accept=".pdf" style={{ display: 'none' }} onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    setUploading(true);
+                    setUploadMsg('');
+                    try {
+                      await uploadResume(file);
+                      setUploadMsg('Updated — rescoring matches');
+                      window.location.reload();
+                    } catch {
+                      setUploadMsg('Upload failed');
+                    }
+                    setUploading(false);
+                  }} />
+                  {uploading ? 'Uploading...' : 'Update Resume'}
+                </label>
+              </div>
+            </ScrollReveal>
+
             {/* Recent Applications */}
             <ScrollReveal delay={2}>
               <div style={{ background: 'var(--sf)', border: '1px solid var(--b)', borderRadius: 12, padding: 24, marginTop: 32 }}>
@@ -152,6 +208,48 @@ export default function DashboardPage() {
                 )}
               </div>
             </ScrollReveal>
+
+            {/* Top Matches */}
+            {matches.length > 0 && (
+              <ScrollReveal delay={3}>
+                <div style={{ background: 'var(--sf)', border: '1px solid var(--b)', borderRadius: 12, padding: 24, marginTop: 16 }}>
+                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--vl)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 16 }}>
+                    Top Matches
+                  </div>
+                  {matches.map((m) => (
+                    <div key={m.match_id} style={{
+                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                      padding: '12px 0', borderBottom: '1px solid var(--b)',
+                    }}>
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ fontSize: 14, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {m.job.company} — {m.job.title}
+                        </div>
+                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--t3)', marginTop: 3 }}>
+                          {m.job.location || 'Remote'} · {m.job.ats_type}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0, marginLeft: 16 }}>
+                        <span style={{
+                          fontFamily: 'var(--font-mono)', fontSize: 16, fontWeight: 700,
+                          color: m.match_score >= 80 ? 'var(--g)' : m.match_score >= 60 ? 'var(--vl)' : 'var(--t3)',
+                        }}>
+                          {m.match_score}%
+                        </span>
+                        {m.job.apply_url && (
+                          <a href={m.job.apply_url} target="_blank" rel="noopener noreferrer" style={{
+                            fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--t3)',
+                            textTransform: 'uppercase', letterSpacing: '0.04em',
+                          }}>
+                            Apply →
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </ScrollReveal>
+            )}
 
             {/* Tier info */}
             <ScrollReveal delay={3}>

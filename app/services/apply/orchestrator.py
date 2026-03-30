@@ -428,13 +428,16 @@ class ApplicationOrchestrator:
                 await page.evaluate("window.scrollTo(0, document.body.scrollHeight / 2)")
                 await page.wait_for_timeout(2000)
 
-                # Find file input and upload
-                file_input = await page.query_selector('input[type="file"]')
-                if not file_input:
-                    # Try scrolling more
+                # Wait for JS-rendered form and find file input
+                # Ashby forms render via React after page load
+                file_input = None
+                for attempt in range(3):
                     await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-                    await page.wait_for_timeout(2000)
+                    await page.wait_for_timeout(3000)
                     file_input = await page.query_selector('input[type="file"]')
+                    if file_input:
+                        break
+                    logger.info("CDP: file input not found yet, attempt %d/3", attempt + 1)
 
                 if file_input:
                     await file_input.set_input_files({

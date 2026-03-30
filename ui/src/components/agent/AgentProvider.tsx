@@ -17,6 +17,9 @@ interface AgentContextValue {
   send: (message: string) => void;
   abort: () => void;
   loadHistory: () => void;
+  newSession: () => void;
+  draft: string;
+  setDraft: (v: string) => void;
 }
 
 const AgentContext = createContext<AgentContextValue | null>(null);
@@ -32,6 +35,7 @@ export default function AgentProvider({ children }: { children: ReactNode }) {
   const userId = user?.id || '';
   const [isOpen, setIsOpen] = useState(false);
   const [hasNotification, setHasNotification] = useState(false);
+  const [draft, setDraft] = useState('');
 
   const stream = useAgentStream(userId);
 
@@ -51,6 +55,8 @@ export default function AgentProvider({ children }: { children: ReactNode }) {
         ...stream,
         isOpen,
         hasNotification,
+        draft,
+        setDraft,
         open,
         close,
         toggle,

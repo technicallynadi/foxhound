@@ -6,9 +6,9 @@ import MessageList from './MessageList';
 import ChatInput from './ChatInput';
 
 export default function AgentPanel() {
-  const { messages, streamState, send, close, loadHistory } = useAgent();
+  const { messages, streamState, send, close, loadHistory, newSession, draft, setDraft } = useAgent();
 
-  useEffect(() => { loadHistory(); }, [loadHistory]);
+  useEffect(() => { if (messages.length === 0) loadHistory(); }, [loadHistory, messages.length]);
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close(); };
@@ -53,12 +53,13 @@ export default function AgentPanel() {
         </span>
       </div>
 
-      <MessageList messages={messages} streamState={streamState} />
+      <MessageList messages={messages} streamState={streamState} onSend={send} />
 
       <ChatInput
         onSend={send}
-        disabled={streamState !== 'idle'}
-        placeholder={streamState === 'idle' ? 'Ask Foxhound anything...' : 'Working...'}
+        placeholder="Ask Foxhound anything..."
+        value={draft}
+        onChange={setDraft}
       />
 
       <style jsx>{`

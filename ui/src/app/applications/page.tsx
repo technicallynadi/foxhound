@@ -108,6 +108,24 @@ export default function ApplicationsPage() {
                           </span>
                         )}
                       </div>
+                      {/* Screenshot receipt */}
+                      {app.screenshot_url && (
+                        <div style={{
+                          marginTop: 10, borderRadius: 8, overflow: 'hidden',
+                          border: '1px solid var(--b)', background: 'var(--bg)',
+                        }}>
+                          <a href={app.screenshot_url} target="_blank" rel="noopener noreferrer">
+                            <img
+                              src={app.screenshot_url}
+                              alt={`Application receipt for ${app.job.company}`}
+                              style={{ width: '100%', maxHeight: 200, objectFit: 'cover', display: 'block' }}
+                            />
+                          </a>
+                          <div style={{ padding: '6px 10px', fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--g)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                            Submission confirmed · {app.submitted_at ? new Date(app.submitted_at).toLocaleString() : ''}
+                          </div>
+                        </div>
+                      )}
                       {/* Lifecycle */}
                       <div style={{ display: 'flex', gap: 4, alignItems: 'center', marginTop: 8 }}>
                         {LIFECYCLE.map((step, si) => (
