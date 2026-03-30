@@ -228,20 +228,30 @@ class FoxhoundAgent:
         history = await self._load_history(db, session.id)
         system = await build_system_prompt(db, user_id, channel)
         messages = self._history_to_messages(history)
-
-        # Fix corrupt history: ensure every tool_use has a matching tool_result
         messages = self._fix_tool_pairs(messages)
-
         full_response = ""
+        retried_clean = False
 
         while budget.can_continue():
-            async with self.client.messages.stream(
-                model=settings.agent_model,
-                max_tokens=1024,
-                system=system,
-                tools=get_tool_definitions(),
-                messages=messages,
-            ) as stream:
+            try:
+                stream_ctx = self.client.messages.stream(
+                    model=settings.agent_model,
+                    max_tokens=1024,
+                    system=system,
+                    tools=get_tool_definitions(),
+                    messages=messages,
+                )
+                stream = await stream_ctx.__aenter__()
+            except Exception as api_err:
+                if not retried_clean and "tool_use" in str(api_err):
+                    # Corrupt history — drop it and retry with just the user message
+                    logger.warning("Corrupt history detected, retrying with clean messages: %s", str(api_err)[:200])
+                    messages = [messages[-1]] if messages else []
+                    retried_clean = True
+                    continue
+                raise
+
+            try:
                 async for event in stream:
                     if event.type == "content_block_delta" and hasattr(event.delta, "text"):
                         chunk = event.delta.text
@@ -249,6 +259,8 @@ class FoxhoundAgent:
                         yield f"event: text_delta\ndata: {json.dumps({'text': chunk})}\n\n"
 
                 final_message = await stream.get_final_message()
+            finally:
+                await stream_ctx.__aexit__(None, None, None)
 
             budget.record_api_call(
                 final_message.usage.input_tokens, final_message.usage.output_tokens
