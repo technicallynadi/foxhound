@@ -420,7 +420,8 @@ class ApplicationOrchestrator:
                 page = context.pages[0] if context.pages else await context.new_page()
 
                 # Navigate to the job application page
-                await page.goto(apply_url, wait_until="networkidle", timeout=30_000)
+                await page.goto(apply_url, wait_until="domcontentloaded", timeout=60_000)
+                await page.wait_for_timeout(5000)  # Extra wait for JS-rendered forms
                 logger.info("CDP: navigated to %s", apply_url)
 
                 # Scroll down to find the form
