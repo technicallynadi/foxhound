@@ -46,6 +46,14 @@ export function useAgentStream(userId: string) {
 
   const nextId = () => `msg_${Date.now()}_${++msgIdCounter.current}`;
 
+  // Start a fresh session
+  const newSession = useCallback(() => {
+    setSessionId(null);
+    setMessages([]);
+    setActiveToolResult(null);
+    setStreamState('idle');
+  }, []);
+
   // Load history from API
   const loadHistory = useCallback(async () => {
     try {
@@ -151,15 +159,9 @@ export function useAgentStream(userId: string) {
         }
       } catch (err) {
         if ((err as Error).name !== 'AbortError') {
-          const errorMsg = (err as Error).message || 'Something went wrong. Try again.';
-          console.error('Agent stream error:', errorMsg);
-          setMessages((prev) =>
-            prev.map((m) =>
-              m.id === assistantId
-                ? { ...m, content: m.content || `Could not reach Foxhound. ${errorMsg}` }
-                : m,
-            ),
-          );
+          console.error('Agent stream error:', (err as Error).message);
+          // Remove the empty assistant placeholder — don't persist error as a message
+          setMessages((prev) => prev.filter((m) => m.id !== assistantId || m.content));
         }
       } finally {
         setStreamState('idle');
@@ -247,5 +249,6 @@ export function useAgentStream(userId: string) {
     send,
     abort,
     loadHistory,
+    newSession,
   };
 }

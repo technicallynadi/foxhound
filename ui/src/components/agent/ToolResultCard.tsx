@@ -312,7 +312,8 @@ function QuestionCard({ question, draft, options, fieldType, answer, onAnswer }:
   const [editing, setEditing] = useState(false);
   const [editText, setEditText] = useState(draft || '');
 
-  const isDropdown = fieldType === 'select' || fieldType === 'radio' || (options && options.length > 0);
+  const hasOptions = options && options.length > 0 && options.length <= 10;
+  const isDropdown = (fieldType === 'select' || fieldType === 'radio') && hasOptions;
   const isAnswered = !!answer;
 
   // Answered — show compact
