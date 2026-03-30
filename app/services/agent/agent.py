@@ -92,7 +92,12 @@ class FoxhoundAgent:
         history = await self._load_history(db, session.id)
         system = await build_system_prompt(db, user_id, channel)
         messages = self._history_to_messages(history)
-        messages = self._fix_tool_pairs(messages)
+
+        try:
+            self._validate_messages(messages)
+        except ValueError:
+            logger.warning("Corrupt message history — dropping history for sync request")
+            messages = [{"role": "user", "content": message}]
 
         # 4. Tool_use loop
         tool_calls_log: list[dict] = []
@@ -228,30 +233,23 @@ class FoxhoundAgent:
         history = await self._load_history(db, session.id)
         system = await build_system_prompt(db, user_id, channel)
         messages = self._history_to_messages(history)
-        messages = self._fix_tool_pairs(messages)
         full_response = ""
-        retried_clean = False
+
+        # If history is corrupt, just use the latest user message
+        try:
+            self._validate_messages(messages)
+        except ValueError:
+            logger.warning("Corrupt message history — dropping history for this request")
+            messages = [{"role": "user", "content": message}]
 
         while budget.can_continue():
-            try:
-                stream_ctx = self.client.messages.stream(
-                    model=settings.agent_model,
-                    max_tokens=1024,
-                    system=system,
-                    tools=get_tool_definitions(),
-                    messages=messages,
-                )
-                stream = await stream_ctx.__aenter__()
-            except Exception as api_err:
-                if not retried_clean and "tool_use" in str(api_err):
-                    # Corrupt history — drop it and retry with just the user message
-                    logger.warning("Corrupt history detected, retrying with clean messages: %s", str(api_err)[:200])
-                    messages = [messages[-1]] if messages else []
-                    retried_clean = True
-                    continue
-                raise
-
-            try:
+            async with self.client.messages.stream(
+                model=settings.agent_model,
+                max_tokens=1024,
+                system=system,
+                tools=get_tool_definitions(),
+                messages=messages,
+            ) as stream:
                 async for event in stream:
                     if event.type == "content_block_delta" and hasattr(event.delta, "text"):
                         chunk = event.delta.text
@@ -259,8 +257,6 @@ class FoxhoundAgent:
                         yield f"event: text_delta\ndata: {json.dumps({'text': chunk})}\n\n"
 
                 final_message = await stream.get_final_message()
-            finally:
-                await stream_ctx.__aexit__(None, None, None)
 
             budget.record_api_call(
                 final_message.usage.input_tokens, final_message.usage.output_tokens
@@ -365,6 +361,26 @@ class FoxhoundAgent:
         db.add(session)
         await db.flush()
         return session
+
+    def _validate_messages(self, messages: list[dict]) -> None:
+        """Raise ValueError if messages have orphaned tool_use blocks."""
+        tool_use_ids = set()
+        tool_result_ids = set()
+        for msg in messages:
+            content = msg.get("content", [])
+            if isinstance(content, list):
+                for block in content:
+                    if isinstance(block, dict):
+                        if block.get("type") == "tool_use":
+                            tool_use_ids.add(block.get("id"))
+                        elif block.get("type") == "tool_result":
+                            tool_result_ids.add(block.get("tool_use_id"))
+                    elif hasattr(block, "type"):
+                        if block.type == "tool_use":
+                            tool_use_ids.add(block.id)
+        orphaned = tool_use_ids - tool_result_ids
+        if orphaned:
+            raise ValueError(f"Orphaned tool_use IDs: {orphaned}")
 
     def _fix_tool_pairs(self, messages: list[dict]) -> list[dict]:
         """Ensure every tool_use block has a matching tool_result.
