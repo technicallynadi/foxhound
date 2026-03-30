@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.session import Base
@@ -32,13 +32,13 @@ class JobListing(Base):
     required_skills_json: Mapped[str] = mapped_column(Text, default="[]")
     preferred_skills_json: Mapped[str] = mapped_column(Text, default="[]")
     required_years: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    requires_clearance: Mapped[bool] = mapped_column(Integer, default=0)
+    requires_clearance: Mapped[bool] = mapped_column(Boolean, default=False)
     visa_sponsorship: Mapped[bool | None] = mapped_column(Integer, nullable=True)
 
     # --- Application metadata ---
     apply_url: Mapped[str] = mapped_column(String)
     ats_type: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
-    auto_apply_supported: Mapped[bool] = mapped_column(Integer, default=0)
+    auto_apply_supported: Mapped[bool] = mapped_column(Boolean, default=False)
 
     # --- Source tracking ---
     source: Mapped[str] = mapped_column(String, index=True)

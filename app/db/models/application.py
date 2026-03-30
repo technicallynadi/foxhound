@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.session import Base
@@ -51,12 +51,12 @@ class Application(Base):
     max_retries: Mapped[int] = mapped_column(Integer, default=1)
 
     # --- Follow-up tracking ---
-    followup_day3_sent: Mapped[bool] = mapped_column(Integer, default=0)
-    followup_day7_sent: Mapped[bool] = mapped_column(Integer, default=0)
-    followup_day14_sent: Mapped[bool] = mapped_column(Integer, default=0)
+    followup_day3_sent: Mapped[bool] = mapped_column(Boolean, default=False)
+    followup_day7_sent: Mapped[bool] = mapped_column(Boolean, default=False)
+    followup_day14_sent: Mapped[bool] = mapped_column(Boolean, default=False)
 
     # --- Notification ---
-    notification_sent: Mapped[bool] = mapped_column(Integer, default=0)
+    notification_sent: Mapped[bool] = mapped_column(Boolean, default=False)
     notification_sent_at: Mapped[datetime | None] = mapped_column(
         TZDateTime, nullable=True
     )
