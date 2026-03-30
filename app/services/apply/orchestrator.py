@@ -79,7 +79,9 @@ class ApplicationOrchestrator:
         # 3. PHASE 1: Scan the form to discover fields
         from app.services.apply.form_scanner import scan_form, analyze_scan
 
+        logger.info("Phase 1: Scanning form at %s", job.apply_url)
         scan_result = await scan_form(job.apply_url)
+        logger.info("Phase 1: Scan complete — status=%s, fields=%d", scan_result.status, len(scan_result.fields))
 
         if scan_result.status != "scannable":
             app.status = "failed" if scan_result.status == "error" else "needs_manual"
@@ -134,6 +136,22 @@ class ApplicationOrchestrator:
 
                 app.status = "waiting_user_input"
                 app.custom_answers_json = json.dumps(custom_answers)
+
+                # Create ApplicationQuestion rows so the agent tool can find them
+                from app.db.models.application_question import ApplicationQuestion
+                for idx, q in enumerate(questions_for_user):
+                    aq = ApplicationQuestion(
+                        id=str(uuid4()),
+                        application_id=app.id,
+                        question_index=idx,
+                        field_label=q["question"],
+                        field_type=q.get("field_type", "text"),
+                        category="draft_and_approve" if q.get("suggested_answer") else "ask_directly",
+                        draft_answer=q.get("suggested_answer"),
+                        status="pending",
+                    )
+                    db.add(aq)
+
                 await db.commit()
 
                 # Notify user
@@ -222,6 +240,71 @@ class ApplicationOrchestrator:
             profile.applications_this_month += 1
         elif app.status == "needs_manual":
             await self._send_needs_manual_notification(profile, app, job)
+
+        await db.commit()
+        return app
+
+    async def resume_fill(self, db: AsyncSession, application_id: str) -> Application:
+        """Resume Phase 2 (fill + submit) for an application that has all answers."""
+        app = await db.get(Application, application_id)
+        if not app:
+            raise ValueError(f"Application {application_id} not found")
+
+        profile = await self._get_profile(db, app.user_id)
+        job = await self._get_job(db, app.job_id)
+
+        custom_answers = json.loads(app.custom_answers_json or "[]")
+
+        # Build prompt and execute TinyFish
+        prompt = build_prompt(profile, job, custom_answers)
+
+        logger.info("Phase 2: Starting TinyFish fill for %s at %s", job.company, job.apply_url)
+        t0 = time.monotonic()
+        result = await self._execute_tinyfish(prompt, job.apply_url)
+        logger.info("Phase 2: TinyFish returned in %dms — status: %s", int((time.monotonic() - t0) * 1000), result.get("status", "?"))
+        duration_ms = int((time.monotonic() - t0) * 1000)
+
+        app.tinyfish_status = result.get("status", "unknown")
+        app.tinyfish_duration_ms = duration_ms
+        app.tinyfish_streaming_url = result.get("streaming_url")
+        app.fields_filled_json = json.dumps(result.get("fields_filled", []))
+
+        if result.get("status") == "submitted":
+            app.status = "submitted"
+            app.submitted_at = datetime.now(timezone.utc)
+        elif result.get("status") in ("captcha_detected", "captcha", "personal_certification_required"):
+            app.status = "needs_manual"
+            app.error_type = result["status"]
+            app.error_message = _build_manual_message(result, job)
+        else:
+            app.status = "failed"
+            app.error_type = result.get("status", "unknown")
+            app.error_message = result.get("error", "")
+
+        # Screenshot
+        if result.get("streaming_url"):
+            try:
+                screenshot_path = await self._capture_screenshot(
+                    result["streaming_url"], app.id, app.user_id
+                )
+                app.screenshot_storage_path = screenshot_path
+                app.screenshot_captured_at = datetime.now(timezone.utc)
+            except Exception as e:
+                logger.warning("Screenshot capture failed: %s", e)
+
+        # Notification
+        from app.services.apply.notifications import send_application_receipt
+        try:
+            await send_application_receipt(
+                profile=profile, application=app, job=job,
+                screenshot_url=app.screenshot_storage_path,
+            )
+        except Exception as e:
+            logger.warning("Notification failed: %s", e)
+
+        # Increment counter
+        if app.status == "submitted":
+            profile.applications_this_month += 1
 
         await db.commit()
         return app
@@ -351,32 +434,58 @@ class ApplicationOrchestrator:
 
         Prefers result.result (dict) from the SDK, falls back to string parsing.
         """
+        # Get streaming URL if available
+        streaming_url = getattr(result, "streaming_url", None)
+
         # Try the structured result first (SDK returns result.result as dict)
         if hasattr(result, "result") and isinstance(result.result, dict):
             data = result.result
+            logger.info("TinyFish result (dict): %s", json.dumps(data)[:500])
+            if streaming_url:
+                data["streaming_url"] = streaming_url
             # Map TinyFish result to our status format
             if data.get("status"):
                 return data
             # If no explicit status, check for success indicators
             if data.get("confirmation_text") or data.get("form_submitted"):
                 return {**data, "status": "submitted"}
+            # Check the "result" text for success keywords
+            result_text = str(data.get("result", "")).lower()
+            if any(w in result_text for w in ["submitted", "success", "confirmation", "thank you", "application received"]):
+                return {**data, "status": "submitted"}
+            if "captcha" in result_text:
+                return {**data, "status": "captcha_detected"}
             return {**data, "status": "unknown"}
+
+        # Check if result has a text result (not dict)
+        if hasattr(result, "result") and isinstance(result.result, str):
+            text = result.result
+            logger.info("TinyFish result (str): %s", text[:500])
+            parsed: dict = {"raw_output": text[:500]}
+            if streaming_url:
+                parsed["streaming_url"] = streaming_url
+            if any(w in text.lower() for w in ["submitted", "success", "confirmation", "thank you", "application received"]):
+                return {**parsed, "status": "submitted"}
+            if "captcha" in text.lower():
+                return {**parsed, "status": "captcha_detected"}
+            return {**parsed, "status": "unknown"}
 
         # Check RunStatus
         if hasattr(result, "status"):
             from tinyfish import RunStatus
+            logger.info("TinyFish RunStatus: %s", result.status)
+            if result.status == RunStatus.COMPLETED:
+                parsed = {"streaming_url": streaming_url} if streaming_url else {}
+                text = str(getattr(result, "result", ""))
+                if any(w in text.lower() for w in ["submitted", "success", "confirmation", "thank you"]):
+                    return {**parsed, "status": "submitted"}
+                return {**parsed, "status": "unknown", "raw_output": text[:500]}
             if result.status == RunStatus.FAILED:
-                return {"status": "failed", "error": result.error or "TinyFish run failed"}
+                return {"status": "failed", "error": getattr(result, "error", None) or "TinyFish run failed"}
 
-        # Fallback: string parsing
+        # Fallback
         text = str(result)
-        try:
-            json_match = re.search(r'\{[\s\S]*"status"[\s\S]*?\}', text)
-            if json_match:
-                return json.loads(json_match.group())
-        except (json.JSONDecodeError, AttributeError):
-            pass
-
+        logger.info("TinyFish result (fallback): %s", text[:500])
         if "submitted" in text.lower() or "success" in text.lower():
             return {"status": "submitted"}
         if "captcha" in text.lower():

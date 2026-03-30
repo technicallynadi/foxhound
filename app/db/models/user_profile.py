@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, Float, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Float, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.session import Base
@@ -40,7 +40,7 @@ class UserProfile(Base):
     company_size_preference: Mapped[str | None] = mapped_column(String, nullable=True)
     seniority_level: Mapped[str | None] = mapped_column(String, nullable=True)
     years_experience: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    has_clearance: Mapped[bool] = mapped_column(Integer, default=0)
+    has_clearance: Mapped[bool] = mapped_column(Boolean, default=False)
     visa_status: Mapped[str | None] = mapped_column(String, nullable=True)
 
     # --- Resume file reference ---
@@ -49,7 +49,7 @@ class UserProfile(Base):
     resume_text: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # --- Settings ---
-    autopilot_enabled: Mapped[bool] = mapped_column(Integer, default=0)
+    autopilot_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     autopilot_threshold: Mapped[int] = mapped_column(Integer, default=75)
     daily_apply_limit: Mapped[int] = mapped_column(Integer, default=10)
     blacklisted_companies_json: Mapped[str] = mapped_column(Text, default="[]")
@@ -66,12 +66,12 @@ class UserProfile(Base):
 
     # --- Notification preferences ---
     notify_channels_json: Mapped[str] = mapped_column(Text, default='["email"]')
-    notify_on_apply: Mapped[bool] = mapped_column(Integer, default=1)
-    notify_daily_digest: Mapped[bool] = mapped_column(Integer, default=1)
+    notify_on_apply: Mapped[bool] = mapped_column(Boolean, default=True)
+    notify_daily_digest: Mapped[bool] = mapped_column(Boolean, default=True)
 
     archetype: Mapped[str | None] = mapped_column(String, nullable=True)
 
-    profile_complete: Mapped[bool] = mapped_column(Integer, default=0)
+    profile_complete: Mapped[bool] = mapped_column(Boolean, default=False)
     onboarding_step: Mapped[str] = mapped_column(String, default="upload_resume")
 
     created_at: Mapped[datetime] = mapped_column(

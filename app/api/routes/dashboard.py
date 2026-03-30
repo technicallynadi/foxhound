@@ -45,6 +45,7 @@ async def get_dashboard(
         "monthly_limit": profile.monthly_apply_limit,
         "autopilot_enabled": bool(profile.autopilot_enabled),
         "profile_complete": bool(profile.profile_complete),
+        "resume_filename": profile.resume_filename,
     }
 
     # Application stats
@@ -76,11 +77,12 @@ async def get_dashboard(
         for app, job in recent_result.all()
     ]
 
-    # Match count
+    # Match count (only jobs scoring above 30%)
     match_count_result = await db.execute(
         select(func.count(JobMatch.id)).where(
             JobMatch.user_id == user_id,
             JobMatch.disqualified == False,
+            JobMatch.match_score >= 65,
             JobMatch.user_action != "dismissed",
         )
     )

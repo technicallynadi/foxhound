@@ -23,8 +23,8 @@ async def upload_file(
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         resp = await client.post(url, content=data, headers=headers)
-        if resp.status_code == 409:
-            # File already exists, update it
+        if resp.status_code in (400, 409):
+            # File already exists — overwrite it
             resp = await client.put(url, content=data, headers=headers)
         resp.raise_for_status()
 

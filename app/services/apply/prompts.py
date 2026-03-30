@@ -148,8 +148,10 @@ def build_prompt(
         parts = profile.resume_storage_path.split("/", 1)
         if len(parts) == 2:
             token = create_file_token(parts[0], parts[1])
-            base = settings.APP_BASE_URL.rstrip("/")
-            resume_url = f"{base}/api/v1/files/serve/{token}"
+            # Use public Fly URL so TinyFish (cloud browser) can fetch the resume
+            # The /api/v1/files/serve endpoint has Access-Control-Allow-Origin: *
+            fly_url = os.environ.get("FOXHOUND_PUBLIC_URL", settings.APP_BASE_URL).rstrip("/")
+            resume_url = f"{fly_url}/api/v1/files/serve/{token}"
 
     # Build the goal prompt
     sections = [

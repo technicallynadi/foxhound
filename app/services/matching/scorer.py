@@ -207,22 +207,21 @@ class MatchScorer:
             return 0.2
 
     def _location_compatible(self, profile: UserProfile, job: JobListing) -> bool:
-        """Check if location preferences are compatible."""
+        """Check if location preferences are compatible.
+
+        Lenient: only disqualify if we're SURE it's incompatible.
+        Unknown remote_type passes through to scoring.
+        """
         pref = profile.remote_preference
-        if pref == "any":
+        if pref == "any" or not pref:
             return True
-        if pref == "remote_only" and job.remote_type == "remote":
-            return True
-        if pref == "remote_only" and job.remote_type is None:
-            return False  # Don't know, might be onsite
-
-        # For hybrid/onsite, check location match
-        user_locations = json.loads(profile.target_locations_json or "[]")
-        if not user_locations:
-            return True  # No location preference = anywhere
-
-        job_loc = (job.location or "").lower()
-        return any(loc.lower() in job_loc or job_loc in loc.lower() for loc in user_locations)
+        if job.remote_type == "remote":
+            return True  # Remote jobs are always compatible
+        if pref == "remote_only" and job.remote_type == "onsite":
+            return False  # Explicitly onsite + user wants remote = disqualify
+        # For everything else (null remote_type, hybrid, etc.) — let it through
+        # The location_fit scorer will penalize it
+        return True
 
     def _location_fit(self, profile: UserProfile, job: JobListing) -> float:
         """Score location fit (not just pass/fail)."""

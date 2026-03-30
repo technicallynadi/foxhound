@@ -51,7 +51,7 @@ class ScanResult:
     scan_duration_ms: int = 0
 
 
-FORM_SCAN_PROMPT = """Extract all form fields from the job application form on this page.
+FORM_SCAN_PROMPT = """Scroll down the page to find the job application form. Extract all form fields from the application form.
 
 For each visible form field, return:
 - label: the visible label text (or placeholder if no label)
@@ -130,9 +130,17 @@ async def scan_form(apply_url: str, use_stealth: bool = True) -> ScanResult:
         result = await client.agent.run(**kwargs)
         duration_ms = int((time.monotonic() - t0) * 1000)
 
-        # Use result.result (dict) if available, fall back to str(result)
+        # Use result.result if available
         if result.result and isinstance(result.result, dict):
-            return _parse_scan_result(json.dumps(result.result), duration_ms)
+            raw_dict = result.result
+            # Handle nested {"result": "```json...```"} format
+            if "result" in raw_dict and isinstance(raw_dict["result"], str):
+                inner = raw_dict["result"]
+                # Strip markdown code blocks
+                inner = re.sub(r'^```json\s*', '', inner.strip())
+                inner = re.sub(r'\s*```$', '', inner.strip())
+                return _parse_scan_result(inner, duration_ms)
+            return _parse_scan_result(json.dumps(raw_dict), duration_ms)
 
         raw = str(result)
         return _parse_scan_result(raw, duration_ms)
@@ -184,11 +192,12 @@ def _parse_scan_result(raw: str, duration_ms: int) -> ScanResult:
     except (json.JSONDecodeError, AttributeError):
         pass
 
-    # Fallback: check for known status keywords
+    # Fallback: check for known status keywords (only when JSON parsing failed)
     raw_lower = raw.lower()
     if "login" in raw_lower or "sign in" in raw_lower or "create account" in raw_lower:
         return ScanResult(status="login_required", raw_output=raw[:2000], scan_duration_ms=duration_ms)
-    if "captcha" in raw_lower:
+    # Only flag as CAPTCHA if the result explicitly says it's blocked — not just mentioning the word
+    if ("captcha" in raw_lower and "blocked" in raw_lower) or raw_lower.strip().startswith('{"status": "captcha'):
         return ScanResult(status="captcha", has_captcha=True, raw_output=raw[:2000], scan_duration_ms=duration_ms)
     if "not found" in raw_lower or "404" in raw_lower:
         return ScanResult(status="not_found", raw_output=raw[:2000], scan_duration_ms=duration_ms)

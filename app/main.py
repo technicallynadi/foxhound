@@ -84,6 +84,7 @@ for module_path in (
     "app.api.routes.agent_webhooks",
     "app.api.routes.dashboard",
     "app.api.routes.settings",
+    "app.api.routes.matches",
     "app.api.routes.files",
 ):
     _include_router(module_path)

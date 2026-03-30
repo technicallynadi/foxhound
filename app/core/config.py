@@ -33,7 +33,7 @@ class Settings(BaseSettings):
 
     @property
     def agent_model(self) -> str:
-        return os.environ.get("FOXHOUND_AGENT_MODEL", "claude-opus-4-20250514")
+        return os.environ.get("FOXHOUND_AGENT_MODEL", "claude-sonnet-4-20250514")
 
     @property
     def translator_timeout_seconds(self) -> float:

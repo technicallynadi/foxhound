@@ -56,12 +56,12 @@ async def apply_to_job(db: AsyncSession, user_id: str, params: dict) -> dict:
     match = match_result.scalar_one_or_none()
     match_score = match.match_score if match else None
 
-    if match_score is not None and match_score < 70:
+    if match_score is not None and match_score < 40:
         # Get better alternatives
         alt_result = await db.execute(
             select(JobMatch, JobListing)
             .join(JobListing, JobMatch.job_id == JobListing.id)
-            .where(JobMatch.user_id == user_id, JobMatch.match_score >= 80, JobMatch.disqualified == False)
+            .where(JobMatch.user_id == user_id, JobMatch.match_score >= 60, JobMatch.disqualified == False)
             .order_by(JobMatch.match_score.desc())
             .limit(3)
         )
@@ -80,10 +80,6 @@ async def apply_to_job(db: AsyncSession, user_id: str, params: dict) -> dict:
             "suggestion": "Here are stronger matches instead." if alternatives else "Try searching for better-fitting roles.",
             "override_available": True,
         }
-
-    if match_score is not None and 70 <= match_score < 80:
-        # Warn but allow
-        pass  # Claude will see the score in the result and can warn the user
 
     # Start the application via orchestrator
     from app.services.apply.orchestrator import ApplicationOrchestrator
@@ -114,6 +110,10 @@ async def apply_to_job(db: AsyncSession, user_id: str, params: dict) -> dict:
             result["message"] = f"Application to {job.company} is waiting for input."
     elif application.status == "submitted":
         result["message"] = f"Applied to {job.company} — {job.title}. Application submitted."
+        if application.tinyfish_streaming_url:
+            result["streaming_url"] = application.tinyfish_streaming_url
+        if application.screenshot_storage_path:
+            result["screenshot"] = application.screenshot_storage_path
     elif application.status == "failed":
         result["message"] = f"Application to {job.company} failed: {application.error_message or application.error_type}"
     elif application.status == "needs_manual":
@@ -151,7 +151,7 @@ async def apply_to_job(db: AsyncSession, user_id: str, params: dict) -> dict:
                 "items": {
                     "type": "object",
                     "properties": {
-                        "index": {"type": "integer", "description": "Question number (1-based)"},
+                        "index": {"type": "integer", "description": "Question number from the list (0-based: first question is 0, second is 1, etc.)"},
                         "action": {"type": "string", "enum": ["approve", "answer"],
                                    "description": "'approve' to accept draft, 'answer' to provide own"},
                         "answer": {"type": "string", "description": "The answer text (required if action is 'answer')"},
@@ -210,7 +210,10 @@ async def answer_application_questions(db: AsyncSession, user_id: str, params: d
         action = answer_data.get("action", "answer")
         text = answer_data.get("answer", "")
 
+        # Agent sends 1-based indices, DB is 0-based — try both
         pq = next((q for q in pending if q.question_index == idx), None)
+        if not pq and idx is not None:
+            pq = next((q for q in pending if q.question_index == idx - 1), None)
         if not pq:
             continue
 
@@ -255,15 +258,36 @@ async def answer_application_questions(db: AsyncSession, user_id: str, params: d
                 })
         app.custom_answers_json = json.dumps(existing)
         app.phase = "fill"
+        app.status = "in_progress"
 
         await db.commit()
 
+        # Trigger Phase 2 — fill and submit
         company = job.company if job else "this company"
-        return {
-            "status": "all_answered",
-            "application_id": app.id,
-            "message": f"All questions answered for {company}. Submitting now.",
-        }
+        import logging
+        _logger = logging.getLogger(__name__)
+        _logger.info("All questions answered for %s — triggering Phase 2 resume_fill", company)
+        try:
+            from app.services.apply.orchestrator import ApplicationOrchestrator
+            orchestrator = ApplicationOrchestrator()
+            result_app = await orchestrator.resume_fill(db=db, application_id=app.id)
+            _logger.info("Phase 2 complete for %s — status: %s", company, result_app.status)
+            resp = {
+                "status": result_app.status,
+                "application_id": app.id,
+                "message": f"Application to {company} — {result_app.status}.",
+            }
+            if result_app.tinyfish_streaming_url:
+                resp["streaming_url"] = result_app.tinyfish_streaming_url
+            if result_app.screenshot_storage_path:
+                resp["screenshot"] = result_app.screenshot_storage_path
+            return resp
+        except Exception as e:
+            return {
+                "status": "all_answered",
+                "application_id": app.id,
+                "message": f"All questions answered for {company}. Phase 2 failed: {str(e)[:200]}",
+            }
 
     await db.commit()
 

@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, Float, Integer, String, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, Float, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.session import Base
@@ -28,7 +28,7 @@ class JobMatch(Base):
     salary_score: Mapped[float] = mapped_column(Float, default=0)
     recency_score: Mapped[float] = mapped_column(Float, default=0)
 
-    disqualified: Mapped[bool] = mapped_column(Integer, default=0)
+    disqualified: Mapped[bool] = mapped_column(Boolean, default=False)
     disqualify_reason: Mapped[str | None] = mapped_column(String, nullable=True)
 
     # --- User interaction ---

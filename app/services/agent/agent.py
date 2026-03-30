@@ -261,6 +261,7 @@ class FoxhoundAgent:
                 if block.type != "tool_use":
                     continue
 
+                logger.info("Stream tool call: %s(%s)", block.name, json.dumps(block.input)[:200])
                 yield f"event: tool_call_start\ndata: {json.dumps({'tool_name': block.name, 'tool_input': block.input})}\n\n"
 
                 db.add(AgentMessage(
@@ -277,6 +278,7 @@ class FoxhoundAgent:
                 else:
                     result = await execute_tool(db, user_id, block.name, block.input)
 
+                logger.info("Stream tool result: %s → %s", block.name, json.dumps(result)[:200])
                 budget.record_tool_call(block.name)
                 result_json = json.dumps(result)
 

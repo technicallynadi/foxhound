@@ -86,6 +86,18 @@ async def list_applications(
 
     items = []
     for app, job in rows:
+        # Generate signed URL for screenshot if it exists
+        screenshot_signed = None
+        if app.screenshot_storage_path:
+            try:
+                from app.services.storage.supabase_storage import get_signed_url
+                # Path is like "screenshots/user_id/app_id.png"
+                parts = app.screenshot_storage_path.split("/", 1)
+                if len(parts) == 2:
+                    screenshot_signed = await get_signed_url(parts[0], parts[1])
+            except Exception:
+                pass
+
         items.append({
             "id": app.id,
             "status": app.status,
@@ -97,7 +109,7 @@ async def list_applications(
                 "ats_type": job.ats_type,
             },
             "tinyfish_status": app.tinyfish_status,
-            "screenshot_url": app.screenshot_storage_path,
+            "screenshot_url": screenshot_signed,
             "submitted_at": app.submitted_at.isoformat() if app.submitted_at else None,
             "created_at": app.created_at.isoformat() if app.created_at else None,
         })

@@ -47,8 +47,7 @@ Required fields:
 - inferred_years_experience: integer
 - inferred_target_titles: list of 3-5 job titles this person would likely target
 
-Resume text:
-{resume_text}"""
+Resume text:"""
 
 
 class ResumeParser:
@@ -83,7 +82,7 @@ class ResumeParser:
     async def _llm_extract(self, text: str) -> dict:
         """Single Anthropic API call with structured output."""
         client = self._get_client()
-        prompt = RESUME_EXTRACTION_PROMPT.format(resume_text=text[:8000])
+        prompt = RESUME_EXTRACTION_PROMPT + "\n\n" + text[:8000]
 
         try:
             response = await client.messages.create(
