@@ -7,7 +7,7 @@ const ITEMS = [
   { type: "violet", text: "Intelligence report ready — 3 min build" },
   { type: "green", text: "New match: Full Stack Engineer — 89%" },
   { type: "dim", text: "Interview prep: 14 questions compiled" },
-  { type: "violet", text: "Network map: 4 connections found at Stripe" },
+  { type: "violet", text: "Network map: 4 connections found at target company" },
   { type: "dim", text: "Career trajectory: Staff Engineer is your next move" },
 ];
 

@@ -118,7 +118,7 @@ const MESSAGES: Message[] = [
     content: (
       <>
         <div style={{ fontSize: 13, color: "var(--t2)" }}>
-          Brief ready for Stripe:
+          Brief ready for Acme:
         </div>
         <div
           style={{
