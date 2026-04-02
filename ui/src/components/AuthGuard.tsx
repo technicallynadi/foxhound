@@ -10,13 +10,13 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
 
   useEffect(() => {
-    if (!isAuthConfigured) return;
+    // Always redirect unauthenticated users — whether auth is configured or not
     if (!loading && !user) {
       router.push('/login');
     }
   }, [user, loading, router]);
 
-  // Auth not configured — show setup notice in dev, block in prod
+  // Auth not configured
   if (!isAuthConfigured) {
     if (process.env.NODE_ENV === 'development') {
       // Dev mode — allow through with a warning banner
@@ -32,29 +32,24 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
         </>
       );
     }
-    // Production — do not bypass
-    return (
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        height: '100vh', color: 'var(--color-error)', fontSize: 14, textAlign: 'center', padding: 24,
-      }}>
-        Authentication is not configured. Please contact support.
-      </div>
-    );
-  }
-
-  if (loading) {
-    // Render nothing visible — the page's own skeleton (shown inside
-    // children) will never mount while loading is true, but we avoid
-    // flashing a blank white/dark screen by keeping the background
-    // consistent with --bg.
+    // Production without auth configured — redirect to landing, never show app
     return (
       <div style={{ minHeight: '100vh', background: 'var(--bg)' }} />
     );
   }
 
+  // Auth configured but still loading session
+  if (loading) {
+    return (
+      <div style={{ minHeight: '100vh', background: 'var(--bg)' }} />
+    );
+  }
+
+  // Not authenticated — redirect is happening via useEffect, render nothing
   if (!user) {
-    return null;
+    return (
+      <div style={{ minHeight: '100vh', background: 'var(--bg)' }} />
+    );
   }
 
   return <>{children}</>;
