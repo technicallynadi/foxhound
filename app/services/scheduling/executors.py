@@ -83,7 +83,7 @@ async def _send_new_match_alerts(db: AsyncSession, user_ids: list[str]) -> None:
             if not profile:
                 continue
 
-            threshold = profile.autopilot_threshold or 80
+            threshold = profile.autopilot_threshold or 70
 
             # Get new unviewed matches above threshold (created today)
             today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
@@ -153,7 +153,7 @@ async def _autopilot_for_user(db: AsyncSession, profile: UserProfile) -> None:
         return
 
     # Get top unmatched jobs above threshold
-    threshold = profile.autopilot_threshold or 75
+    threshold = profile.autopilot_threshold or 70
     result = await db.execute(
         select(JobMatch)
         .where(
@@ -343,7 +343,46 @@ async def execute_followup(job: FoxhoundJob) -> None:
             application.followup_day14_sent = True
 
         await db.commit()
+        from app.services.activity.logger import log_activity
+
+        await log_activity(
+            user_id=user_id,
+            event_type="followup_reminder",
+            title=f"Follow-up reminder: {job_listing.company}",
+            description=f"Foxhound queued the day {day} follow-up for {job_listing.title}.",
+            metadata={
+                "application_id": application_id,
+                "job_id": job_id,
+                "company": job_listing.company,
+                "title": job_listing.title,
+                "day": day,
+            },
+        )
         logger.info("Follow-up day %d sent for application %s", day, application_id)
+
+
+# ---------------------------------------------------------------------------
+# Stale Job Cleanup
+# ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# Watchdog Sweep
+# ---------------------------------------------------------------------------
+
+
+async def execute_watchdog_sweep(job: FoxhoundJob) -> None:
+    """Check all active application postings for changes."""
+    payload = json.loads(job.payload_json or "{}")
+    max_concurrent = payload.get("max_concurrent", 3)
+    domain_delay = payload.get("domain_delay_seconds", 5)
+
+    from app.services.watchdog.sweep import run_watchdog_sweep
+
+    await run_watchdog_sweep(
+        max_concurrent=max_concurrent,
+        domain_delay_seconds=domain_delay,
+    )
 
 
 # ---------------------------------------------------------------------------

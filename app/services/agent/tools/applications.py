@@ -3,12 +3,17 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.application import Application
 from app.db.models.job_listing import JobListing
+from app.services.application_guidance import (
+    build_application_context,
+    build_recommended_next_action,
+)
 from app.services.agent.registry import tool
 
 
@@ -60,9 +65,20 @@ async def get_applications(db: AsyncSession, user_id: str, params: dict) -> dict
             "company": job.company,
             "title": job.title,
             "status": app.status,
+            "posting_status": app.posting_status or "unknown",
             "trigger": app.trigger,
+            "days_since_applied": _days_since(app),
+            "followup_day3_sent": bool(app.followup_day3_sent),
+            "followup_day7_sent": bool(app.followup_day7_sent),
+            "followup_day14_sent": bool(app.followup_day14_sent),
             "created_at": app.created_at.isoformat() if app.created_at else None,
         }
+        context = build_application_context(app, job)
+        entry["application_context"] = context
+        entry["recommended_next_action"] = build_recommended_next_action(
+            context,
+            module="status",
+        )
         if app.submitted_at:
             entry["submitted_at"] = app.submitted_at.isoformat()
         if app.error_type:
@@ -81,3 +97,10 @@ async def get_applications(db: AsyncSession, user_id: str, params: dict) -> dict
         "by_status": statuses,
         "message": f"{len(apps)} applications. " + ", ".join(f"{v} {k}" for k, v in statuses.items()) + ".",
     }
+
+
+def _days_since(app: Application) -> int:
+    ref = app.submitted_at or app.created_at
+    if not ref:
+        return 0
+    return max(0, (datetime.now(timezone.utc) - ref).days)

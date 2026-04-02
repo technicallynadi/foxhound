@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 
@@ -10,6 +11,9 @@ from app.api.routes.files import create_file_token
 from app.core.config import settings
 from app.db.models.job_listing import JobListing
 from app.db.models.user_profile import UserProfile
+from app.services.discovery.ats_detector import detect_ats
+
+logger = logging.getLogger(__name__)
 
 # Maps form field labels to profile data keys.
 # Used to determine which profile fields to include in the prompt.
@@ -122,6 +126,77 @@ def build_dropdown_selections_block(
     return "\n".join(lines) if has_any else ""
 
 
+def build_resume_js(profile: UserProfile, apply_url: str) -> list[str] | None:
+    """Build JS commands to inject resume into the form's file input.
+
+    Strategy per ATS:
+    - Greenhouse: file proxy fetch (no CSP restrictions, single JS command)
+    - Ashby: skip (CSP blocks external fetch, javascript: URLs restricted)
+    - Lever: skip (hCaptcha blocks auto-apply anyway)
+    - Unknown: try file proxy, fall back to skip
+
+    Returns a list of JS commands, or None if resume upload should be skipped.
+    """
+    if not profile.resume_storage_path:
+        return None
+
+    ats = detect_ats(apply_url)
+    filename = _safe_js_filename(profile.resume_filename)
+
+    # Ashby blocks both javascript: URLs and external fetch via CSP
+    if ats == "ashby":
+        logger.info("Skipping resume injection for Ashby (CSP + JS restrictions)")
+        return None
+
+    # Lever: auto-apply blocked by hCaptcha, skip resume
+    if ats == "lever":
+        logger.info("Skipping resume injection for Lever (hCaptcha)")
+        return None
+
+    # Try file proxy approach (single fetch command — works on Greenhouse + unknown)
+    base_url = settings.APP_BASE_URL.rstrip("/")
+    if base_url and "127.0.0.1" not in base_url and "localhost" not in base_url:
+        # Production: use file proxy
+        parts = profile.resume_storage_path.split("/", 1)
+        if len(parts) == 2:
+            token = create_file_token(parts[0], parts[1])
+            proxy_url = f"{base_url}/api/v1/files/serve/{token}"
+            return [_build_resume_fetch_js(proxy_url, filename)]
+
+    logger.info("No public base URL — skipping resume injection")
+    return None
+
+
+def _build_resume_fetch_js(proxy_url: str, filename: str) -> str:
+    """Single JS command that fetches resume from our proxy and injects into file input.
+
+    Uses DataTransfer API + React _valueTracker reset for compatibility
+    with React-based ATS forms (Greenhouse, Lever).
+    """
+    return (
+        f"javascript:void((async function(){{"
+        f"try{{"
+        f"var r=await fetch('{proxy_url}');"
+        f"if(!r.ok){{document.title='FETCH_FAILED:'+r.status;return}}"
+        f"var b=await r.blob();"
+        f"var f=new File([b],'{filename}',{{type:'application/pdf'}});"
+        f"var dt=new DataTransfer();"
+        f"dt.items.add(f);"
+        f"var inp=document.querySelector('input[type=file]');"
+        f"if(inp){{"
+        f"inp.files=dt.files;"
+        # Reset React's internal value tracker so it detects the change
+        f"var t=inp._valueTracker;if(t)t.setValue('');"
+        # Fire both events: React listens on 'input', native on 'change'
+        f"inp.dispatchEvent(new Event('input',{{bubbles:true}}));"
+        f"inp.dispatchEvent(new Event('change',{{bubbles:true}}));"
+        f"document.title='RESUME_UPLOADED'}}"
+        f"else{{document.title='NO_FILE_INPUT'}}"
+        f"}}catch(e){{document.title='FETCH_FAILED:'+e.message}}"
+        f"}})())"
+    )
+
+
 def build_prompt(
     profile: UserProfile,
     job: JobListing,
@@ -133,6 +208,11 @@ def build_prompt(
 
     Only includes profile fields that the form scan found on the page.
     This minimizes PII exposure in the TinyFish goal prompt.
+
+    Resume injection uses the file proxy approach (single fetch command)
+    instead of base64 chunks. resume_b64 is kept for backwards compat
+    but no longer used — the proxy URL is generated from the profile's
+    storage path.
     """
     # Extract scanned field labels for minimization
     scan_labels: set[str] | None = None
@@ -143,10 +223,8 @@ def build_prompt(
     custom_block = build_custom_questions_block(answers or [])
     dropdown_block = build_dropdown_selections_block(scan_fields, profile)
 
-    resume_chunks: list[str] = []
-    resume_filename = _safe_js_filename(profile.resume_filename)
-    if resume_b64:
-        resume_chunks = _build_resume_chunks(resume_b64, resume_filename)
+    # Get resume injection JS (per-ATS strategy)
+    resume_js_commands = build_resume_js(profile, job.apply_url)
 
     # Build the goal prompt
     sections = [
@@ -164,19 +242,20 @@ def build_prompt(
         "3. For dropdowns, select the exact option text listed",
     ]
 
-    if resume_chunks:
+    if resume_js_commands:
         step_num = 4
-        steps.append(f"{step_num}. Upload resume by running these commands IN ORDER in the address bar:")
-        for i, chunk_js in enumerate(resume_chunks):
+        steps.append(f"{step_num}. Upload resume by running this command in the address bar:")
+        for js_cmd in resume_js_commands:
             step_num += 1
-            steps.append(f"   {step_num}. Run in address bar: {chunk_js}")
+            steps.append(f"   {step_num}. Run in address bar: {js_cmd}")
         step_num += 1
         steps.append(f"{step_num}. Click the Submit / Apply button")
         step_num += 1
         steps.append(f"{step_num}. Wait for the confirmation page")
     else:
-        steps.append("4. Click the Submit / Apply button")
-        steps.append("5. Wait for the confirmation page")
+        steps.append("4. Skip the resume/file upload field if present")
+        steps.append("5. Click the Submit / Apply button")
+        steps.append("6. Wait for the confirmation page")
 
     sections.append("Complete these steps:\n\n" + "\n".join(steps))
 
@@ -208,43 +287,3 @@ def _safe_js_filename(name: str | None) -> str:
     return safe
 
 
-CHUNK_SIZE = 4000  # chars per chunk — safe for JS URL length
-
-
-def _build_resume_chunks(b64_data: str, filename: str) -> list[str]:
-    """Split base64 resume into chunked JS commands for CSP-safe injection.
-
-    Each chunk appends to window.__rc (resume chunks) via address bar JS.
-    The final chunk assembles the File and injects into the file input.
-    This bypasses CSP connect-src because there are no network requests.
-    """
-    chunks = [b64_data[i:i + CHUNK_SIZE] for i in range(0, len(b64_data), CHUNK_SIZE)]
-    js_commands = []
-
-    # First: initialize the array
-    js_commands.append("javascript:void(window.__rc=[])")
-
-    # Middle: push each chunk
-    for chunk in chunks:
-        js_commands.append(f"javascript:void(window.__rc.push('{chunk}'))")
-
-    # Final: assemble and inject into file input
-    assemble = (
-        f"javascript:void((function(){{"
-        f"var b=atob(window.__rc.join(''));"
-        f"var a=new Uint8Array(b.length);"
-        f"for(var i=0;i<b.length;i++)a[i]=b.charCodeAt(i);"
-        f"var f=new File([a],'{filename}',{{type:'application/pdf'}});"
-        f"var dt=new DataTransfer();"
-        f"dt.items.add(f);"
-        f"var inp=document.querySelector('input[type=file]');"
-        f"if(inp){{inp.files=dt.files;"
-        f"inp.dispatchEvent(new Event('change',{{bubbles:true}}));"
-        f"inp.dispatchEvent(new Event('input',{{bubbles:true}}));"
-        f"document.title='RESUME_UPLOADED'}}"
-        f"else{{document.title='NO_FILE_INPUT'}}"
-        f"}})())"
-    )
-    js_commands.append(assemble)
-
-    return js_commands

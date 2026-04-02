@@ -3,7 +3,7 @@
 import { useAgent } from './AgentProvider';
 
 export default function AgentFAB() {
-  const { toggle, streamState, hasNotification } = useAgent();
+  const { toggle, streamState, hasNotification, notificationCount } = useAgent();
   const isWorking = streamState === 'streaming' || streamState === 'tool_executing';
 
   return (
@@ -30,10 +30,16 @@ export default function AgentFAB() {
 
       {hasNotification && (
         <span style={{
-          position: 'absolute', top: 0, right: 0, width: 10, height: 10, borderRadius: '50%',
+          position: 'absolute', top: -2, right: -2,
+          minWidth: 18, height: 18, borderRadius: 9,
           background: 'var(--error)', border: '2px solid var(--bg)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700, color: '#fff',
           animation: 'status-pulse 2s ease-in-out infinite',
-        }} />
+          padding: '0 4px',
+        }}>
+          {notificationCount > 0 ? Math.min(notificationCount, 9) : ''}
+        </span>
       )}
 
       <style jsx>{`

@@ -7,6 +7,8 @@ Mocks all external services (TinyFish, Anthropic, Supabase Storage).
 import asyncio
 import json
 import os
+import sys
+import types
 
 import pytest
 
@@ -22,6 +24,18 @@ os.environ["FOXHOUND_DATABASE_URL"] = _TEST_DB
 # Patch dotenv BEFORE any app module imports config.py.
 import unittest.mock as _mock
 _mock.patch("dotenv.load_dotenv", lambda **kw: None).start()
+
+# Local/CI test environments may not have TinyFish installed.
+# Provide a tiny import stub so app startup and router imports can proceed.
+if "tinyfish" not in sys.modules:
+    tinyfish_stub = types.ModuleType("tinyfish")
+
+    class AsyncTinyFish:  # pragma: no cover - import shim only
+        def __init__(self, *args, **kwargs):
+            pass
+
+    tinyfish_stub.AsyncTinyFish = AsyncTinyFish
+    sys.modules["tinyfish"] = tinyfish_stub
 
 
 @pytest.fixture(scope="session")
@@ -101,6 +115,7 @@ async def sample_profile(db, user_id):
         tier="pro",
         monthly_apply_limit=50,
         salary_floor=180000,
+        resume_storage_path="resumes/test-user/resume.pdf",
     )
     db.add(profile)
     await db.commit()

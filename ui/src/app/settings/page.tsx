@@ -1,10 +1,12 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import AuthGuard from '@/components/AuthGuard';
 import AppNav from '@/components/AppNav';
+import PageSkeleton from '@/components/PageSkeleton';
 import ScrollReveal from '@/components/landing/ScrollReveal';
-import { getProfile, getSettings, updatePreferences, updateAutopilot, updateNotifications, updateBlocklist } from '@/lib/api';
+import { getProfile, getSettings, updateProfile, updatePreferences, updateAutopilot, updateNotifications, updateBlocklist } from '@/lib/api';
 
 function Toggle({ label, desc, enabled, onChange }: { label: string; desc: string; enabled: boolean; onChange: () => void }) {
   return (
@@ -53,6 +55,75 @@ function SettingInput({ label, placeholder, value, onChange }: { label: string; 
   );
 }
 
+function SettingSelect({ label, value, onChange, options }: { label: string; value: string; onChange: (v: string) => void; options: { value: string; label: string }[] }) {
+  return (
+    <div style={{ padding: '16px 0', borderBottom: '1px solid var(--b)' }}>
+      <label style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--t3)', letterSpacing: '0.08em', textTransform: 'uppercase', display: 'block', marginBottom: 8 }}>
+        {label}
+      </label>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="input"
+        style={{ width: '100%' }}
+      >
+        <option value="">Select...</option>
+        {options.map((opt) => (
+          <option key={opt.value} value={opt.value}>{opt.label}</option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+function AutonomyMeter({ enabled, threshold }: { enabled: boolean; threshold: number }) {
+  const level = !enabled ? 'Manual' : threshold >= 85 ? 'Conservative' : threshold >= 70 ? 'Balanced' : 'Aggressive';
+  const pct = !enabled ? 10 : threshold >= 85 ? 35 : threshold >= 70 ? 65 : 88;
+
+  return (
+    <div style={{ padding: '16px 0', borderBottom: '1px solid var(--b)' }}>
+      <div style={{ fontSize: 14, fontWeight: 500 }}>Autonomy level: {level}</div>
+      <div style={{ marginTop: 10, height: 4, borderRadius: 999, background: 'var(--b)', overflow: 'hidden' }}>
+        <div style={{ width: `${pct}%`, height: '100%', background: 'linear-gradient(90deg, var(--t3), var(--v))' }} />
+      </div>
+      <div style={{ fontSize: 13, color: 'var(--t3)', marginTop: 10, lineHeight: 1.6 }}>
+        {!enabled
+          ? 'Foxhound finds jobs and waits for you to decide.'
+          : threshold >= 85
+            ? 'Foxhound only applies to near-perfect fits. Everything else waits for you.'
+            : threshold >= 70
+              ? 'Foxhound applies to strong fits and checks with you when it\'s a close call.'
+              : 'Foxhound applies more broadly. Use this if you want maximum volume.'}
+      </div>
+    </div>
+  );
+}
+
+function AutoCapability({ label, desc }: { label: string; desc: string }) {
+  return (
+    <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+      <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--vl)', display: 'inline-block', marginTop: 7, flexShrink: 0 }} />
+      <div>
+        <div style={{ fontSize: 13, fontWeight: 500 }}>{label}</div>
+        <div style={{ fontSize: 12, color: 'var(--t3)', lineHeight: 1.6, marginTop: 2 }}>{desc}</div>
+      </div>
+    </div>
+  );
+}
+
+function matchDescriptor(score: number): string {
+  if (score >= 90) return 'Exact - near-perfect matches only';
+  if (score >= 80) return 'Strong - high-confidence matches';
+  if (score >= 70) return 'Balanced - quality with steady volume';
+  if (score >= 60) return 'Broad - more volume, less precision';
+  return 'Very broad - expect lower fit quality';
+}
+
+function clampThreshold(value: number): number {
+  if (Number.isNaN(value)) return 75;
+  return Math.min(100, Math.max(50, value));
+}
+
 export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -72,14 +143,29 @@ export default function SettingsPage() {
   const [autopilot, setAutopilot] = useState(false);
   const [threshold, setThreshold] = useState('75');
   const [dailyLimit, setDailyLimit] = useState('10');
+  const thresholdValue = clampThreshold(parseInt(threshold, 10));
 
   // Notifications (from settings)
   const [notifyApply, setNotifyApply] = useState(true);
   const [notifyDigest, setNotifyDigest] = useState(true);
-  const [notifyChannel, setNotifyChannel] = useState('email');
+  const [notifyChannels, setNotifyChannels] = useState<string[]>(['email']);
 
   // Blocklist (from settings)
   const [blocklist, setBlocklist] = useState('');
+
+  // Application profile (from profile)
+  const [visaStatus, setVisaStatus] = useState('');
+  const [salaryExpectation, setSalaryExpectation] = useState('');
+  const [noticePeriod, setNoticePeriod] = useState('');
+  const [workPreference, setWorkPreference] = useState('');
+  const [willingToRelocate, setWillingToRelocate] = useState(false);
+  const [gender, setGender] = useState('');
+  const [race, setRace] = useState('');
+  const [hispanicLatino, setHispanicLatino] = useState('');
+  const [veteranStatus, setVeteranStatus] = useState('');
+  const [disabilityStatus, setDisabilityStatus] = useState('');
+  const [howDidYouHear, setHowDidYouHear] = useState('');
+  const [resumeFilename, setResumeFilename] = useState<string | null>(null);
 
   // Load from API on mount
   useEffect(() => {
@@ -97,6 +183,18 @@ export default function SettingsPage() {
           setSeniority(p.seniority_level || '');
           setIndustries((p.industries || []).join(', '));
           setCompanySize(p.company_size_preference || '');
+          setVisaStatus((p.visa_status as string) || '');
+          setSalaryExpectation((p.salary_expectation as string) || '');
+          setNoticePeriod((p.notice_period as string) || '');
+          setWorkPreference((p.work_preference as string) || '');
+          setWillingToRelocate(Boolean(p.willing_to_relocate));
+          setGender((p.gender as string) || '');
+          setRace((p.race as string) || '');
+          setHispanicLatino(p.hispanic_latino === true ? 'yes' : p.hispanic_latino === false ? 'no' : '');
+          setVeteranStatus((p.veteran_status as string) || '');
+          setDisabilityStatus((p.disability_status as string) || '');
+          setHowDidYouHear((p.how_did_you_hear as string) || '');
+          setResumeFilename((p.resume_filename as string | null) || null);
         }
 
         if (!cancelled && settings.status === 'fulfilled') {
@@ -110,7 +208,7 @@ export default function SettingsPage() {
           setNotifyApply(n.on_apply !== false);
           setNotifyDigest(n.daily_digest !== false);
           const channels = (n.channels as string[]) || ['email'];
-          setNotifyChannel(channels[0] || 'email');
+          setNotifyChannels(channels.length > 0 ? channels : ['email']);
 
           const bl = s.blocklist || {};
           setBlocklist(((bl.blacklist as string[]) || []).join(', '));
@@ -164,11 +262,22 @@ export default function SettingsPage() {
   }
 
   function saveNotifications(overrides: Record<string, unknown> = {}) {
+    const nextChannels = (overrides.channels as string[] | undefined) ?? notifyChannels;
     debouncedSave(() => updateNotifications( {
-      channels: [(overrides.channel as string | undefined) ?? notifyChannel],
+      channels: nextChannels.length > 0 ? nextChannels : ['email'],
       on_apply: (overrides.on_apply as boolean | undefined) ?? notifyApply,
       daily_digest: (overrides.daily_digest as boolean | undefined) ?? notifyDigest,
     }));
+  }
+
+  function toggleNotifyChannel(channel: string) {
+    const currentlySelected = notifyChannels.includes(channel);
+    const next = currentlySelected
+      ? notifyChannels.filter((c) => c !== channel)
+      : [...notifyChannels, channel];
+    const normalized = next.length > 0 ? next : ['email'];
+    setNotifyChannels(normalized);
+    saveNotifications({ channels: normalized });
   }
 
   function saveBlocklist(value?: string) {
@@ -176,13 +285,40 @@ export default function SettingsPage() {
     debouncedSave(() => updateBlocklist( { blacklist: list }));
   }
 
+  function saveApplicationProfile(overrides: Record<string, unknown> = {}) {
+    const payload: Record<string, unknown> = {};
+    const vs = (overrides.visa_status as string | undefined) ?? visaStatus;
+    const se = (overrides.salary_expectation as string | undefined) ?? salaryExpectation;
+    const np = (overrides.notice_period as string | undefined) ?? noticePeriod;
+    const wp = (overrides.work_preference as string | undefined) ?? workPreference;
+    const wr = (overrides.willing_to_relocate as boolean | undefined) ?? willingToRelocate;
+    const gn = (overrides.gender as string | undefined) ?? gender;
+    const rc = (overrides.race as string | undefined) ?? race;
+    const hl = (overrides.hispanic_latino as string | undefined) ?? hispanicLatino;
+
+    if (vs) payload.visa_status = vs;
+    if (se) payload.salary_expectation = se;
+    if (np) payload.notice_period = np;
+    if (wp) payload.work_preference = wp;
+    payload.willing_to_relocate = wr;
+    if (gn) payload.gender = gn;
+    if (rc) payload.race = rc;
+    if (hl) payload.hispanic_latino = hl === 'yes' ? true : hl === 'no' ? false : null;
+    const vs2 = (overrides.veteran_status as string | undefined) ?? veteranStatus;
+    const ds = (overrides.disability_status as string | undefined) ?? disabilityStatus;
+    const hdyh = (overrides.how_did_you_hear as string | undefined) ?? howDidYouHear;
+    if (vs2) payload.veteran_status = vs2;
+    if (ds) payload.disability_status = ds;
+    if (hdyh) payload.how_did_you_hear = hdyh;
+
+    debouncedSave(() => updateProfile(payload));
+  }
+
   if (loading) {
     return (
       <AuthGuard>
         <AppNav />
-        <main style={{ paddingTop: 80, maxWidth: 600, margin: '0 auto', padding: '80px 20px 140px', textAlign: 'center' }}>
-          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--t3)' }}>Loading settings...</div>
-        </main>
+        <PageSkeleton variant="settings" />
       </AuthGuard>
     );
   }
@@ -190,13 +326,13 @@ export default function SettingsPage() {
   return (
     <AuthGuard>
       <AppNav />
-      <main style={{ paddingTop: 80, maxWidth: 600, margin: '0 auto', padding: '80px 20px 140px', position: 'relative', zIndex: 1 }}>
+      <main style={{ paddingTop: 80, maxWidth: 1080, margin: '0 auto', padding: '80px 20px 140px', position: 'relative', zIndex: 1 }}>
         <ScrollReveal>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>
               <div className="section-label">Settings</div>
               <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 700, letterSpacing: '-0.02em', textTransform: 'uppercase' }}>
-                SETTINGS
+                YOUR PREFERENCES
               </h1>
             </div>
             {(saving || saveMsg) && (
@@ -207,9 +343,10 @@ export default function SettingsPage() {
           </div>
         </ScrollReveal>
 
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(440px, 1fr))', gap: 24, marginTop: 8 }}>
         {/* Job Preferences */}
         <ScrollReveal delay={1}>
-          <div style={{ background: 'var(--sf)', border: '1px solid var(--b)', borderRadius: 12, padding: '8px 24px', marginTop: 32 }}>
+          <div style={{ background: 'var(--sf)', border: '1px solid var(--b)', borderRadius: 12, padding: '8px 24px', height: '100%', boxSizing: 'border-box' as const }}>
             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--vl)', letterSpacing: '0.08em', textTransform: 'uppercase', padding: '16px 0', borderBottom: '1px solid var(--b)' }}>
               01 / Job Preferences
             </div>
@@ -293,61 +430,250 @@ export default function SettingsPage() {
             </div>
 
             <div style={{ padding: '12px 0', fontSize: 12, color: 'var(--t3)' }}>
-              Changes are saved automatically and affect your job matches.
+              Changes save automatically and update your job matches.
+            </div>
+          </div>
+        </ScrollReveal>
+
+        {/* Application Profile */}
+        <ScrollReveal delay={2}>
+          <div style={{ background: 'var(--sf)', border: '1px solid var(--b)', borderRadius: 12, padding: '8px 24px', height: '100%', boxSizing: 'border-box' as const }}>
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--vl)', letterSpacing: '0.08em', textTransform: 'uppercase', padding: '16px 0', borderBottom: '1px solid var(--b)' }}>
+              02 / Application Profile
+            </div>
+            <div style={{ fontSize: 13, color: 'var(--t3)', padding: '12px 0', borderBottom: '1px solid var(--b)', lineHeight: 1.6 }}>
+              Set these once and Foxhound fills them in on every application.
+            </div>
+
+            <SettingSelect
+              label="Gender"
+              value={gender}
+              onChange={(v) => { setGender(v); saveApplicationProfile({ gender: v }); }}
+              options={[
+                { value: 'male', label: 'Male' },
+                { value: 'female', label: 'Female' },
+                { value: 'non_binary', label: 'Non-binary' },
+                { value: 'decline', label: 'Decline to self identify' },
+              ]}
+            />
+
+            <SettingSelect
+              label="Race / Ethnicity"
+              value={race}
+              onChange={(v) => { setRace(v); saveApplicationProfile({ race: v }); }}
+              options={[
+                { value: 'white', label: 'White' },
+                { value: 'black', label: 'Black or African American' },
+                { value: 'asian', label: 'Asian' },
+                { value: 'native', label: 'American Indian or Alaska Native' },
+                { value: 'pacific', label: 'Native Hawaiian or Pacific Islander' },
+                { value: 'two_or_more', label: 'Two or More Races' },
+                { value: 'decline', label: 'Decline to self identify' },
+              ]}
+            />
+
+            <SettingSelect
+              label="Hispanic or Latino?"
+              value={hispanicLatino}
+              onChange={(v) => { setHispanicLatino(v); saveApplicationProfile({ hispanic_latino: v }); }}
+              options={[
+                { value: 'yes', label: 'Yes' },
+                { value: 'no', label: 'No' },
+                { value: '', label: 'Decline to self identify' },
+              ]}
+            />
+
+            <SettingSelect
+              label="Visa status"
+              value={visaStatus}
+              onChange={(v) => { setVisaStatus(v); saveApplicationProfile({ visa_status: v }); }}
+              options={[
+                { value: 'citizen', label: 'US Citizen' },
+                { value: 'green_card', label: 'Green Card' },
+                { value: 'h1b', label: 'H-1B Visa' },
+                { value: 'opt', label: 'OPT' },
+                { value: 'need_sponsorship', label: 'Need Sponsorship' },
+              ]}
+            />
+
+            <SettingInput
+              label="Salary expectation"
+              placeholder="$150,000 base"
+              value={salaryExpectation}
+              onChange={(v) => { setSalaryExpectation(v); saveApplicationProfile({ salary_expectation: v }); }}
+            />
+
+            <SettingInput
+              label="Notice period"
+              placeholder="2 weeks, Immediately..."
+              value={noticePeriod}
+              onChange={(v) => { setNoticePeriod(v); saveApplicationProfile({ notice_period: v }); }}
+            />
+
+            <SettingSelect
+              label="Work preference"
+              value={workPreference}
+              onChange={(v) => { setWorkPreference(v); saveApplicationProfile({ work_preference: v }); }}
+              options={[
+                { value: 'remote', label: 'Remote' },
+                { value: 'hybrid', label: 'Hybrid' },
+                { value: 'office', label: 'In-Office' },
+              ]}
+            />
+
+            <SettingSelect
+              label="Veteran status"
+              value={veteranStatus}
+              onChange={(v) => { setVeteranStatus(v); saveApplicationProfile({ veteran_status: v }); }}
+              options={[
+                { value: 'not_veteran', label: 'I am not a protected veteran' },
+                { value: 'veteran', label: 'I am a protected veteran' },
+                { value: 'decline', label: 'Decline to self identify' },
+              ]}
+            />
+
+            <SettingSelect
+              label="Disability status"
+              value={disabilityStatus}
+              onChange={(v) => { setDisabilityStatus(v); saveApplicationProfile({ disability_status: v }); }}
+              options={[
+                { value: 'no', label: 'No, I do not have a disability' },
+                { value: 'yes', label: 'Yes, I have a disability' },
+                { value: 'decline', label: 'Decline to self identify' },
+              ]}
+            />
+
+            <SettingSelect
+              label="How did you hear about us?"
+              value={howDidYouHear}
+              onChange={(v) => { setHowDidYouHear(v); saveApplicationProfile({ how_did_you_hear: v }); }}
+              options={[
+                { value: 'linkedin', label: 'LinkedIn' },
+                { value: 'job_board', label: 'Job Board' },
+                { value: 'referral', label: 'Referral' },
+                { value: 'company_website', label: 'Company Website' },
+                { value: 'social_media', label: 'Social Media' },
+                { value: 'other', label: 'Other' },
+              ]}
+            />
+
+            <Toggle
+              label="Willing to relocate"
+              desc="Open to relocating for the right opportunity"
+              enabled={willingToRelocate}
+              onChange={() => { const next = !willingToRelocate; setWillingToRelocate(next); saveApplicationProfile({ willing_to_relocate: next }); }}
+            />
+
+            <div style={{ padding: '12px 0', fontSize: 12, color: 'var(--t3)' }}>
+              Foxhound uses these to fill in common application questions.
             </div>
           </div>
         </ScrollReveal>
 
         {/* Autopilot */}
-        <ScrollReveal delay={2}>
-          <div style={{ background: 'var(--sf)', border: '1px solid var(--b)', borderRadius: 12, padding: '8px 24px', marginTop: 16 }}>
+        <ScrollReveal delay={3}>
+          <div style={{ background: 'var(--sf)', border: '1px solid var(--b)', borderRadius: 12, padding: '8px 24px', height: '100%', boxSizing: 'border-box' as const }}>
             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--vl)', letterSpacing: '0.08em', textTransform: 'uppercase', padding: '16px 0', borderBottom: '1px solid var(--b)' }}>
-              02 / Autopilot
+              03 / Autopilot
+            </div>
+            <div style={{ fontSize: 13, color: 'var(--t3)', padding: '12px 0', borderBottom: '1px solid var(--b)', lineHeight: 1.6 }}>
+              Control how much Foxhound does on its own.
             </div>
             <Toggle
               label="Autopilot mode"
-              desc="Automatically apply to jobs above your match threshold"
+              desc="Let Foxhound apply to strong matches automatically"
               enabled={autopilot}
               onChange={() => { const next = !autopilot; setAutopilot(next); saveAutopilot({ enabled: next }); }}
             />
-            <SettingInput label="Match threshold" placeholder="75" value={threshold} onChange={(v) => { setThreshold(v); saveAutopilot({ threshold: v }); }} />
-            <SettingInput label="Daily application limit" placeholder="10" value={dailyLimit} onChange={(v) => { setDailyLimit(v); saveAutopilot({ daily_limit: v }); }} />
+            <AutonomyMeter enabled={autopilot} threshold={thresholdValue} />
+            <div style={{ padding: '16px 0', borderBottom: '1px solid var(--b)' }}>
+              <label style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--t3)', letterSpacing: '0.08em', textTransform: 'uppercase', display: 'block', marginBottom: 12 }}>
+                Minimum fit score ({thresholdValue}%)
+              </label>
+              <input
+                type="range"
+                min={50}
+                max={100}
+                value={thresholdValue}
+                onChange={(e) => {
+                  const next = String(clampThreshold(parseInt(e.target.value, 10)));
+                  setThreshold(next);
+                  saveAutopilot({ threshold: next });
+                }}
+                style={{ width: '100%', accentColor: 'var(--v)' }}
+              />
+              <div style={{ fontSize: 12, color: 'var(--t3)', marginTop: 10 }}>
+                {matchDescriptor(thresholdValue)}
+              </div>
+            </div>
+            <SettingInput label="Max applications per day" placeholder="10" value={dailyLimit} onChange={(v) => { setDailyLimit(v); saveAutopilot({ daily_limit: v }); }} />
+            {!resumeFilename && (
+              <div style={{
+                marginTop: 12,
+                padding: '10px 12px',
+                borderRadius: 8,
+                border: '1px solid rgba(251,191,36,0.2)',
+                background: 'rgba(251,191,36,0.06)',
+                fontSize: 12,
+                color: 'var(--t2)',
+                lineHeight: 1.6,
+              }}>
+                Foxhound can keep searching without a resume, but it cannot submit applications until you upload one.
+                {' '}
+                <Link href="/onboard" style={{ color: 'var(--vl)', textDecoration: 'none' }}>
+                  Upload resume
+                </Link>
+                {' '}
+                to unlock autopilot apply.
+              </div>
+            )}
+            <div style={{ padding: '16px 0 4px' }}>
+              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--t3)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 10 }}>
+                What Foxhound does for you
+              </div>
+              <div style={{ display: 'grid', gap: 10 }}>
+                <AutoCapability label="People research after apply" desc="Find the hiring manager and people to reach out to." />
+                <AutoCapability label="Company brief assembly" desc="Pull together the key facts about a company before you follow up." />
+                <AutoCapability label="Status tracking and ghost checks" desc="Watch if the job posting changes after you apply." />
+                <AutoCapability label="Morning briefing and alerts" desc="Sum up what happened overnight and flag anything that needs you." />
+              </div>
+            </div>
           </div>
         </ScrollReveal>
 
         {/* Notifications */}
-        <ScrollReveal delay={2}>
-          <div style={{ background: 'var(--sf)', border: '1px solid var(--b)', borderRadius: 12, padding: '8px 24px', marginTop: 16 }}>
+        <ScrollReveal delay={3}>
+          <div style={{ background: 'var(--sf)', border: '1px solid var(--b)', borderRadius: 12, padding: '8px 24px', height: '100%', boxSizing: 'border-box' as const }}>
             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--vl)', letterSpacing: '0.08em', textTransform: 'uppercase', padding: '16px 0', borderBottom: '1px solid var(--b)' }}>
-              03 / Notifications
+              04 / Notifications
             </div>
             <Toggle
-              label="Application receipts"
-              desc="Get notified when Foxhound submits an application"
+              label="Application confirmations"
+              desc="Get notified every time Foxhound applies for you"
               enabled={notifyApply}
               onChange={() => { const next = !notifyApply; setNotifyApply(next); saveNotifications({ on_apply: next }); }}
             />
             <Toggle
               label="Daily digest"
-              desc="End-of-day summary of applications and new matches"
+              desc="End-of-day summary of what Foxhound did and new matches"
               enabled={notifyDigest}
               onChange={() => { const next = !notifyDigest; setNotifyDigest(next); saveNotifications({ daily_digest: next }); }}
             />
             <div style={{ padding: '16px 0', borderBottom: '1px solid var(--b)' }}>
               <label style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--t3)', letterSpacing: '0.08em', textTransform: 'uppercase', display: 'block', marginBottom: 10 }}>
-                Notification channel
+                How to reach you
               </label>
-              <div style={{ display: 'flex', gap: 8 }}>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {['slack', 'discord', 'sms', 'email'].map((ch) => (
                   <button
                     key={ch}
-                    onClick={() => { setNotifyChannel(ch); saveNotifications({ channel: ch }); }}
+                    onClick={() => toggleNotifyChannel(ch)}
                     style={{
                       fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase',
                       padding: '8px 16px', borderRadius: 6, cursor: 'pointer',
-                      border: `1px solid ${notifyChannel === ch ? 'var(--bv)' : 'var(--b)'}`,
-                      background: notifyChannel === ch ? 'var(--vf)' : 'transparent',
-                      color: notifyChannel === ch ? 'var(--vl)' : 'var(--t3)',
+                      border: `1px solid ${notifyChannels.includes(ch) ? 'var(--bv)' : 'var(--b)'}`,
+                      background: notifyChannels.includes(ch) ? 'var(--vf)' : 'transparent',
+                      color: notifyChannels.includes(ch) ? 'var(--vl)' : 'var(--t3)',
                       transition: 'all 0.2s',
                     }}
                   >
@@ -355,33 +681,36 @@ export default function SettingsPage() {
                   </button>
                 ))}
               </div>
+              <div style={{ marginTop: 10, fontSize: 12, color: 'var(--t3)', lineHeight: 1.6 }}>
+                Slack and Discord notifications are reply-aware. You can answer pending questions and steer Foxhound directly from those channels.
+              </div>
             </div>
           </div>
         </ScrollReveal>
 
         {/* Blocklist */}
-        <ScrollReveal delay={3}>
-          <div style={{ background: 'var(--sf)', border: '1px solid var(--b)', borderRadius: 12, padding: '8px 24px', marginTop: 16 }}>
+        <ScrollReveal delay={4}>
+          <div style={{ background: 'var(--sf)', border: '1px solid var(--b)', borderRadius: 12, padding: '8px 24px', height: '100%', boxSizing: 'border-box' as const }}>
             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--vl)', letterSpacing: '0.08em', textTransform: 'uppercase', padding: '16px 0', borderBottom: '1px solid var(--b)' }}>
-              04 / Blocklist
+              05 / Blocklist
             </div>
             <SettingInput
-              label="Companies to skip"
+              label="Companies to avoid"
               placeholder="Company A, Company B..."
               value={blocklist}
               onChange={(v) => { setBlocklist(v); saveBlocklist(v); }}
             />
             <div style={{ fontSize: 12, color: 'var(--t3)', padding: '12px 0' }}>
-              Foxhound will never apply to these companies, even in autopilot mode.
+              Foxhound will never apply to these companies, even on autopilot.
             </div>
           </div>
         </ScrollReveal>
 
         {/* Account */}
-        <ScrollReveal delay={4}>
-          <div style={{ background: 'var(--sf)', border: '1px solid var(--b)', borderRadius: 12, padding: '8px 24px', marginTop: 16 }}>
+        <ScrollReveal delay={5}>
+          <div style={{ background: 'var(--sf)', border: '1px solid var(--b)', borderRadius: 12, padding: '8px 24px', height: '100%', boxSizing: 'border-box' as const }}>
             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--vl)', letterSpacing: '0.08em', textTransform: 'uppercase', padding: '16px 0', borderBottom: '1px solid var(--b)' }}>
-              05 / Account
+              06 / Account
             </div>
             <div style={{ padding: '16px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--b)' }}>
               <div>
@@ -402,7 +731,7 @@ export default function SettingsPage() {
               </button>
               <button style={{
                 fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--error)', background: 'none',
-                border: '1px solid rgba(248,113,113,0.15)', borderRadius: 6, padding: '8px 16px', cursor: 'pointer',
+                border: '1px solid rgba(239,68,68,0.15)', borderRadius: 6, padding: '8px 16px', cursor: 'pointer',
                 letterSpacing: '0.04em', textTransform: 'uppercase',
               }}>
                 Delete account
@@ -410,6 +739,7 @@ export default function SettingsPage() {
             </div>
           </div>
         </ScrollReveal>
+        </div>{/* close 2-column grid */}
       </main>
     </AuthGuard>
   );

@@ -6,7 +6,7 @@ import json
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -33,17 +33,41 @@ class ProfileUpdate(BaseModel):
     experience: list[dict] | None = None
     education: list[dict] | None = None
     archetype: str | None = None
+    # Application profile fields
+    visa_status: str | None = None
+    salary_expectation: str | None = None
+    notice_period: str | None = None
+    work_preference: str | None = None
+    willing_to_relocate: bool | None = None
+    gender: str | None = None
+    race: str | None = None
+    hispanic_latino: bool | None = None
+    veteran_status: str | None = None
+    disability_status: str | None = None
+    how_did_you_hear: str | None = None
 
 
 class PreferencesUpdate(BaseModel):
-    target_titles: list[str] | None = None
-    target_locations: list[str] | None = None
-    remote_preference: str | None = None
-    salary_floor: int | None = None
-    salary_currency: str | None = None
-    industries: list[str] | None = None
-    company_size_preference: str | None = None
-    seniority_level: str | None = None
+    target_titles: list[str] | None = Field(None, max_length=20)
+    target_locations: list[str] | None = Field(None, max_length=10)
+    remote_preference: str | None = Field(None, max_length=20)
+    salary_floor: int | None = Field(None, ge=0, le=10_000_000)
+    salary_currency: str | None = Field(None, max_length=5)
+    industries: list[str] | None = Field(None, max_length=20)
+    company_size_preference: str | None = Field(None, max_length=30)
+    seniority_level: str | None = Field(None, max_length=50)
+
+
+class ProfileBootstrap(BaseModel):
+    target_titles: list[str] | None = Field(None, max_length=20)
+    target_locations: list[str] | None = Field(None, max_length=10)
+    remote_preference: str | None = Field(None, max_length=20)
+    salary_floor: int | None = Field(None, ge=0, le=10_000_000)
+    industries: list[str] | None = Field(None, max_length=20)
+    seniority_level: str | None = Field(None, max_length=50)
+    first_name: str | None = Field(None, max_length=100)
+    last_name: str | None = Field(None, max_length=100)
+    location: str | None = Field(None, max_length=200)
 
 
 @router.post("/resume/upload")
@@ -61,8 +85,12 @@ async def upload_resume(
     if len(pdf_bytes) > 10 * 1024 * 1024:  # 10MB limit
         raise HTTPException(400, "File too large (max 10MB)")
 
-    # Store PDF in Supabase Storage
-    storage_path = f"{user_id}/{file.filename}"
+    # Store PDF in Supabase Storage (sanitize filename to prevent path traversal)
+    import os
+    safe_filename = os.path.basename(file.filename or "resume.pdf")
+    if not safe_filename.lower().endswith(".pdf"):
+        safe_filename = "resume.pdf"
+    storage_path = f"{user_id}/{safe_filename}"
     await upload_file("resumes", storage_path, pdf_bytes, "application/pdf")
 
     # Parse the resume
@@ -167,6 +195,63 @@ async def get_profile(
     return _serialize_profile(profile)
 
 
+@router.post("/bootstrap")
+async def bootstrap_profile(
+    body: ProfileBootstrap,
+    user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Create a lightweight profile from onboarding intent before a resume exists."""
+    user_id = user["user_id"]
+    result = await db.execute(
+        select(UserProfile).where(UserProfile.user_id == user_id)
+    )
+    profile = result.scalar_one_or_none()
+
+    if not profile:
+        profile = UserProfile(
+            id=str(uuid4()),
+            user_id=user_id,
+            email=user.get("email") or "",
+            first_name=body.first_name,
+            last_name=body.last_name,
+            location=body.location,
+            target_titles_json=json.dumps(body.target_titles or []),
+            target_locations_json=json.dumps(body.target_locations or []),
+            remote_preference=body.remote_preference or "any",
+            salary_floor=body.salary_floor,
+            industries_json=json.dumps(body.industries or []),
+            seniority_level=body.seniority_level,
+            onboarding_step="set_preferences",
+        )
+        db.add(profile)
+    else:
+        if body.first_name is not None:
+            profile.first_name = body.first_name
+        if body.last_name is not None:
+            profile.last_name = body.last_name
+        if body.location is not None:
+            profile.location = body.location
+        if body.target_titles is not None:
+            profile.target_titles_json = json.dumps(body.target_titles)
+        if body.target_locations is not None:
+            profile.target_locations_json = json.dumps(body.target_locations)
+        if body.remote_preference is not None:
+            profile.remote_preference = body.remote_preference
+        if body.salary_floor is not None:
+            profile.salary_floor = body.salary_floor
+        if body.industries is not None:
+            profile.industries_json = json.dumps(body.industries)
+        if body.seniority_level is not None:
+            profile.seniority_level = body.seniority_level
+        if profile.onboarding_step == "upload_resume":
+            profile.onboarding_step = "set_preferences"
+
+    await db.commit()
+    await db.refresh(profile)
+    return _serialize_profile(profile)
+
+
 @router.put("")
 async def update_profile(
     body: ProfileUpdate,
@@ -180,7 +265,9 @@ async def update_profile(
     )
     profile = result.scalar_one_or_none()
     if not profile:
-        raise HTTPException(404, "Profile not found")
+        profile = _bootstrap_profile(user)
+        db.add(profile)
+        await db.flush()
 
     if body.first_name is not None:
         profile.first_name = body.first_name
@@ -209,6 +296,31 @@ async def update_profile(
         profile.archetype = body.archetype
         if profile.onboarding_step == "review_profile":
             profile.onboarding_step = "set_preferences"
+    if body.visa_status is not None:
+        profile.visa_status = body.visa_status
+    if body.salary_expectation is not None:
+        profile.salary_expectation = body.salary_expectation
+    if body.notice_period is not None:
+        profile.notice_period = body.notice_period
+    if body.work_preference is not None:
+        profile.work_preference = body.work_preference
+    if body.willing_to_relocate is not None:
+        profile.willing_to_relocate = body.willing_to_relocate
+    if body.gender is not None:
+        profile.gender = body.gender
+    if body.race is not None:
+        profile.race = body.race
+    if body.hispanic_latino is not None:
+        profile.hispanic_latino = body.hispanic_latino
+    if body.veteran_status is not None:
+        profile.veteran_status = body.veteran_status
+    if body.disability_status is not None:
+        profile.disability_status = body.disability_status
+    if body.how_did_you_hear is not None:
+        profile.how_did_you_hear = body.how_did_you_hear
+
+    if profile.onboarding_step == "review_profile" and body.model_dump(exclude_none=True):
+        profile.onboarding_step = "set_preferences"
 
     await db.commit()
     return _serialize_profile(profile)
@@ -227,7 +339,9 @@ async def update_preferences(
     )
     profile = result.scalar_one_or_none()
     if not profile:
-        raise HTTPException(404, "Profile not found")
+        profile = _bootstrap_profile(user)
+        db.add(profile)
+        await db.flush()
 
     if body.target_titles is not None:
         profile.target_titles_json = json.dumps(body.target_titles)
@@ -247,7 +361,7 @@ async def update_preferences(
         profile.seniority_level = body.seniority_level
 
     # Mark onboarding progress
-    if profile.onboarding_step == "set_preferences":
+    if profile.onboarding_step in {"set_preferences", "review_profile"}:
         profile.onboarding_step = "ready"
         profile.profile_complete = True
 
@@ -298,4 +412,25 @@ def _serialize_profile(profile: UserProfile) -> dict:
         "profile_complete": bool(profile.profile_complete),
         "archetype": profile.archetype,
         "resume_filename": profile.resume_filename,
+        "visa_status": profile.visa_status,
+        "salary_expectation": profile.salary_expectation,
+        "notice_period": profile.notice_period,
+        "work_preference": profile.work_preference,
+        "willing_to_relocate": profile.willing_to_relocate,
+        "gender": profile.gender,
+        "race": profile.race,
+        "hispanic_latino": profile.hispanic_latino,
+        "veteran_status": profile.veteran_status,
+        "disability_status": profile.disability_status,
+        "how_did_you_hear": profile.how_did_you_hear,
     }
+
+
+def _bootstrap_profile(user: dict) -> UserProfile:
+    return UserProfile(
+        id=str(uuid4()),
+        user_id=user["user_id"],
+        email=user.get("email") or "",
+        onboarding_step="set_preferences",
+        profile_complete=False,
+    )

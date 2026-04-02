@@ -13,6 +13,8 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
+
+from app.api.rate_limit import rate_limit
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -45,6 +47,7 @@ async def agent_stream(
     body: AgentRequest,
     user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    _rl: None = Depends(rate_limit("agent", 30, 60)),  # 30 messages/min
 ):
     """Stream the agent's response via Server-Sent Events."""
     user_id = user["user_id"]

@@ -9,6 +9,7 @@ See .foxhound/rules/AGENT.md for building rules.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import time
@@ -96,7 +97,16 @@ class FoxhoundAgent:
         try:
             self._validate_messages(messages)
         except ValueError:
-            logger.warning("Corrupt message history — dropping history for sync request")
+            logger.warning("Corrupt message history — creating fresh session for sync request")
+            session = AgentSession(
+                id=str(uuid4()), user_id=user_id, channel=channel,
+            )
+            db.add(session)
+            db.add(AgentMessage(
+                id=str(uuid4()), session_id=session.id,
+                role="user", content=message, channel=channel,
+            ))
+            await db.flush()
             messages = [{"role": "user", "content": message}]
 
         # 4. Tool_use loop
@@ -235,12 +245,22 @@ class FoxhoundAgent:
         messages = self._history_to_messages(history)
         full_response = ""
 
-        # If history is corrupt, just use the latest user message
+        # If history is corrupt, create a fresh session (avoids reloading broken history)
         try:
             self._validate_messages(messages)
         except ValueError:
-            logger.warning("Corrupt message history — dropping history for this request")
+            logger.warning("Corrupt message history — creating fresh session")
+            session = AgentSession(
+                id=str(uuid4()), user_id=user_id, channel=channel,
+            )
+            db.add(session)
+            db.add(AgentMessage(
+                id=str(uuid4()), session_id=session.id,
+                role="user", content=message, channel=channel,
+            ))
+            await db.flush()
             messages = [{"role": "user", "content": message}]
+            yield f"event: session\ndata: {json.dumps({'session_id': session.id})}\n\n"
 
         while budget.can_continue():
             async with self.client.messages.stream(
@@ -277,13 +297,6 @@ class FoxhoundAgent:
                 logger.info("Stream tool call: %s(%s)", block.name, json.dumps(block.input)[:200])
                 yield f"event: tool_call_start\ndata: {json.dumps({'tool_name': block.name, 'tool_input': block.input})}\n\n"
 
-                db.add(AgentMessage(
-                    id=str(uuid4()), session_id=session.id,
-                    role="tool_use", content="", channel=channel,
-                    tool_use_id=block.id, tool_name=block.name,
-                    tool_input_json=json.dumps(block.input),
-                ))
-
                 try:
                     await self._guard.check(db, user_id, block.name, block.input)
                 except ToolBlocked as blocked:
@@ -297,12 +310,26 @@ class FoxhoundAgent:
 
                 yield f"event: tool_result\ndata: {json.dumps({'tool_name': block.name, 'data': result, 'message': result.get('message', '')})}\n\n"
 
-                db.add(AgentMessage(
-                    id=str(uuid4()), session_id=session.id,
-                    role="tool_result", content=result_json[:2000], channel=channel,
-                    tool_use_id=block.id, tool_name=block.name,
-                    tool_result_json=result_json,
-                ))
+                # Save tool messages with a fresh DB session
+                # (original session may have timed out during long TinyFish calls)
+                try:
+                    from app.db.session import async_session
+                    async with async_session() as fresh_db:
+                        fresh_db.add(AgentMessage(
+                            id=str(uuid4()), session_id=session.id,
+                            role="tool_use", content="", channel=channel,
+                            tool_use_id=block.id, tool_name=block.name,
+                            tool_input_json=json.dumps(block.input),
+                        ))
+                        fresh_db.add(AgentMessage(
+                            id=str(uuid4()), session_id=session.id,
+                            role="tool_result", content=result_json[:2000], channel=channel,
+                            tool_use_id=block.id, tool_name=block.name,
+                            tool_result_json=result_json,
+                        ))
+                        await fresh_db.commit()
+                except Exception as save_err:
+                    logger.warning("Failed to save tool messages: %s", save_err)
 
                 tool_results_content.append({
                     "type": "tool_result",
@@ -311,17 +338,20 @@ class FoxhoundAgent:
                 })
 
             messages.append({"role": "user", "content": tool_results_content})
-            await db.flush()
             full_response = ""  # Reset for next Claude turn
 
-        # Persist final response
+        # Persist final response with fresh session
         if full_response:
-            db.add(AgentMessage(
-                id=str(uuid4()), session_id=session.id,
-                role="assistant", content=full_response, channel=channel,
-            ))
-
-        await db.commit()
+            try:
+                from app.db.session import async_session
+                async with async_session() as fresh_db:
+                    fresh_db.add(AgentMessage(
+                        id=str(uuid4()), session_id=session.id,
+                        role="assistant", content=full_response, channel=channel,
+                    ))
+                    await fresh_db.commit()
+            except Exception as save_err:
+                logger.warning("Failed to save final response: %s", save_err)
         yield f"event: done\ndata: {json.dumps({'session_id': session.id})}\n\n"
 
     # ------------------------------------------------------------------
@@ -332,28 +362,46 @@ class FoxhoundAgent:
         self, db: AsyncSession, user_id: str,
         session_id: str | None, channel: str,
     ) -> AgentSession:
-        """Get or create a session scoped to this user."""
+        """Get or create a session scoped to this user.
+
+        If the requested session has corrupt/unloadable history, creates a new one.
+        """
         if session_id:
-            session = await db.get(AgentSession, session_id)
-            if session and session.user_id == user_id:
-                return session
+            try:
+                session = await asyncio.wait_for(
+                    db.get(AgentSession, session_id), timeout=3.0
+                )
+                if session and session.user_id == user_id:
+                    # Quick check: can we load history for this session?
+                    history = await self._load_history(db, session.id)
+                    if history is not None:  # _load_history returns [] on timeout, not None
+                        return session
+                    logger.warning("Session %s has unloadable history — creating new", session_id)
+            except (asyncio.TimeoutError, Exception) as e:
+                logger.warning("Session lookup timed out — creating new: %s", e)
 
-        # Find most recent session for this user
-        result = await db.execute(
-            select(AgentSession)
-            .where(AgentSession.user_id == user_id)
-            .order_by(AgentSession.last_message_at.desc())
-            .limit(1)
-        )
-        session = result.scalar_one_or_none()
+        # Find most recent session (with timeout)
+        try:
+            result = await asyncio.wait_for(
+                db.execute(
+                    select(AgentSession)
+                    .where(AgentSession.user_id == user_id)
+                    .order_by(AgentSession.last_message_at.desc())
+                    .limit(1)
+                ),
+                timeout=3.0,
+            )
+            session = result.scalar_one_or_none()
 
-        if session:
-            last_msg = session.last_message_at
-            if last_msg.tzinfo is None:
-                last_msg = last_msg.replace(tzinfo=timezone.utc)
-            age = (datetime.now(timezone.utc) - last_msg).total_seconds()
-            if age < SESSION_REUSE_SECONDS:
-                return session
+            if session:
+                last_msg = session.last_message_at
+                if last_msg.tzinfo is None:
+                    last_msg = last_msg.replace(tzinfo=timezone.utc)
+                age = (datetime.now(timezone.utc) - last_msg).total_seconds()
+                if age < SESSION_REUSE_SECONDS:
+                    return session
+        except (asyncio.TimeoutError, Exception) as e:
+            logger.warning("Session query timed out — creating new: %s", e)
 
         session = AgentSession(
             id=str(uuid4()), user_id=user_id, channel=channel,
@@ -438,16 +486,23 @@ class FoxhoundAgent:
         return messages
 
     async def _load_history(self, db: AsyncSession, session_id: str) -> list[AgentMessage]:
-        """Load the last N messages for this session."""
-        result = await db.execute(
-            select(AgentMessage)
-            .where(AgentMessage.session_id == session_id)
-            .order_by(AgentMessage.created_at.desc())
-            .limit(MAX_HISTORY_MESSAGES)
-        )
-        messages = list(result.scalars().all())
-        messages.reverse()
-        return messages
+        """Load the last N messages for this session. Returns empty on timeout."""
+        try:
+            result = await asyncio.wait_for(
+                db.execute(
+                    select(AgentMessage)
+                    .where(AgentMessage.session_id == session_id)
+                    .order_by(AgentMessage.created_at.desc())
+                    .limit(MAX_HISTORY_MESSAGES)
+                ),
+                timeout=5.0,  # 5 second max — if DB is slow, start fresh
+            )
+            messages = list(result.scalars().all())
+            messages.reverse()
+            return messages
+        except (asyncio.TimeoutError, Exception) as e:
+            logger.warning("History load failed (starting fresh): %s", e)
+            return []
 
     def _history_to_messages(self, history: list[AgentMessage]) -> list[dict]:
         """Convert DB messages to Claude API format."""

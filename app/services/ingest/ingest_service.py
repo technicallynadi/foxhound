@@ -600,8 +600,7 @@ def _should_skip_extraction_url(url: str) -> bool:
     ])
 
 
-# Semaphore to limit concurrent TinyFish API calls across all workers
-_TINYFISH_SEMAPHORE = asyncio.Semaphore(5)
+from app.services.tinyfish_concurrency import TINYFISH_SEMAPHORE as _TINYFISH_SEMAPHORE
 
 
 async def _run_worker(source_type: str, urls: list[dict], topic: str, event_callback=None) -> list[dict]:

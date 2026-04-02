@@ -14,10 +14,13 @@ ATS_PATTERNS: list[tuple[str, str]] = [
     (r"\.icims\.com", "icims"),
 ]
 
-SUPPORTED_ATS = {"greenhouse", "ashby"}
+SUPPORTED_ATS = {"greenhouse", "ashby", "lever"}
 
-# Lever uses hCaptcha on all apply forms — auto-apply not possible.
+# Lever uses hCaptcha on browser forms — but API submission bypasses it.
 CAPTCHA_ATS = {"lever"}
+
+# ATS platforms that support direct API submission (no browser needed)
+API_SUBMIT_ATS = {"greenhouse", "lever", "ashby"}
 
 
 def detect_ats(url: str) -> str | None:
@@ -31,6 +34,11 @@ def detect_ats(url: str) -> str | None:
 def is_auto_apply_supported(ats_type: str | None) -> bool:
     """Return True if we support auto-applying to this ATS.
 
-    Lever is excluded — they serve hCaptcha on every apply form.
+    Lever is now supported via API submission (bypasses hCaptcha).
     """
     return ats_type in SUPPORTED_ATS
+
+
+def is_api_submit_supported(ats_type: str | None) -> bool:
+    """Return True if this ATS supports direct API submission."""
+    return ats_type in API_SUBMIT_ATS

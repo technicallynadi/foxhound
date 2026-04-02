@@ -76,6 +76,10 @@ class Settings(BaseSettings):
     # --- Channel webhook verification ---
 
     @property
+    def slack_bot_token(self) -> str:
+        return os.environ.get("SLACK_BOT_TOKEN", "")
+
+    @property
     def slack_signing_secret(self) -> str:
         return os.environ.get("SLACK_SIGNING_SECRET", "")
 
@@ -89,6 +93,8 @@ class Settings(BaseSettings):
 
     @property
     def skip_webhook_verify(self) -> bool:
+        if self.ENVIRONMENT == "production":
+            return False  # Never skip verification in production
         return os.environ.get("FOXHOUND_SKIP_WEBHOOK_VERIFY", "") == "1"
 
     # --- Fly.io (sandbox preview deployment) ---

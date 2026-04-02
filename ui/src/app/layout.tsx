@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Inter, JetBrains_Mono, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth-context";
@@ -25,11 +26,20 @@ const jetbrainsMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: "Foxhound — Stop Applying. Start Interviewing.",
-  description: "Your personal career agent. Foxhound finds matching jobs, fills out real application forms, tracks every submission, and follows up with hiring managers.",
-  keywords: ["job search", "career agent", "AI", "auto apply", "job applications", "career changer"],
+  description:
+    "Your personal career agent. Foxhound finds matching jobs, fills out real application forms, tracks every submission, and follows up with hiring managers.",
+  keywords: [
+    "job search",
+    "career agent",
+    "AI",
+    "auto apply",
+    "job applications",
+    "career changer",
+  ],
   openGraph: {
     title: "Foxhound — Stop Applying. Start Interviewing.",
-    description: "Your personal career agent. Upload your resume, find matching jobs, and let Foxhound apply for you with screenshot proof of every submission.",
+    description:
+      "Your personal career agent. Upload your resume, find matching jobs, and let Foxhound apply for you.",
     type: "website",
     siteName: "Foxhound",
     url: "https://usefoxhound.com",
@@ -45,7 +55,8 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "Foxhound — Stop Applying. Start Interviewing.",
-    description: "Personal career agent that finds jobs, applies with precision, and proves every submission with a screenshot.",
+    description:
+      "Personal career agent that finds jobs, applies with precision, and proves every submission with a screenshot.",
     images: ["/opengraph-image"],
   },
   metadataBase: new URL("https://usefoxhound.com"),
@@ -57,7 +68,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} ${spaceGrotesk.variable} ${jetbrainsMono.variable}`}>
+    <html
+      lang="en"
+      className={`${inter.variable} ${spaceGrotesk.variable} ${jetbrainsMono.variable}`}
+    >
       <head>
         <meta name="theme-color" content="#080808" />
       </head>
@@ -77,6 +91,32 @@ export default function RootLayout({
             <AgentWidget />
           </AgentProvider>
         </AuthProvider>
+
+        <footer style={{
+          marginTop: 80,
+          paddingBottom: 32,
+          textAlign: 'center',
+          position: 'relative',
+          zIndex: 1,
+        }}>
+          <p style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: 10,
+            color: 'var(--t3)',
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase',
+            lineHeight: 1.8,
+          }}>
+            Powered by{' '}
+            <Link href="/" style={{
+              color: 'var(--vl)',
+              borderBottom: '1px solid rgba(139,92,246,0.2)',
+              textDecoration: 'none',
+            }}>
+              Foxhound
+            </Link>
+          </p>
+        </footer>
       </body>
     </html>
   );

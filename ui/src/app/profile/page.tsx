@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import AuthGuard from '@/components/AuthGuard';
 import AppNav from '@/components/AppNav';
+import PageSkeleton from '@/components/PageSkeleton';
 import ScrollReveal from '@/components/landing/ScrollReveal';
 import { getProfile, updateProfile } from '@/lib/api';
 
@@ -177,7 +178,7 @@ export default function ProfilePage() {
         setSummary(data.summary || '');
         setSkills(data.skills || []);
       })
-      .catch(() => setError('Failed to load profile. Upload a resume first.'))
+      .catch(() => setError('No profile yet. Upload a resume to get started.'))
       .finally(() => setLoading(false));
   }, []);
 
@@ -208,25 +209,25 @@ export default function ProfilePage() {
   return (
     <AuthGuard>
       <AppNav />
-      <main style={{ paddingTop: 80, maxWidth: 720, margin: '0 auto', padding: '80px var(--section-px, 20px) 140px', position: 'relative', zIndex: 1 }}>
+      <main style={{ paddingTop: 80, maxWidth: 1100, margin: '0 auto', padding: '80px var(--section-px, 20px) 140px', position: 'relative', zIndex: 1 }}>
         <ScrollReveal>
           <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--vl)', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 8 }}>
             Profile
           </div>
         </ScrollReveal>
         <ScrollReveal delay={1}>
-          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 32, fontWeight: 700, letterSpacing: '-0.03em', textTransform: 'uppercase' }}>
+          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', textTransform: 'uppercase' }}>
             Your Profile
           </h1>
           <p style={{ color: 'var(--t2)', fontSize: 14, marginTop: 4 }}>
-            This is what Foxhound uses to fill application forms. Review and correct anything the resume parser got wrong.
+            Foxhound fills applications using this info. Review it and fix anything that does not look right.
           </p>
         </ScrollReveal>
 
         {loading ? (
-          <div style={{ marginTop: 40, color: 'var(--t3)', fontFamily: 'var(--font-mono)', fontSize: 12 }}>Loading profile...</div>
+          <PageSkeleton variant="profile" />
         ) : error && !profile ? (
-          <div style={{ marginTop: 40, padding: 20, borderRadius: 10, background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)', color: '#EF4444', fontSize: 14 }}>
+          <div style={{ marginTop: 40, padding: 20, borderRadius: 10, background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)', color: 'var(--error)', fontSize: 14 }}>
             {error}
           </div>
         ) : profile ? (
@@ -384,7 +385,7 @@ export default function ProfilePage() {
                 <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--g)' }}>Saved</span>
               )}
               {error && profile && (
-                <span style={{ fontSize: 13, color: '#EF4444' }}>{error}</span>
+                <span style={{ fontSize: 13, color: 'var(--error)' }}>{error}</span>
               )}
             </div>
           </div>

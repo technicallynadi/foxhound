@@ -53,6 +53,13 @@ class JobListing(Base):
 
     custom_questions_json: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    # --- Ghost job detection ---
+    ghost_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    ghost_risk: Mapped[str | None] = mapped_column(String, nullable=True)  # low | medium | high
+    ghost_factors_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ghost_checked_at: Mapped[datetime | None] = mapped_column(TZDateTime, nullable=True)
+    repost_count: Mapped[int] = mapped_column(Integer, default=0)
+
     discovered_at: Mapped[datetime] = mapped_column(
         TZDateTime, default=lambda: datetime.now(timezone.utc)
     )

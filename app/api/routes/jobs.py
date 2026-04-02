@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.models.job_listing import JobListing
 from app.db.models.job_match import JobMatch
 from app.db.session import get_db
-from app.services.auth_service import get_current_user
+from app.services.auth_service import get_current_user, get_optional_user
 
 router = APIRouter(prefix="/api/v1/jobs", tags=["jobs"])
 
@@ -105,42 +105,82 @@ async def public_job_feed(
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=50),
     search: str = Query("", max_length=100),
+    user: dict | None = Depends(get_optional_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Public job feed for the landing page. No authentication required."""
-    offset = (page - 1) * per_page
+    """Job feed — public with optional auth enrichment.
 
+    When authenticated: includes match_score and ghost data.
+    When not authenticated: returns basic job info.
+    """
+    offset = (page - 1) * per_page
+    user_id = user["user_id"] if user else None
+
+    # Sanitize search input — escape LIKE wildcards to prevent DoS
+    if search:
+        search = search.replace("%", "").replace("_", "")
+        search = search.strip()[:100]
+
+    # If authenticated, try the matched feed first
+    if user_id:
+        try:
+            query = (
+                select(JobMatch, JobListing)
+                .join(JobListing, JobMatch.job_id == JobListing.id)
+                .where(
+                    JobMatch.user_id == user_id,
+                    JobMatch.disqualified == False,
+                    JobListing.status == "active",
+                )
+            )
+            if search:
+                query = query.where(
+                    JobListing.title.ilike(f"%{search}%")
+                    | JobListing.company.ilike(f"%{search}%")
+                )
+            query = query.order_by(JobMatch.match_score.desc()).offset(offset).limit(per_page)
+
+            result = await db.execute(query)
+            rows = result.all()
+
+            if rows:
+                count_q = (
+                    select(func.count())
+                    .select_from(JobMatch)
+                    .join(JobListing, JobMatch.job_id == JobListing.id)
+                    .where(
+                        JobMatch.user_id == user_id,
+                        JobMatch.disqualified == False,
+                        JobListing.status == "active",
+                    )
+                )
+                total = (await db.execute(count_q)).scalar() or 0
+
+                jobs = []
+                for match, job in rows:
+                    j = _serialize_job(job)
+                    j["match_score"] = match.match_score
+                    jobs.append(j)
+
+                return {"jobs": jobs, "total": total, "page": page, "per_page": per_page}
+        except Exception:
+            pass  # Fall through to public feed
+
+    # Public feed (no auth or no matches)
     stmt = select(JobListing).where(JobListing.status == "active")
 
     if search:
-        search_lower = search.lower()
         stmt = stmt.where(
-            JobListing.title.ilike(f"%{search_lower}%")
-            | JobListing.company.ilike(f"%{search_lower}%")
+            JobListing.title.ilike(f"%{search}%")
+            | JobListing.company.ilike(f"%{search}%")
         )
 
     count_stmt = select(func.count(JobListing.id)).where(JobListing.status == "active")
     total = (await db.execute(count_stmt)).scalar() or 0
 
-    # Sort by posted_at (actual job date) not discovered_at (crawl time),
-    # so the feed shows a diverse mix of companies instead of clumping by crawl batch.
     stmt = stmt.order_by(JobListing.posted_at.desc().nullslast(), JobListing.discovered_at.desc()).offset(offset).limit(per_page)
     result = await db.execute(stmt)
-    jobs = [
-        {
-            "id": j.id,
-            "title": j.title,
-            "company": j.company,
-            "location": j.location,
-            "remote_type": j.remote_type,
-            "ats_type": j.ats_type,
-            "apply_url": j.apply_url,
-            "source_url": j.source_url,
-            "auto_apply_supported": bool(j.auto_apply_supported),
-            "posted_at": j.posted_at.isoformat() if j.posted_at else None,
-        }
-        for j in result.scalars()
-    ]
+    jobs = [_serialize_job(j) for j in result.scalars()]
 
     return {"jobs": jobs, "total": total, "page": page, "per_page": per_page}
 
@@ -301,4 +341,7 @@ def _serialize_job(job: JobListing) -> dict:
         "source": job.source,
         "posted_at": job.posted_at.isoformat() if job.posted_at else None,
         "description": job.description[:500] if job.description else "",
+        "ghost_score": getattr(job, "ghost_score", None),
+        "ghost_risk": getattr(job, "ghost_risk", None),
+        "ghost_factors_json": getattr(job, "ghost_factors_json", None),
     }
