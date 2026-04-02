@@ -81,7 +81,7 @@ export default function FormFillDemo() {
             Summary
           </div>
           <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--t)' }}>
-            Stripe — Senior Backend Engineer
+            Acme — Senior Backend Engineer
           </div>
           <div style={{ fontSize: 12, color: 'var(--t3)', marginTop: 4 }}>
             91% match · applied 6:42 AM · brief generated 7:01 AM

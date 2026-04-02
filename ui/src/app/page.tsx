@@ -1024,7 +1024,7 @@ export default function LandingPage() {
                   }}
                 >
                   Applying to{" "}
-                  <strong style={{ color: "var(--t)" }}>Stripe</strong> &mdash;
+                  <strong style={{ color: "var(--t)" }}>Acme</strong> &mdash;
                   Senior Software Engineer (87% match). I&apos;ll let you know
                   when it&apos;s done.
                 </div>
@@ -1097,7 +1097,7 @@ export default function LandingPage() {
                       lineHeight: 1.7,
                     }}
                   >
-                    1. Why are you interested in Stripe?
+                    1. Why are you interested in Acme?
                     <br />
                     2. Salary expectations?
                     <br />
@@ -1123,7 +1123,7 @@ export default function LandingPage() {
                     maxWidth: "75%",
                   }}
                 >
-                  1. Love Stripe&apos;s developer tools &nbsp;2. $180k base
+                  1. Love Acme&apos;s developer tools &nbsp;2. $180k base
                 </div>
               </div>
 
