@@ -1390,7 +1390,7 @@ async def _execute_job(job_id: str, run_id: str, job_type: str, payload: dict) -
     foxhound_job_types = {
         "job_discovery", "autopilot_apply", "single_apply",
         "daily_digest", "stale_cleanup", "followup_check",
-        "watchdog_sweep",
+        "watchdog_sweep", "tinyfish_discovery",
     }
     if normalized_job_type in foxhound_job_types:
         from app.services.scheduling.executors import (
@@ -1400,6 +1400,7 @@ async def _execute_job(job_id: str, run_id: str, job_type: str, payload: dict) -
             execute_job_discovery,
             execute_single_apply,
             execute_stale_cleanup,
+            execute_tinyfish_discovery,
             execute_watchdog_sweep,
         )
         from app.services.scheduling.scheduler import reschedule_completed_job
@@ -1417,6 +1418,7 @@ async def _execute_job(job_id: str, run_id: str, job_type: str, payload: dict) -
             "stale_cleanup": execute_stale_cleanup,
             "followup_check": execute_followup,
             "watchdog_sweep": execute_watchdog_sweep,
+            "tinyfish_discovery": execute_tinyfish_discovery,
         }
         await executor_map[normalized_job_type](job)
 

@@ -268,7 +268,7 @@ export default function ChatDemo() {
             animation: "status-pulse 2s infinite",
           }}
         />
-        FOXHOUND AGENT
+        FOXHOUND
         <span style={{ marginLeft: "auto", color: "var(--g)" }}>ACTIVE</span>
       </div>
 

@@ -535,7 +535,7 @@ export default function ReconCard({
                 padding: "12px 0",
               }}
             >
-              Quick report failed. Try again later.
+              {state.errorMessage || "Quick report failed. Try again later."}
             </div>
           )}
         </div>

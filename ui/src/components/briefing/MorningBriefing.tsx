@@ -48,6 +48,7 @@ const mono = { fontFamily: 'var(--font-mono)' };
 
 export default function MorningBriefing({ generatedAt, summary, applications, alerts, newMatches, onApply, onDismissMatch }: MorningBriefingProps) {
   const [dismissed, setDismissed] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
 
   if (dismissed) return null;
 
@@ -94,19 +95,30 @@ export default function MorningBriefing({ generatedAt, summary, applications, al
             {generatedAt && ` · updated ${new Date(generatedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`}
           </div>
         </div>
-        <button
-          onClick={() => setDismissed(true)}
-          style={{
-            ...mono, fontSize: 10, color: 'var(--t3)', textTransform: 'uppercase',
-            background: 'none', border: 'none', cursor: 'pointer',
-          }}
-        >
-          Dismiss
-        </button>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          <button
+            onClick={() => setCollapsed(!collapsed)}
+            style={{
+              ...mono, fontSize: 10, color: 'var(--t3)', textTransform: 'uppercase',
+              background: 'none', border: 'none', cursor: 'pointer',
+            }}
+          >
+            {collapsed ? 'Expand' : 'Collapse'}
+          </button>
+          <button
+            onClick={() => setDismissed(true)}
+            style={{
+              ...mono, fontSize: 10, color: 'var(--t3)', textTransform: 'uppercase',
+              background: 'none', border: 'none', cursor: 'pointer',
+            }}
+          >
+            Dismiss
+          </button>
+        </div>
       </div>
 
-      {/* Summary line */}
-      <div style={{ ...mono, fontSize: 12, color: 'var(--t2)', marginBottom: 20, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+      {/* Summary line — always visible */}
+      <div style={{ ...mono, fontSize: 12, color: 'var(--t2)', marginBottom: collapsed ? 0 : 20, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
         <span><b>{summary.jobs_discovered}</b> jobs found</span>
         <span style={{ color: 'var(--t3)' }}>&middot;</span>
         <span><b>{summary.matches_above_threshold}</b> strong fits</span>
@@ -126,6 +138,8 @@ export default function MorningBriefing({ generatedAt, summary, applications, al
         )}
       </div>
 
+      {/* Collapsible detail sections */}
+      {!collapsed && <>
       {/* Applied section */}
       {applications.length > 0 && (
         <Section label="APPLIED">
@@ -230,6 +244,7 @@ export default function MorningBriefing({ generatedAt, summary, applications, al
           ))}
         </Section>
       )}
+      </>}
     </div>
   );
 }

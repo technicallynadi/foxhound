@@ -67,6 +67,7 @@ async def verify_supabase_token(token: str) -> dict:
         }
 
     if resp.status_code == 401:
+        logger.info("Supabase auth rejected token with 401")
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
     logger.warning("Supabase auth check failed: %s %s", resp.status_code, resp.text[:200])
@@ -84,6 +85,7 @@ async def get_current_user(
             return {"user_id": user["user_id"]}
     """
     if not credentials:
+        logger.info("Auth failed: missing authorization header")
         raise HTTPException(status_code=401, detail="Missing authorization header")
 
     return await verify_supabase_token(credentials.credentials)

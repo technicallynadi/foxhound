@@ -61,6 +61,13 @@ RECURRING_JOBS = [
         "recurrence_interval_seconds": 86400,
         "payload": {"batch_size": 50, "max_concurrent": 3, "domain_delay_seconds": 5},
     },
+    {
+        "job_type": "tinyfish_discovery",
+        "origin": "scheduled",
+        "priority": 20,
+        "recurrence_interval_seconds": 86400,  # Daily
+        "payload": {},
+    },
 ]
 
 

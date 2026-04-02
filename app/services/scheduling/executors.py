@@ -422,3 +422,38 @@ async def execute_stale_cleanup(job: FoxhoundJob) -> None:
 
         await db.commit()
         logger.info("Stale cleanup: expired %d jobs", expired_count)
+
+
+# ---------------------------------------------------------------------------
+# TinyFish Discovery (per-user, small goals)
+# ---------------------------------------------------------------------------
+
+
+async def execute_tinyfish_discovery(job: FoxhoundJob) -> None:
+    """Run TinyFish web discovery for all active users with target titles.
+
+    Uses small, focused search goals (1-2 per user) based on their
+    profile. Found jobs are deduped and added to the main job board.
+    """
+    from app.services.discovery.tinyfish_discovery import discover_for_user
+
+    async with async_session() as db:
+        result = await db.execute(
+            select(UserProfile).where(
+                UserProfile.profile_complete == True,
+                UserProfile.tier != "free",
+            )
+        )
+        users = list(result.scalars().all())
+
+    logger.info("TinyFish discovery: %d eligible users", len(users))
+
+    total = 0
+    for profile in users:
+        try:
+            found = await discover_for_user(profile.user_id)
+            total += found
+        except Exception:
+            logger.exception("TinyFish discovery failed for user %s", profile.user_id)
+
+    logger.info("TinyFish discovery complete: %d new jobs across %d users", total, len(users))

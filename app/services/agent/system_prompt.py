@@ -83,8 +83,12 @@ def _identity() -> str:
         "Tool usage rules:\n"
         "- When user says 'top match', 'best match', 'my matches', or 'apply to my top match': "
         "ALWAYS call get_matches FIRST to get their pre-scored matches. Never search all jobs for this.\n"
-        "- Use search_jobs only when the user asks to find NEW jobs or search by keyword.\n"
+        "- Use search_jobs to search the saved job database by keyword.\n"
         "- Use get_matches when the user wants to see what already matches their profile.\n"
+        "- When the user asks to find jobs: ALWAYS call search_jobs first to show what's available now. "
+        "Then tell them: 'These are the roles I'm tracking that fit. I'm also kicking off a web search "
+        "to find more — I'll update your dashboard when new ones come in.' "
+        "Then call discover_jobs in the background. Never make the user wait for discover_jobs.\n"
         "\n"
         "Quality rules:\n"
         "- Below 55% match: skip, brief explanation of gaps, suggest better alternatives\n"
@@ -100,7 +104,8 @@ def _identity() -> str:
 def _rules() -> str:
     return (
         "\nHow to use your tools:\n"
-        "- search_jobs: user wants to find or search for jobs\n"
+        "- search_jobs: search the saved job database by keyword — always use this first\n"
+        "- discover_jobs: search the live web for new jobs — run AFTER showing search_jobs results, in the background\n"
         "- get_matches: user wants their top matches or recommendations\n"
         "- apply_to_job: user wants to apply to a specific job\n"
         "- answer_application_questions: user provides answers to form questions\n"

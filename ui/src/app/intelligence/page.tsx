@@ -992,7 +992,7 @@ function GhostDetectorTab() {
           }}
         >
           Paste a job posting URL to check if it&apos;s real. Works for
-          LinkedIn, Greenhouse, Lever, and more.
+          any major job board or company careers page.
         </p>
         <form
           onSubmit={handleSubmit}
@@ -1263,7 +1263,7 @@ function GhostDetectorTab() {
           <NextActionCard
             label={
               result.badge === "verified"
-                ? "Keep this role in Foxhound’s active pipeline"
+                ? "Keep this role in Foxhound’s active search"
                 : result.badge === "ghost_risk"
                   ? "Deprioritize this posting and redirect effort elsewhere"
                   : "Validate this posting before you spend more time on it"
@@ -2323,11 +2323,11 @@ function JobDiscoveryTab({ seed }: { seed?: ContextSeed }) {
           <ApplicationWorkflowCard context={appContext} />
 
           <NextActionCard
-            label={guidedAction?.label || "Push the strongest matches into your pipeline"}
+            label={guidedAction?.label || "Push the strongest matches into your search"}
             detail={
               guidedAction?.detail ||
               (seed?.role
-                ? `Foxhound is already anchoring discovery around ${seed.role}. Use the strongest matches to expand your pipeline, and remember that Foxhound can keep hunting without a resume but still needs one before it can apply.`
+                ? `Foxhound is already anchoring discovery around ${seed.role}. Use the strongest matches to expand your search, and remember that Foxhound can keep hunting without a resume but still needs one before it can apply.`
                 : "Use discovery to surface options, then move the best ones into Foxhound’s application and research flow. If your resume is still missing, Foxhound can keep hunting but it still needs one before it can apply.")
             }
             href={guidedAction?.href ?? undefined}
@@ -2641,7 +2641,7 @@ export default function IntelligencePage() {
   const [activeTab, setActiveTab] = useState<TabId>(
     initialRequestedTab && TABS.some((tab) => tab.id === initialRequestedTab)
       ? initialRequestedTab
-      : "ghost",
+      : "discovery",
   );
   const { user, loading } = useAuth();
   const tabBarRef = useRef<HTMLDivElement>(null);

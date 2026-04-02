@@ -63,6 +63,7 @@ export interface ReconState {
   posting: { status: ReconSectionStatus; data: ReconPostingData | null; error: string | null };
   synthesis: { status: ReconSectionStatus; data: ReconSynthesisData | null; error: string | null };
   overall: ReconOverallStatus;
+  errorMessage: string | null;
   cached: boolean;
   durationMs: number | null;
 }
@@ -73,9 +74,27 @@ const INITIAL_STATE: ReconState = {
   posting: { status: 'idle', data: null, error: null },
   synthesis: { status: 'idle', data: null, error: null },
   overall: 'idle',
+  errorMessage: null,
   cached: false,
   durationMs: null,
 };
+
+const DEVICE_ID_KEY = 'foxhound_device_id';
+
+function getOrCreateDeviceId(): string | null {
+  try {
+    const existing = window.localStorage.getItem(DEVICE_ID_KEY);
+    if (existing) return existing;
+    const next =
+      typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID()
+        : `dev-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    window.localStorage.setItem(DEVICE_ID_KEY, next);
+    return next;
+  } catch {
+    return null;
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Hook
@@ -105,6 +124,7 @@ export function useRecon() {
       posting: { status: 'loading', data: null, error: null },
       synthesis: { status: 'loading', data: null, error: null },
       overall: 'connecting',
+      errorMessage: null,
       cached: false,
       durationMs: null,
     });
@@ -113,6 +133,8 @@ export function useRecon() {
       const token = await getAccessToken();
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
+      const deviceId = getOrCreateDeviceId();
+      if (deviceId) headers['X-Foxhound-Device-Id'] = deviceId;
 
       const res = await fetch(`${API_BASE}/api/v1/recon/${jobId}`, {
         method: 'POST',
@@ -121,7 +143,7 @@ export function useRecon() {
       });
 
       if (!res.ok || !res.body) {
-        throw new Error(`Recon API error: ${res.status}`);
+        throw new Error(`Quick report request failed (${res.status})`);
       }
 
       setState((prev) => ({ ...prev, overall: 'streaming' }));
@@ -156,7 +178,12 @@ export function useRecon() {
       }
     } catch (err) {
       if ((err as Error).name === 'AbortError') return;
-      setState((prev) => ({ ...prev, overall: 'error' }));
+      // Keep UI messaging generic; detailed diagnostics are logged on the backend.
+      setState((prev) => ({
+        ...prev,
+        overall: 'error',
+        errorMessage: 'Quick report failed. Try again later.',
+      }));
     } finally {
       if (abortRef.current === controller) {
         abortRef.current = null;
