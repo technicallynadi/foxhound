@@ -34,11 +34,15 @@ async def lifespan(app: FastAPI):
     # Start background loops
     import asyncio
     from app.services.apply.timeout_loop import application_timeout_loop
+    from app.services.run_service import worker_loop
+
     timeout_task = asyncio.create_task(application_timeout_loop())
+    worker_task = asyncio.create_task(worker_loop(poll_interval=5.0))
 
     yield
 
     timeout_task.cancel()
+    worker_task.cancel()
 
 
 app = FastAPI(
