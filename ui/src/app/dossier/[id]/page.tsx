@@ -2015,7 +2015,7 @@ export default function DossierPage() {
             )}
           </IntelSection>
 
-          {/* Recent News — hidden for now, TinyFish search returns irrelevant results */}
+          {/* Recent News — hidden for now */}
         </TabPanel>
 
         {/* ═══════════════════════════════════

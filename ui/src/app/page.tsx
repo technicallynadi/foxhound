@@ -23,7 +23,7 @@ export default function LandingPage() {
           WORKS WHILE YOU <span style={{ color: "var(--v)" }}>SLEEP</span>
         </>
       ),
-      d: "You sleep. Foxhound applies. You wake up to a briefing of everything it did overnight.",
+      d: "Set it up once and go about your day. Foxhound finds jobs, applies, and researches around the clock. You wake up to a briefing of everything it did.",
     },
     {
       n: "02",
@@ -210,9 +210,10 @@ export default function LandingPage() {
             zIndex: 1,
           }}
         >
-          Upload your resume and Foxhound gets to work. It hunts for strong
-          matches, checks the live web, researches the company and best
-          contact, and keeps monitoring every application while you sleep.
+          Upload your resume once. Foxhound takes it from there — finding jobs,
+          applying to the best ones, researching every company, and following up
+          at the right time. Go about your day. We&apos;ll reach out when something
+          needs you.
         </p>
 
         <ScrollReveal delay={3}>
@@ -280,9 +281,10 @@ export default function LandingPage() {
               marginTop: 14,
             }}
           >
-            Upload your resume and Foxhound starts right away. It finds strong
-            matches, acts on the best ones, researches the people behind each
-            role, and leaves you a clear briefing on what happened next.
+            Set up your profile once and walk away. Foxhound runs your entire
+            job search in the background — finding roles, applying, researching
+            companies, and reaching out when something needs your attention.
+            Check in when you want, or don&apos;t. Either way, it&apos;s working.
           </p>
         </ScrollReveal>
 
@@ -419,7 +421,8 @@ export default function LandingPage() {
         </ScrollReveal>
         <ScrollReveal delay={1}>
           <div className="section-heading">
-            STAY IN THE LOOP. <span className="dim">STEER IT FROM ANYWHERE.</span>
+            STAY IN THE LOOP.{" "}
+            <span className="dim">STEER IT FROM ANYWHERE.</span>
           </div>
         </ScrollReveal>
         <ScrollReveal delay={2}>
@@ -991,7 +994,9 @@ export default function LandingPage() {
               </div>
 
               {/* Bot response */}
-	              <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+              <div
+                style={{ display: "flex", gap: 10, alignItems: "flex-start" }}
+              >
                 <div
                   style={{
                     width: 28,
@@ -1031,7 +1036,9 @@ export default function LandingPage() {
               </div>
 
               {/* Bot follow-up with card */}
-              <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+              <div
+                style={{ display: "flex", gap: 10, alignItems: "flex-start" }}
+              >
                 <div
                   style={{
                     width: 28,
@@ -1128,7 +1135,9 @@ export default function LandingPage() {
               </div>
 
               {/* Bot confirmation */}
-              <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+              <div
+                style={{ display: "flex", gap: 10, alignItems: "flex-start" }}
+              >
                 <div
                   style={{
                     width: 28,
@@ -1159,13 +1168,13 @@ export default function LandingPage() {
                     lineHeight: 1.6,
                   }}
                 >
-	                  Got it. Answers submitted. Application complete.
-	                </div>
-	              </div>
-	            </div>
-	          </div>
-	        </ScrollReveal>
-	      </section>
+                  Got it. Answers submitted. Application complete.
+                </div>
+              </div>
+            </div>
+          </div>
+        </ScrollReveal>
+      </section>
 
       <div className="divider" />
 
@@ -1192,9 +1201,8 @@ export default function LandingPage() {
         </ScrollReveal>
         <ScrollReveal delay={2}>
           <p style={{ color: "var(--t2)", marginTop: 12, fontSize: 15 }}>
-            Foxhound surfaces strong matches, explains weak ones, and keeps the
-            pipeline moving in the background. You can review the opportunities
-            yourself or let the agent handle the heavy lifting.
+            Foxhound surfaces strong matches and explains weak ones. Review them
+            yourself or let Foxhound handle everything in the background.
           </p>
         </ScrollReveal>
 
@@ -1212,19 +1220,19 @@ export default function LandingPage() {
           >
             {[
               {
-                s: "Ashby · Remote",
+                s: "Remote",
                 t: "Senior ML Engineer",
                 c: "AI Research Co.",
                 i: "94% match · ready to apply",
               },
               {
-                s: "Greenhouse · San Francisco",
+                s: "San Francisco",
                 t: "Staff Backend Engineer",
                 c: "Payments Co.",
                 i: "91% match · high-priority fit",
               },
               {
-                s: "Lever · Remote",
+                s: "Remote",
                 t: "Product Designer",
                 c: "Dev Tools Co.",
                 i: "87% match · review and queue",
@@ -1386,21 +1394,6 @@ export default function LandingPage() {
           </div>
         </ScrollReveal>
       </section>
-
-      {/* Footer */}
-      <footer
-        style={{
-          textAlign: "center",
-          padding: "32px var(--section-px)",
-          fontFamily: "var(--font-mono)",
-          fontSize: 11,
-          color: "var(--t3)",
-          letterSpacing: "0.04em",
-          borderTop: "1px solid var(--b)",
-        }}
-      >
-        © 2026 Foxhound
-      </footer>
     </>
   );
 }

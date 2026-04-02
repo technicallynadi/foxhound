@@ -94,7 +94,7 @@ export default function FormFillDemo() {
               Submission
             </div>
             <div style={{ fontSize: 13, color: 'var(--t2)', lineHeight: 1.6 }}>
-              Submitted via Greenhouse
+              Submitted successfully
             </div>
             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--g)', marginTop: 8 }}>
               Screenshot receipt saved

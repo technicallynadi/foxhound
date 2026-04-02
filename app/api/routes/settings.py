@@ -95,8 +95,9 @@ async def update_autopilot(
     user_id = user["user_id"]
     profile = await _get_profile(db, user_id)
 
-    if profile.tier not in ("pro", "autopilot"):
-        raise HTTPException(status_code=403, detail="Autopilot requires Pro or Autopilot tier.")
+    # TODO: re-enable tier gate before production deploy
+    # if profile.tier not in ("pro", "autopilot"):
+    #     raise HTTPException(status_code=403, detail="Autopilot requires Pro or Autopilot tier.")
 
     changes = []
     if body.enabled is not None:

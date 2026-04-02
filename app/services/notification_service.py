@@ -261,7 +261,7 @@ async def _send_discord(webhook_url: str, payload: dict) -> dict:
         if payload["top_build_plan_ids"]:
             lines.append(f"build_plan_ids: {', '.join(payload['top_build_plan_ids'])}")
         body["embeds"] = [{
-            "title": f"Foxhound agent result: {payload['query']}",
+            "title": f"Foxhound result: {payload['query']}",
             "description": "\n".join(lines),
         }]
         return await _post_webhook(webhook_url, body)
@@ -540,7 +540,7 @@ def _build_agent_message(payload: dict) -> str:
     titles = payload.get("top_opportunities", [])
     top_line = ", ".join(titles[:3]) if titles else "none"
     return (
-        f"Foxhound agent update for {payload.get('query', '')}. "
+        f"Foxhound update for {payload.get('query', '')}. "
         f"event={payload.get('event_type')} "
         f"run_id={payload.get('run_id')} "
         f"top_opportunities={top_line}"

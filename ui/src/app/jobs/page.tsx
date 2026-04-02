@@ -158,7 +158,17 @@ function GhostBadge({ job }: { job: Job }) {
   );
 }
 
-function JobCard({ job, onClick, onRecon }: { job: Job; onClick: () => void; onRecon: () => void }) {
+function JobCard({
+  job,
+  onClick,
+  onRecon,
+  canUseQuickReport,
+}: {
+  job: Job;
+  onClick: () => void;
+  onRecon: () => void;
+  canUseQuickReport: boolean;
+}) {
   const remote = job.remote_type === "remote";
   const source = job.ats_type || job.source || "unknown";
 
@@ -322,7 +332,11 @@ function JobCard({ job, onClick, onRecon }: { job: Job; onClick: () => void; onR
               e.stopPropagation();
             }
           }}
-          aria-label={`Quick company brief for ${job.company}`}
+          aria-label={
+            canUseQuickReport
+              ? `Quick company brief for ${job.company}`
+              : `Sign in to open quick company brief for ${job.company}`
+          }
           style={{
             fontFamily: "var(--font-mono)",
             fontSize: 10,
@@ -347,7 +361,7 @@ function JobCard({ job, onClick, onRecon }: { job: Job; onClick: () => void; onR
             e.currentTarget.style.background = "transparent";
           }}
         >
-          COMPANY INFO
+          {canUseQuickReport ? "COMPANY INFO" : "SIGN IN FOR INFO"}
         </button>
       </div>
     </div>
@@ -537,6 +551,7 @@ function JobDetailModal({ job, onClose, canApplyWithFoxhound }: { job: Job; onCl
 }
 
 export default function JobsPage() {
+  const router = useRouter();
   const { user } = useAuth();
   const userId = user?.id || null;
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -560,6 +575,14 @@ export default function JobsPage() {
   const [locationFilter, setLocationFilter] = useState("all");
   const sentinel = useRef<HTMLDivElement>(null);
   const loadingRef = useRef(false);
+
+  const handleRecon = useCallback((job: Job) => {
+    if (!user) {
+      router.push("/login");
+      return;
+    }
+    setReconJob(job);
+  }, [router, user]);
 
   const fetchJobs = useCallback(async (pageNum: number) => {
     if (loadingRef.current || !hasMoreRef.current) return;
@@ -982,7 +1005,8 @@ export default function JobsPage() {
                   key={job.id || `${job.company}-${job.title}-${i}`}
                   job={job}
                   onClick={() => setSelectedJob(job)}
-                  onRecon={() => setReconJob(job)}
+                  onRecon={() => handleRecon(job)}
+                  canUseQuickReport={Boolean(user)}
                 />
               ))}
             </div>

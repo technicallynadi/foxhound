@@ -29,6 +29,12 @@ from app.services.auth_service import get_current_user
 _windows: dict[str, list[float]] = defaultdict(list)
 
 
+def _prune_window(key: str, window_seconds: int, now: float) -> list[float]:
+    window = [t for t in _windows[key] if now - t < window_seconds]
+    _windows[key] = window
+    return window
+
+
 def rate_limit(
     scope: str,
     max_requests: int,
@@ -50,15 +56,68 @@ def rate_limit(
         key = f"{scope}:{user_id}"
         now = time.monotonic()
 
-        # Clean expired entries
-        _windows[key] = [t for t in _windows[key] if now - t < window_seconds]
+        window = _prune_window(key, window_seconds, now)
 
-        if len(_windows[key]) >= max_requests:
+        if len(window) >= max_requests:
             raise HTTPException(
                 status_code=429,
                 detail=f"Rate limit exceeded: {max_requests} requests per {window_seconds}s. Try again shortly.",
             )
 
-        _windows[key].append(now)
+        window.append(now)
+
+    return _check
+
+
+def rate_limit_user_or_device(
+    scope: str,
+    max_user_requests: int,
+    window_seconds: int,
+    *,
+    max_device_requests: int | None = None,
+    device_header: str = "x-foxhound-device-id",
+) -> Callable:
+    """Rate limit by both user and device (with IP fallback).
+
+    This prevents one user from bypassing limits across devices and also
+    prevents one noisy device/tab from monopolizing a user's quota.
+    """
+
+    device_limit = max_device_requests if max_device_requests is not None else max_user_requests
+
+    async def _check(
+        request: Request,
+        user: dict = Depends(get_current_user),
+    ) -> None:
+        user_id = user["user_id"]
+        now = time.monotonic()
+
+        user_key = f"{scope}:user:{user_id}"
+        user_window = _prune_window(user_key, window_seconds, now)
+        if len(user_window) >= max_user_requests:
+            raise HTTPException(
+                status_code=429,
+                detail=(
+                    f"Rate limit exceeded: {max_user_requests} requests per {window_seconds}s "
+                    "for this account."
+                ),
+            )
+
+        device_id = (request.headers.get(device_header) or "").strip()
+        client_ip = request.client.host if request.client else "unknown"
+        actor = device_id or f"ip:{client_ip}"
+        device_key = f"{scope}:device:{user_id}:{actor}"
+        device_window = _prune_window(device_key, window_seconds, now)
+        if len(device_window) >= device_limit:
+            raise HTTPException(
+                status_code=429,
+                detail=(
+                    f"Rate limit exceeded: {device_limit} requests per {window_seconds}s "
+                    "for this device."
+                ),
+            )
+
+        user_window.append(now)
+        device_window.append(now)
 
     return _check
