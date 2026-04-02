@@ -1,19 +1,82 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { useAuth } from '@/lib/auth-context';
+import { getPendingReportNotifications, dismissReportNotification } from '@/lib/api';
 
 export default function AppNav() {
   const path = usePathname();
+  const router = useRouter();
+  const { user, loading, signOut } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [reportToast, setReportToast] = useState<{
+    dossier_id: string;
+    company: string;
+    role: string;
+  } | null>(null);
+  const toastDismissed = useRef<Set<string>>(new Set());
+
+  const checkReportNotifications = useCallback(async () => {
+    if (!user) return;
+    try {
+      const data = await getPendingReportNotifications();
+      const pending = (data.notifications || []).filter(
+        (n) => !toastDismissed.current.has(n.dossier_id),
+      );
+      if (pending.length > 0) {
+        setReportToast(pending[0]);
+      }
+    } catch {
+      // silently ignore — user may not be authenticated yet
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    checkReportNotifications();
+    const interval = setInterval(checkReportNotifications, 15000);
+    return () => clearInterval(interval);
+  }, [user, checkReportNotifications]);
+
+  const handleDismissToast = async () => {
+    if (!reportToast) return;
+    toastDismissed.current.add(reportToast.dossier_id);
+    try {
+      await dismissReportNotification(reportToast.dossier_id);
+    } catch { /* best-effort */ }
+    setReportToast(null);
+  };
 
   const links = [
-    { href: '/jobs', label: 'Jobs' },
     { href: '/dashboard', label: 'Dashboard' },
     { href: '/applications', label: 'Applications' },
+    { href: '/intelligence', label: 'Research' },
     { href: '/settings', label: 'Settings' },
   ];
+
+  const isSignedIn = !loading && !!user;
+
+  /** Derive initials from email or user metadata */
+  const getInitials = (): string => {
+    if (!user) return '?';
+    const meta = user.user_metadata;
+    if (meta?.full_name) {
+      const parts = (meta.full_name as string).split(' ');
+      return (parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '');
+    }
+    if (meta?.name) {
+      const parts = (meta.name as string).split(' ');
+      return (parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '');
+    }
+    return (user.email?.[0] ?? '?').toUpperCase();
+  };
+
+  const handleSignOut = async () => {
+    await signOut();
+    router.push('/');
+  };
 
   return (
     <nav style={{
@@ -42,7 +105,49 @@ export default function AppNav() {
         ))}
       </div>
 
-      <Link href="/login" className="btn-violet nav-cta-desktop">Join Beta</Link>
+      {/* Right side: avatar when signed in, "Join Beta" when not */}
+      {isSignedIn ? (
+        <div className="nav-cta-desktop" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <Link href="/profile" style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            textDecoration: 'none',
+          }}>
+            <span style={{
+              width: 30, height: 30, borderRadius: '50%',
+              background: 'var(--vf)', border: '1px solid var(--bv)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 600,
+              color: 'var(--vl)', letterSpacing: '0.02em',
+              textTransform: 'uppercase', flexShrink: 0,
+            }}>
+              {getInitials()}
+            </span>
+            <span style={{
+              fontFamily: 'var(--font-mono)', fontSize: 11,
+              color: 'var(--t2)', letterSpacing: '0.04em',
+              maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            }}>
+              {user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'Account'}
+            </span>
+          </Link>
+          <button
+            onClick={handleSignOut}
+            style={{
+              fontFamily: 'var(--font-mono)', fontSize: 10,
+              color: 'var(--t3)', letterSpacing: '0.06em', textTransform: 'uppercase',
+              background: 'none', border: '1px solid var(--b)', borderRadius: 6,
+              padding: '6px 12px', cursor: 'pointer', transition: 'border-color 0.2s',
+              minHeight: 30,
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--bv)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--b)'; }}
+          >
+            Sign out
+          </button>
+        </div>
+      ) : (
+        <Link href="/login" className="btn-violet nav-cta-desktop">Join Beta</Link>
+      )}
 
       <button
         className="nav-hamburger"
@@ -72,7 +177,114 @@ export default function AppNav() {
               {l.label}
             </Link>
           ))}
-          <Link href="/login" onClick={() => setMenuOpen(false)} className="btn-violet" style={{ textAlign: 'center', marginTop: 8 }}>Join Beta</Link>
+          {isSignedIn ? (
+            <>
+              <Link href="/profile" onClick={() => setMenuOpen(false)} style={{
+                fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--t2)',
+                letterSpacing: '0.08em', textTransform: 'uppercase',
+              }}>
+                Profile
+              </Link>
+              <button
+                onClick={() => { setMenuOpen(false); handleSignOut(); }}
+                style={{
+                  fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--t3)',
+                  letterSpacing: '0.08em', textTransform: 'uppercase',
+                  background: 'none', border: '1px solid var(--b)', borderRadius: 6,
+                  padding: '10px 0', cursor: 'pointer', textAlign: 'center', marginTop: 8,
+                  minHeight: 44,
+                }}
+              >
+                Sign out
+              </button>
+            </>
+          ) : (
+            <Link href="/login" onClick={() => setMenuOpen(false)} className="btn-violet" style={{ textAlign: 'center', marginTop: 8 }}>Join Beta</Link>
+          )}
+        </div>
+      )}
+      {/* ─── Report ready toast ─── */}
+      {reportToast && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 72,
+            right: 24,
+            zIndex: 99,
+            background: 'rgba(12,12,12,0.96)',
+            border: '1px solid var(--bv)',
+            borderRadius: 12,
+            padding: '16px 20px',
+            maxWidth: 360,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.5), 0 0 0 1px rgba(139,92,246,0.1)',
+            animation: 'toast-slide-in 0.3s ease-out',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+            <span style={{
+              width: 8, height: 8, borderRadius: '50%',
+              background: 'var(--g)', boxShadow: '0 0 8px var(--g)',
+              flexShrink: 0, marginTop: 4,
+            }} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{
+                fontFamily: 'var(--font-mono)', fontSize: 9,
+                color: 'var(--v)', letterSpacing: '0.15em',
+                textTransform: 'uppercase', marginBottom: 6,
+              }}>
+                Research Report Ready
+              </div>
+              <div style={{
+                fontFamily: 'var(--font-display)', fontSize: 14,
+                fontWeight: 600, color: 'var(--t)', marginBottom: 2,
+              }}>
+                {reportToast.company}
+              </div>
+              {reportToast.role && (
+                <div style={{
+                  fontFamily: 'var(--font-body)', fontSize: 12,
+                  color: 'var(--t3)', marginBottom: 12,
+                }}>
+                  {reportToast.role}
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: 8 }}>
+                <Link
+                  href={`/dossier/${reportToast.dossier_id}`}
+                  onClick={handleDismissToast}
+                  style={{
+                    fontFamily: 'var(--font-display)', fontSize: 12,
+                    fontWeight: 600, color: 'var(--t)',
+                    background: 'var(--vf)', border: '1px solid var(--bv)',
+                    borderRadius: 6, padding: '6px 14px',
+                    textDecoration: 'none', transition: 'all 0.2s',
+                  }}
+                >
+                  View Report
+                </Link>
+                <button
+                  onClick={handleDismissToast}
+                  style={{
+                    fontFamily: 'var(--font-mono)', fontSize: 10,
+                    color: 'var(--t3)', background: 'none',
+                    border: '1px solid var(--b)', borderRadius: 6,
+                    padding: '6px 12px', cursor: 'pointer',
+                    transition: 'border-color 0.2s',
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--bv)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--b)'; }}
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          </div>
+          <style>{`
+            @keyframes toast-slide-in {
+              from { transform: translateY(20px); opacity: 0; }
+              to { transform: translateY(0); opacity: 1; }
+            }
+          `}</style>
         </div>
       )}
     </nav>

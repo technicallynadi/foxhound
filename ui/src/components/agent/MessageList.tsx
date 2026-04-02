@@ -48,8 +48,9 @@ export default function MessageList({ messages, streamState, onSend }: Props) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 4, width: '100%', maxWidth: 220 }}>
             {[
               'Show my top matches',
+              'Show my tracked applications',
               'Apply to my best match',
-              'Search for jobs',
+              'Open people research for my latest application',
             ].map((suggestion) => (
               <button
                 key={suggestion}

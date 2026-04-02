@@ -44,13 +44,12 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   }
 
   if (loading) {
+    // Render nothing visible — the page's own skeleton (shown inside
+    // children) will never mount while loading is true, but we avoid
+    // flashing a blank white/dark screen by keeping the background
+    // consistent with --bg.
     return (
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        height: '100vh', color: 'var(--text-muted)', fontSize: 14,
-      }}>
-        Loading...
-      </div>
+      <div style={{ minHeight: '100vh', background: 'var(--bg)' }} />
     );
   }
 

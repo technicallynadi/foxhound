@@ -13,6 +13,10 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 # Copy dependency files first (cache layer)
 COPY pyproject.toml uv.lock ./
 
+# Skip Playwright browser download — we only use connect_over_cdp()
+# which connects to TinyFish's remote browser, no local browser needed
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+
 # Install Python deps
 RUN uv pip install --system --no-cache -r pyproject.toml
 

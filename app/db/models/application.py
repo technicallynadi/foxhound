@@ -23,6 +23,8 @@ class Application(Base):
     # --- Phase tracking ---
     phase: Mapped[str] = mapped_column(String, default="scan")
     # "scan" | "waiting_input" | "fill" | "done"
+    submission_method: Mapped[str] = mapped_column(String, default="browser")
+    # "api" | "browser"
     scan_result_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     scan_tinyfish_run_id: Mapped[str | None] = mapped_column(String, nullable=True)
 
@@ -39,6 +41,7 @@ class Application(Base):
     tinyfish_streaming_url: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # --- Screenshot receipt ---
+    pre_submit_screenshot_path: Mapped[str | None] = mapped_column(String, nullable=True)
     screenshot_storage_path: Mapped[str | None] = mapped_column(String, nullable=True)
     screenshot_captured_at: Mapped[datetime | None] = mapped_column(
         TZDateTime, nullable=True
@@ -60,6 +63,17 @@ class Application(Base):
     notification_sent_at: Mapped[datetime | None] = mapped_column(
         TZDateTime, nullable=True
     )
+
+    # --- Watchdog monitoring ---
+    posting_status: Mapped[str] = mapped_column(
+        String, default="unknown"
+    )  # active | removed | edited | reposted | unknown | check_failed
+    last_watchdog_check_at: Mapped[datetime | None] = mapped_column(
+        TZDateTime, nullable=True
+    )
+    posting_last_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    posting_diff_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    watchdog_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
 
     # --- Timestamps ---
     created_at: Mapped[datetime] = mapped_column(

@@ -456,6 +456,29 @@ async def _post_webhook(webhook_url: str, body: dict) -> dict:
     return await asyncio.to_thread(_send)
 
 
+async def send_slack_blocks(
+    webhook_url: str,
+    blocks: list[dict],
+    fallback_text: str = "Foxhound notification",
+) -> dict:
+    """Send a Slack Block Kit message to a webhook URL.
+
+    Slack requires a top-level ``text`` field as a fallback for clients
+    that cannot render blocks (e.g. push notifications).  The ``blocks``
+    list carries the rich Block Kit payload.
+
+    Args:
+        webhook_url: Slack incoming-webhook URL.
+        blocks: List of Block Kit block dicts.
+        fallback_text: Plain-text summary shown in push notifications.
+
+    Returns:
+        Delivery status dict (same shape as ``_post_webhook``).
+    """
+    body = {"text": fallback_text, "blocks": blocks}
+    return await _post_webhook(webhook_url, body)
+
+
 def _blank_channel_state(enabled: bool) -> dict:
     return {
         "enabled": enabled,

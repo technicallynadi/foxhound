@@ -1,13 +1,16 @@
-'use client';
+"use client";
 
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import ScrollReveal from '@/components/landing/ScrollReveal';
-import AppNav from '@/components/AppNav';
-import { useAuth } from '@/lib/auth-context';
-import { useAgent } from '@/components/agent/AgentProvider';
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import ScrollReveal from "@/components/landing/ScrollReveal";
+import AppNav from "@/components/AppNav";
+import PageSkeleton from "@/components/PageSkeleton";
+import ReconCard from "@/components/ReconCard";
+import { useAuth } from "@/lib/auth-context";
+import { useAgent } from "@/components/agent/AgentProvider";
+import { getProfile } from "@/lib/api";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 const PER_PAGE = 50;
 
 interface Job {
@@ -24,104 +27,345 @@ interface Job {
   posted_at?: string;
   match_score?: number;
   custom_questions_json?: string | null;
+  ghost_score?: number | null;
+  ghost_risk?: "verified" | "caution" | "ghost_risk" | null;
+  ghost_factors_json?: string | null;
 }
 
-function JobCard({ job, onClick }: { job: Job; onClick: () => void }) {
-  const remote = job.remote_type === 'remote';
-  const source = job.ats_type || job.source || 'unknown';
+const GHOST_CONFIG: Record<
+  string,
+  { color: string; label: string; dotShadow: string }
+> = {
+  verified: {
+    color: "var(--g)",
+    label: "Verified",
+    dotShadow: "0 0 4px var(--g)",
+  },
+  caution: {
+    color: "var(--warning)",
+    label: "Caution",
+    dotShadow: "0 0 4px var(--warning)",
+  },
+  ghost_risk: {
+    color: "var(--error)",
+    label: "Ghost Risk",
+    dotShadow: "0 0 4px var(--error)",
+  },
+};
+
+const GHOST_DEFAULT = {
+  color: "var(--t3)",
+  label: "Unverified",
+  dotShadow: "none",
+};
+
+function GhostBadge({ job }: { job: Job }) {
+  const [showTip, setShowTip] = useState(false);
+
+  // Don't show badge if no ghost data yet
+  if (!job.ghost_risk) return null;
+
+  const cfg = GHOST_CONFIG[job.ghost_risk] ?? GHOST_DEFAULT;
+
+  let factors: string[] = [];
+  if (job.ghost_factors_json) {
+    try {
+      const parsed = JSON.parse(job.ghost_factors_json);
+      factors = Array.isArray(parsed) ? parsed : [];
+    } catch {
+      /* ignore malformed */
+    }
+  }
+
+  return (
+    <span
+      onMouseEnter={() => setShowTip(true)}
+      onMouseLeave={() => setShowTip(false)}
+      style={{ position: "relative", display: "inline-flex", alignItems: "center", gap: 4 }}
+    >
+      {/* Dot */}
+      <span
+        style={{
+          width: 5,
+          height: 5,
+          borderRadius: "50%",
+          background: cfg.color,
+          boxShadow: cfg.dotShadow,
+          flexShrink: 0,
+        }}
+      />
+      {/* Label */}
+      <span
+        style={{
+          fontFamily: "var(--font-mono)",
+          fontSize: 9,
+          color: cfg.color,
+          letterSpacing: "0.06em",
+          textTransform: "uppercase",
+          lineHeight: 1,
+        }}
+      >
+        {cfg.label}
+      </span>
+
+      {/* Tooltip */}
+      {showTip && factors.length > 0 && (
+        <span
+          role="tooltip"
+          style={{
+            position: "absolute",
+            bottom: "calc(100% + 8px)",
+            left: 0,
+            background: "#111",
+            border: "1px solid var(--b)",
+            borderRadius: 6,
+            padding: "8px 10px",
+            width: 200,
+            zIndex: 50,
+            pointerEvents: "none",
+          }}
+        >
+          <span
+            style={{
+              fontFamily: "var(--font-mono)",
+              fontSize: 9,
+              color: "var(--t3)",
+              letterSpacing: "0.06em",
+              textTransform: "uppercase",
+              display: "block",
+              marginBottom: 6,
+            }}
+          >
+            Why this is flagged
+          </span>
+          {factors.map((f, i) => (
+            <span
+              key={i}
+              style={{
+                display: "block",
+                fontFamily: "var(--font-mono)",
+                fontSize: 9,
+                color: "var(--t2)",
+                lineHeight: 1.6,
+              }}
+            >
+              {f}
+            </span>
+          ))}
+        </span>
+      )}
+    </span>
+  );
+}
+
+function JobCard({ job, onClick, onRecon }: { job: Job; onClick: () => void; onRecon: () => void }) {
+  const remote = job.remote_type === "remote";
+  const source = job.ats_type || job.source || "unknown";
 
   return (
     <div
       role="button"
       tabIndex={0}
       onClick={onClick}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick();
+        }
+      }}
       aria-label={`${job.title} at ${job.company}`}
       style={{
-        background: 'var(--bg)', padding: 26, position: 'relative', cursor: 'pointer',
-        transition: 'background 0.3s, outline 0.15s', minHeight: 160, display: 'flex', flexDirection: 'column',
-        minWidth: 0, overflow: 'hidden', outline: 'none',
+        background: "var(--bg)",
+        padding: 26,
+        position: "relative",
+        cursor: "pointer",
+        transition: "background 0.3s, outline 0.15s",
+        minHeight: 160,
+        display: "flex",
+        flexDirection: "column",
+        minWidth: 0,
+        overflow: "hidden",
+        outline: "none",
       }}
       onFocus={(e) => {
-        e.currentTarget.style.outline = '2px solid var(--v)';
-        e.currentTarget.style.outlineOffset = '-2px';
+        e.currentTarget.style.outline = "2px solid var(--v)";
+        e.currentTarget.style.outlineOffset = "-2px";
       }}
       onBlur={(e) => {
-        e.currentTarget.style.outline = 'none';
+        e.currentTarget.style.outline = "none";
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.background = 'var(--sf)';
-        const accent = e.currentTarget.querySelector('.job-accent') as HTMLElement;
-        if (accent) accent.style.opacity = '1';
+        e.currentTarget.style.background = "var(--sf)";
+        const accent = e.currentTarget.querySelector(
+          ".job-accent",
+        ) as HTMLElement;
+        if (accent) accent.style.opacity = "1";
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.background = 'var(--bg)';
-        const accent = e.currentTarget.querySelector('.job-accent') as HTMLElement;
-        if (accent) accent.style.opacity = '0';
+        e.currentTarget.style.background = "var(--bg)";
+        const accent = e.currentTarget.querySelector(
+          ".job-accent",
+        ) as HTMLElement;
+        if (accent) accent.style.opacity = "0";
       }}
     >
-      <div className="job-accent" style={{
-        position: 'absolute', top: 0, left: 0, right: 0, height: 2,
-        background: 'var(--v)', opacity: 0, transition: 'opacity 0.3s',
-      }} />
+      <div
+        className="job-accent"
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          height: 2,
+          background: "var(--v)",
+          opacity: 0,
+          transition: "opacity 0.3s",
+        }}
+      />
 
-      <div className="job-card-source">
-        {source}{job.location ? ` · ${job.location}` : ''}
+      <div className="job-card-source" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        {source}
+        {job.location ? ` · ${job.location}` : ""}
       </div>
-      <div className="job-card-title">
-        {job.title}
-      </div>
-      <div className="job-card-company">
-        {job.company}
+      <div className="job-card-title">{job.title}</div>
+      <div
+        className="job-card-company"
+        style={{ display: "flex", alignItems: "center", gap: 8 }}
+      >
+        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {job.company}
+        </span>
+        <GhostBadge job={job} />
       </div>
 
       {/* Location + salary row */}
-      <div style={{
-        fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--t3)',
-        marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--b)',
-        display: 'flex', gap: 8, alignItems: 'center',
-      }}>
-        {remote && <span style={{ color: 'var(--g)' }}>Remote</span>}
-        {!remote && job.location && <span>{job.location}</span>}
+      <div
+        style={{
+          fontFamily: "var(--font-mono)",
+          fontSize: 11,
+          color: "var(--t3)",
+          marginTop: 14,
+          paddingTop: 14,
+          borderTop: "1px solid var(--b)",
+          display: "flex",
+          gap: 8,
+          alignItems: "center",
+          overflow: "hidden",
+        }}
+      >
+        {remote && <span style={{ color: "var(--g)", flexShrink: 0 }}>Remote</span>}
+        {!remote && job.location && (
+          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {job.location}
+          </span>
+        )}
         {job.salary_min && job.salary_max && (
-          <span>${(job.salary_min / 1000).toFixed(0)}k–${(job.salary_max / 1000).toFixed(0)}k</span>
+          <span>
+            ${(job.salary_min / 1000).toFixed(0)}k–$
+            {(job.salary_max / 1000).toFixed(0)}k
+          </span>
         )}
       </div>
 
       {/* Form intelligence — only show if we have real scan data */}
       {job.custom_questions_json && (
-        <div style={{
-          fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--vl)',
-          marginTop: 8,
-        }}>
+        <div
+          style={{
+            fontFamily: "var(--font-mono)",
+            fontSize: 11,
+            color: "var(--vl)",
+            marginTop: 8,
+          }}
+        >
           {(() => {
             try {
               const qs = JSON.parse(job.custom_questions_json);
-              return `${qs.field_count || '?'} fields · ${qs.question_count || '?'} custom Qs · ~${qs.estimated_time || '?'} min`;
-            } catch { return null; }
+              return `${qs.field_count || "?"} fields · ${qs.question_count || "?"} custom Qs · ~${qs.estimated_time || "?"} min`;
+            } catch {
+              return null;
+            }
           })()}
         </div>
       )}
 
-      <div style={{
-        fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--t3)',
-        marginTop: 'auto', paddingTop: 10, display: 'inline-flex', alignItems: 'center', gap: 4,
-        textTransform: 'uppercase', letterSpacing: '0.04em',
-      }}>
-        See match % ↗
+      <div
+        style={{
+          marginTop: "auto",
+          paddingTop: 10,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 8,
+        }}
+      >
+        <span
+          style={{
+            fontFamily: "var(--font-mono)",
+            fontSize: 11,
+            color: "var(--t3)",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 4,
+            textTransform: "uppercase",
+            letterSpacing: "0.04em",
+          }}
+        >
+          {job.match_score ? `${job.match_score}% fit` : 'View details ↗'}
+        </span>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onRecon();
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.stopPropagation();
+            }
+          }}
+          aria-label={`Quick company brief for ${job.company}`}
+          style={{
+            fontFamily: "var(--font-mono)",
+            fontSize: 10,
+            fontWeight: 500,
+            letterSpacing: "0.1em",
+            textTransform: "uppercase",
+            color: "var(--vl)",
+            background: "transparent",
+            border: "1px solid var(--b)",
+            borderRadius: 4,
+            padding: "5px 10px",
+            cursor: "pointer",
+            transition: "border-color 0.2s, background 0.2s",
+            whiteSpace: "nowrap",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.borderColor = "var(--bv)";
+            e.currentTarget.style.background = "var(--vf)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.borderColor = "var(--b)";
+            e.currentTarget.style.background = "transparent";
+          }}
+        >
+          COMPANY INFO
+        </button>
       </div>
     </div>
   );
 }
 
-function JobDetailModal({ job, onClose }: { job: Job; onClose: () => void }) {
+function JobDetailModal({ job, onClose, canApplyWithFoxhound }: { job: Job; onClose: () => void; canApplyWithFoxhound: boolean }) {
   const router = useRouter();
   const { user } = useAuth();
   const { send, open } = useAgent();
 
   function handleApplyWithFoxhound() {
     if (!user) {
-      router.push('/login');
+      router.push("/login");
+      return;
+    }
+    if (!canApplyWithFoxhound) {
+      router.push('/onboard');
       return;
     }
     // Logged in — open agent and trigger apply
@@ -135,37 +379,80 @@ function JobDetailModal({ job, onClose }: { job: Job; onClose: () => void }) {
     <div
       onClick={onClose}
       style={{
-        position: 'fixed', inset: 0, zIndex: 200,
-        background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        position: "fixed",
+        inset: 0,
+        zIndex: 200,
+        background: "rgba(0,0,0,0.7)",
+        backdropFilter: "blur(8px)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
         padding: 24,
       }}
     >
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
-          background: 'var(--sf)', border: '1px solid var(--b)', borderRadius: 16,
-          maxWidth: 600, width: '100%', maxHeight: '85vh', overflow: 'auto',
-          padding: '24px 20px', animation: 'panel-open 200ms ease-out',
+          background: "var(--sf)",
+          border: "1px solid var(--b)",
+          borderRadius: 12,
+          maxWidth: 600,
+          width: "100%",
+          maxHeight: "85vh",
+          overflow: "auto",
+          padding: "24px 20px",
+          animation: "panel-open 200ms ease-out",
         }}
       >
         {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "start",
+          }}
+        >
           <div>
-            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--t3)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 8 }}>
-              {job.ats_type || job.source} · {job.location || 'Not specified'}
+            <div
+              style={{
+                fontFamily: "var(--font-mono)",
+                fontSize: 10,
+                color: "var(--t3)",
+                letterSpacing: "0.08em",
+                textTransform: "uppercase",
+                marginBottom: 8,
+              }}
+            >
+              {job.ats_type || job.source} · {job.location || "Not specified"}
             </div>
-            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 700, letterSpacing: '-0.02em' }}>
+            <h2
+              style={{
+                fontFamily: "var(--font-display)",
+                fontSize: 24,
+                fontWeight: 700,
+                letterSpacing: "-0.02em",
+              }}
+            >
               {job.title}
             </h2>
-            <div style={{ fontSize: 16, color: 'var(--t2)', marginTop: 4 }}>{job.company}</div>
+            <div style={{ fontSize: 16, color: "var(--t2)", marginTop: 4 }}>
+              {job.company}
+            </div>
           </div>
           <button
             onClick={onClose}
             style={{
-              width: 32, height: 32, borderRadius: 8, border: 'none',
-              background: 'rgba(255,255,255,0.04)', color: 'var(--t3)',
-              cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: 32,
+              height: 32,
+              borderRadius: 8,
+              border: "none",
+              background: "rgba(255,255,255,0.04)",
+              color: "var(--t3)",
+              cursor: "pointer",
+              fontSize: 16,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
             }}
           >
             &times;
@@ -179,9 +466,15 @@ function JobDetailModal({ job, onClose }: { job: Job; onClose: () => void }) {
             target="_blank"
             rel="noopener noreferrer"
             style={{
-              display: 'inline-flex', alignItems: 'center', gap: 6,
-              fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--t2)',
-              marginTop: 16, textDecoration: 'underline', textUnderlineOffset: 3,
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              fontFamily: "var(--font-mono)",
+              fontSize: 12,
+              color: "var(--t2)",
+              marginTop: 16,
+              textDecoration: "underline",
+              textUnderlineOffset: 3,
             }}
           >
             Apply on {job.company}&apos;s site →
@@ -189,23 +482,54 @@ function JobDetailModal({ job, onClose }: { job: Job; onClose: () => void }) {
         )}
 
         {/* Divider */}
-        <div style={{ width: '100%', height: 1, background: 'var(--b)', margin: '24px 0' }} />
+        <div
+          style={{
+            width: "100%",
+            height: 1,
+            background: "var(--b)",
+            margin: "24px 0",
+          }}
+        />
 
         {/* CTA — Beta waitlist */}
-        <div style={{ marginTop: 24, textAlign: 'center' }}>
-          <button onClick={handleApplyWithFoxhound} className="btn-solid" style={{ cursor: 'pointer' }}>
-            Apply with Foxhound →
+        <div style={{ marginTop: 24, textAlign: "center" }}>
+          <button
+            onClick={handleApplyWithFoxhound}
+            className="btn-solid"
+            style={{ cursor: "pointer", opacity: user && !canApplyWithFoxhound ? 0.72 : 1 }}
+          >
+            {user && !canApplyWithFoxhound ? 'Add Resume To Apply →' : 'Apply with Foxhound →'}
           </button>
-          <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--t3)', marginTop: 10, letterSpacing: '0.04em' }}>
-            {user ? 'Your agent will scan and fill this form' : 'Join the beta to get early access'}
+          <p
+            style={{
+              fontFamily: "var(--font-mono)",
+              fontSize: 10,
+              color: "var(--t3)",
+              marginTop: 10,
+              letterSpacing: "0.04em",
+            }}
+          >
+            {user
+              ? canApplyWithFoxhound
+                ? (job.ats_type === "greenhouse" || job.ats_type === "lever" || job.ats_type === "ashby")
+                  ? "One click — Foxhound handles the form"
+                  : "Foxhound will fill out and submit this application"
+                : "Add your resume so Foxhound can apply for you."
+              : "Join early access to get started"}
           </p>
         </div>
       </div>
 
       <style jsx>{`
         @keyframes panel-open {
-          from { opacity: 0; transform: scale(0.95) translateY(8px); }
-          to { opacity: 1; transform: scale(1) translateY(0); }
+          from {
+            opacity: 0;
+            transform: scale(0.95) translateY(8px);
+          }
+          to {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+          }
         }
       `}</style>
     </div>
@@ -213,16 +537,27 @@ function JobDetailModal({ job, onClose }: { job: Job; onClose: () => void }) {
 }
 
 export default function JobsPage() {
+  const { user } = useAuth();
+  const userId = user?.id || null;
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [hasMore, setHasMore] = useState(true);
   const [totalJobs, setTotalJobs] = useState(0);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
-  const [search, setSearch] = useState('');
+  const [reconJob, setReconJob] = useState<Job | null>(null);
+  const [search, setSearch] = useState("");
+  const [canApplyWithFoxhound, setCanApplyWithFoxhound] = useState(false);
   const pageRef = useRef(1);
+
+  useEffect(() => {
+    if (!userId) return;
+    getProfile()
+      .then((profile) => setCanApplyWithFoxhound(Boolean(profile.resume_filename)))
+      .catch(() => setCanApplyWithFoxhound(false));
+  }, [userId]);
   const hasMoreRef = useRef(true);
-  const [filter, setFilter] = useState('all');
-  const [locationFilter, setLocationFilter] = useState('all');
+  const [filter, setFilter] = useState("all");
+  const [locationFilter, setLocationFilter] = useState("all");
   const sentinel = useRef<HTMLDivElement>(null);
   const loadingRef = useRef(false);
 
@@ -230,78 +565,228 @@ export default function JobsPage() {
     if (loadingRef.current || !hasMoreRef.current) return;
     loadingRef.current = true;
     try {
-      const res = await fetch(`${API_BASE}/api/v1/jobs/public?page=${pageNum}&per_page=${PER_PAGE}`);
-      if (!res.ok) return;
-      const data = await res.json();
-      const newJobs = data.jobs || [];
-      if (data.total) setTotalJobs(data.total);
+      let newJobs: Job[] = [];
+      let total = 0;
+
+      // Get auth token if available — backend returns match scores when authenticated
+      const { getAccessToken } = await import("@/lib/supabase");
+      const token = await getAccessToken();
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+
+      const res = await fetch(
+        `${API_BASE}/api/v1/jobs/public?page=${pageNum}&per_page=${PER_PAGE}`,
+        { headers },
+      );
+      if (res.ok) {
+        const data = await res.json();
+        newJobs = data.jobs || [];
+        total = data.total || 0;
+      }
+
+      if (total) setTotalJobs(total);
       const more = newJobs.length === PER_PAGE;
       setHasMore(more);
       hasMoreRef.current = more;
       pageRef.current = pageNum;
-      setJobs((prev) => pageNum === 1 ? newJobs : [...prev, ...newJobs]);
-    } catch { /* silent */ }
-    finally { setLoading(false); loadingRef.current = false; }
+      setJobs((prev) => (pageNum === 1 ? newJobs : [...prev, ...newJobs]));
+    } catch {
+      /* silent */
+    } finally {
+      setLoading(false);
+      loadingRef.current = false;
+    }
   }, []);
 
-  useEffect(() => { fetchJobs(1); }, [fetchJobs]);
-
-  // Infinite scroll — uses refs to avoid stale closure
   useEffect(() => {
+    fetchJobs(1);
+  }, [fetchJobs]);
+
+  // Infinite scroll — listen on body (html has overflow:hidden)
+  useEffect(() => {
+    const scrollEl = document.body;
     function onScroll() {
       if (loadingRef.current || !hasMoreRef.current) return;
-      const scrollBottom = window.innerHeight + window.scrollY;
-      const docHeight = document.documentElement.scrollHeight;
-      if (scrollBottom >= docHeight - 1500) {
+      const scrollBottom = scrollEl.scrollTop + scrollEl.clientHeight;
+      const scrollHeight = scrollEl.scrollHeight;
+      if (scrollBottom >= scrollHeight - 2000) {
         fetchJobs(pageRef.current + 1);
       }
     }
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
+    scrollEl.addEventListener("scroll", onScroll, { passive: true });
+    return () => scrollEl.removeEventListener("scroll", onScroll);
   }, [fetchJobs]);
 
   // Region matchers — real location data looks like "Starbase, TX", "São Paulo, São Paulo, Brazil", "Remote - United Kingdom"
   const US_STATES = [
-    'al','ak','az','ar','ca','co','ct','de','fl','ga','hi','id','il','in','ia',
-    'ks','ky','la','me','md','ma','mi','mn','ms','mo','mt','ne','nv','nh','nj',
-    'nm','ny','nc','nd','oh','ok','or','pa','ri','sc','sd','tn','tx','ut','vt',
-    'va','wa','wv','wi','wy','dc',
+    "al",
+    "ak",
+    "az",
+    "ar",
+    "ca",
+    "co",
+    "ct",
+    "de",
+    "fl",
+    "ga",
+    "hi",
+    "id",
+    "il",
+    "in",
+    "ia",
+    "ks",
+    "ky",
+    "la",
+    "me",
+    "md",
+    "ma",
+    "mi",
+    "mn",
+    "ms",
+    "mo",
+    "mt",
+    "ne",
+    "nv",
+    "nh",
+    "nj",
+    "nm",
+    "ny",
+    "nc",
+    "nd",
+    "oh",
+    "ok",
+    "or",
+    "pa",
+    "ri",
+    "sc",
+    "sd",
+    "tn",
+    "tx",
+    "ut",
+    "vt",
+    "va",
+    "wa",
+    "wv",
+    "wi",
+    "wy",
+    "dc",
   ];
   const REGION_KEYWORDS: Record<string, string[]> = {
-    us: ['united states', ', usa'],
+    us: ["united states", ", usa"],
     europe: [
-      'united kingdom', 'uk', 'london', 'england', 'scotland',
-      'germany', 'berlin', 'munich', 'frankfurt', 'hamburg',
-      'france', 'paris', 'lyon',
-      'netherlands', 'amsterdam', 'rotterdam',
-      'ireland', 'dublin',
-      'spain', 'madrid', 'barcelona',
-      'italy', 'milan', 'rome',
-      'sweden', 'stockholm',
-      'denmark', 'copenhagen',
-      'norway', 'oslo',
-      'finland', 'helsinki',
-      'switzerland', 'zurich', 'geneva',
-      'austria', 'vienna',
-      'poland', 'warsaw', 'krakow',
-      'portugal', 'lisbon',
-      'belgium', 'brussels',
-      'czech', 'prague',
-      'romania', 'bucharest',
+      "united kingdom",
+      "uk",
+      "london",
+      "england",
+      "scotland",
+      "germany",
+      "berlin",
+      "munich",
+      "frankfurt",
+      "hamburg",
+      "france",
+      "paris",
+      "lyon",
+      "netherlands",
+      "amsterdam",
+      "rotterdam",
+      "ireland",
+      "dublin",
+      "spain",
+      "madrid",
+      "barcelona",
+      "italy",
+      "milan",
+      "rome",
+      "sweden",
+      "stockholm",
+      "denmark",
+      "copenhagen",
+      "norway",
+      "oslo",
+      "finland",
+      "helsinki",
+      "switzerland",
+      "zurich",
+      "geneva",
+      "austria",
+      "vienna",
+      "poland",
+      "warsaw",
+      "krakow",
+      "portugal",
+      "lisbon",
+      "belgium",
+      "brussels",
+      "czech",
+      "prague",
+      "romania",
+      "bucharest",
     ],
     canada: [
-      'canada', 'toronto', 'vancouver', 'montreal', 'ottawa', 'calgary', 'edmonton',
-      ', on', ', bc', ', qc', ', ab', ', mb', ', sk', ', ns', ', nb',
+      "canada",
+      "toronto",
+      "vancouver",
+      "montreal",
+      "ottawa",
+      "calgary",
+      "edmonton",
+      ", on",
+      ", bc",
+      ", qc",
+      ", ab",
+      ", mb",
+      ", sk",
+      ", ns",
+      ", nb",
     ],
-    india: ['india', 'bangalore', 'bengaluru', 'mumbai', 'hyderabad', 'delhi', 'pune', 'chennai', 'gurugram', 'noida', 'gurgaon'],
-    latam: ['brazil', 'mexico', 'argentina', 'colombia', 'chile', 'são paulo', 'sao paulo', 'mexico city', 'buenos aires', 'bogota'],
-    apac: ['australia', 'sydney', 'melbourne', 'singapore', 'japan', 'tokyo', 'south korea', 'seoul', 'hong kong', 'taiwan', 'new zealand', 'auckland'],
-    israel: ['israel', 'tel aviv', 'jerusalem', 'haifa'],
+    india: [
+      "india",
+      "bangalore",
+      "bengaluru",
+      "mumbai",
+      "hyderabad",
+      "delhi",
+      "pune",
+      "chennai",
+      "gurugram",
+      "noida",
+      "gurgaon",
+    ],
+    latam: [
+      "brazil",
+      "mexico",
+      "argentina",
+      "colombia",
+      "chile",
+      "são paulo",
+      "sao paulo",
+      "mexico city",
+      "buenos aires",
+      "bogota",
+    ],
+    apac: [
+      "australia",
+      "sydney",
+      "melbourne",
+      "singapore",
+      "japan",
+      "tokyo",
+      "south korea",
+      "seoul",
+      "hong kong",
+      "taiwan",
+      "new zealand",
+      "auckland",
+    ],
+    israel: ["israel", "tel aviv", "jerusalem", "haifa"],
   };
 
   function matchesRegion(loc: string, region: string): boolean {
     const l = loc.toLowerCase().trim();
-    if (region === 'us') {
+    if (region === "us") {
       // Check if location ends with a US state abbreviation (e.g. "Starbase, TX")
       const endsWithState = US_STATES.some((st) => l.endsWith(`, ${st}`));
       if (endsWithState) return true;
@@ -318,12 +803,12 @@ export default function JobsPage() {
       const q = search.toLowerCase();
       const matchesTitle = j.title.toLowerCase().includes(q);
       const matchesCompany = j.company.toLowerCase().includes(q);
-      const matchesLocation = (j.location || '').toLowerCase().includes(q);
+      const matchesLocation = (j.location || "").toLowerCase().includes(q);
       if (!matchesTitle && !matchesCompany && !matchesLocation) return false;
     }
-    if (filter === 'remote' && j.remote_type !== 'remote') return false;
-    if (locationFilter !== 'all') {
-      if (!matchesRegion(j.location || '', locationFilter)) return false;
+    if (filter === "remote" && j.remote_type !== "remote") return false;
+    if (locationFilter !== "all") {
+      if (!matchesRegion(j.location || "", locationFilter)) return false;
     }
     return true;
   });
@@ -332,26 +817,45 @@ export default function JobsPage() {
     <>
       <AppNav />
 
-      <main style={{ paddingTop: 80, position: 'relative', zIndex: 1 }}>
+      <main style={{ paddingTop: 80, position: "relative", zIndex: 1 }}>
         {/* Header */}
-        <section style={{ padding: '100px 20px 0', maxWidth: 1200, margin: '0 auto' }}>
+        <section
+          style={{ padding: "80px 20px 0", maxWidth: 1200, margin: "0 auto" }}
+        >
           <ScrollReveal>
             <div className="section-label">Jobs</div>
           </ScrollReveal>
           <ScrollReveal delay={1}>
             <div className="section-heading">
-              OPEN ROLES. <span className="dim">FOXHOUND HANDLES THE REST.</span>
+              FIND YOUR NEXT ROLE.{" "}
+              <span className="dim">FOXHOUND HANDLES THE REST.</span>
             </div>
           </ScrollReveal>
           <ScrollReveal delay={2}>
-            <p style={{ color: 'var(--t2)', marginTop: 12, fontSize: 15, maxWidth: 480 }}>
-              Browse thousands of open roles across companies and industries. Found one you like? Foxhound fills out the form and applies for you.
+            <p
+              style={{
+                color: "var(--t2)",
+                marginTop: 12,
+                fontSize: 15,
+                maxWidth: 480,
+              }}
+            >
+              Browse open roles across companies and industries.
+              See something you like? Foxhound fills out the application and submits it for
+              you.
             </p>
           </ScrollReveal>
 
           {/* Search + Filters */}
           <ScrollReveal delay={3}>
-            <div style={{ marginTop: 32, display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div
+              style={{
+                marginTop: 32,
+                display: "flex",
+                flexDirection: "column",
+                gap: 12,
+              }}
+            >
               {/* Search bar */}
               <input
                 type="text"
@@ -359,25 +863,38 @@ export default function JobsPage() {
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search by title or company..."
                 className="input"
-                style={{ width: '100%', padding: '12px 16px', fontSize: 14 }}
+                style={{ width: "100%", padding: "12px 16px", fontSize: 14 }}
               />
 
               {/* Filter row */}
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+              <div
+                style={{
+                  display: "flex",
+                  gap: 8,
+                  flexWrap: "wrap",
+                  alignItems: "center",
+                }}
+              >
                 {[
-                  { key: 'all', label: 'All' },
-                  { key: 'remote', label: 'Remote' },
+                  { key: "all", label: "All" },
+                  { key: "remote", label: "Remote" },
                 ].map((f) => (
                   <button
                     key={f.key}
                     onClick={() => setFilter(f.key)}
                     style={{
-                      fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.06em',
-                      textTransform: 'uppercase', padding: '8px 20px',
-                      border: `1px solid ${filter === f.key ? 'var(--bv)' : 'var(--b)'}`,
-                      borderRadius: 6, background: filter === f.key ? 'var(--vf)' : 'transparent',
-                      color: filter === f.key ? 'var(--vl)' : 'var(--t3)',
-                      cursor: 'pointer', transition: 'all 0.2s',
+                      fontFamily: "var(--font-mono)",
+                      fontSize: 11,
+                      letterSpacing: "0.06em",
+                      textTransform: "uppercase",
+                      padding: "8px 20px",
+                      border: `1px solid ${filter === f.key ? "var(--bv)" : "var(--b)"}`,
+                      borderRadius: 6,
+                      background:
+                        filter === f.key ? "var(--vf)" : "transparent",
+                      color: filter === f.key ? "var(--vl)" : "var(--t3)",
+                      cursor: "pointer",
+                      transition: "all 0.2s",
                     }}
                   >
                     {f.label}
@@ -390,9 +907,14 @@ export default function JobsPage() {
                   onChange={(e) => setLocationFilter(e.target.value)}
                   className="input"
                   style={{
-                    padding: '8px 12px', fontSize: 11, fontFamily: 'var(--font-mono)',
-                    letterSpacing: '0.06em', textTransform: 'uppercase',
-                    borderRadius: 6, cursor: 'pointer', minWidth: 140,
+                    padding: "8px 12px",
+                    fontSize: 11,
+                    fontFamily: "var(--font-mono)",
+                    letterSpacing: "0.06em",
+                    textTransform: "uppercase",
+                    borderRadius: 6,
+                    cursor: "pointer",
+                    minWidth: 140,
                   }}
                 >
                   <option value="all">All locations</option>
@@ -406,8 +928,17 @@ export default function JobsPage() {
                 </select>
 
                 {/* Result count */}
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--t3)', letterSpacing: '0.04em', marginLeft: 'auto' }}>
-                  {totalJobs > 0 ? totalJobs.toLocaleString() : filtered.length} roles
+                <span
+                  style={{
+                    fontFamily: "var(--font-mono)",
+                    fontSize: 11,
+                    color: "var(--t3)",
+                    letterSpacing: "0.04em",
+                    marginLeft: "auto",
+                  }}
+                >
+                  {totalJobs > 0 ? totalJobs.toLocaleString() : filtered.length}{" "}
+                  roles
                 </span>
               </div>
             </div>
@@ -415,22 +946,44 @@ export default function JobsPage() {
         </section>
 
         {/* Job grid */}
-        <section style={{ padding: '32px 20px 140px', maxWidth: 1200, margin: '0 auto' }}>
+        <section
+          style={{
+            padding: "32px 20px 140px",
+            maxWidth: 1200,
+            margin: "0 auto",
+          }}
+        >
           {loading && jobs.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: 80, color: 'var(--t3)', fontFamily: 'var(--font-mono)', fontSize: 12 }}>
-              Loading jobs...
-            </div>
+            <PageSkeleton variant="list" />
           ) : filtered.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: 80, color: 'var(--t3)', fontFamily: 'var(--font-mono)', fontSize: 12 }}>
-              No jobs found
+            <div
+              style={{
+                textAlign: "center",
+                padding: 80,
+                color: "var(--t3)",
+                fontFamily: "var(--font-mono)",
+                fontSize: 12,
+              }}
+            >
+              No matching jobs right now
             </div>
           ) : (
-            <div className="jobs-grid" style={{
-              display: 'grid', gap: 1,
-              background: 'var(--b)', border: '1px solid var(--b)',
-            }}>
+            <div
+              className="jobs-grid"
+              style={{
+                display: "grid",
+                gap: 1,
+                background: "var(--b)",
+                border: "1px solid var(--b)",
+              }}
+            >
               {filtered.map((job, i) => (
-                <JobCard key={job.id || `${job.company}-${job.title}-${i}`} job={job} onClick={() => setSelectedJob(job)} />
+                <JobCard
+                  key={job.id || `${job.company}-${job.title}-${i}`}
+                  job={job}
+                  onClick={() => setSelectedJob(job)}
+                  onRecon={() => setReconJob(job)}
+                />
               ))}
             </div>
           )}
@@ -439,7 +992,15 @@ export default function JobsPage() {
           {hasMore && <div ref={sentinel} style={{ height: 1 }} />}
 
           {loadingRef.current && jobs.length > 0 && (
-            <div style={{ textAlign: 'center', padding: 40, color: 'var(--t3)', fontFamily: 'var(--font-mono)', fontSize: 11 }}>
+            <div
+              style={{
+                textAlign: "center",
+                padding: 40,
+                color: "var(--t3)",
+                fontFamily: "var(--font-mono)",
+                fontSize: 11,
+              }}
+            >
               Loading more...
             </div>
           )}
@@ -448,7 +1009,21 @@ export default function JobsPage() {
 
       {/* Job detail modal */}
       {selectedJob && (
-        <JobDetailModal job={selectedJob} onClose={() => setSelectedJob(null)} />
+        <JobDetailModal
+          job={selectedJob}
+          onClose={() => setSelectedJob(null)}
+          canApplyWithFoxhound={canApplyWithFoxhound}
+        />
+      )}
+
+      {/* Brief report modal */}
+      {reconJob && reconJob.id && (
+        <ReconCard
+          jobId={reconJob.id}
+          companyName={reconJob.company}
+          jobTitle={reconJob.title}
+          onClose={() => setReconJob(null)}
+        />
       )}
     </>
   );

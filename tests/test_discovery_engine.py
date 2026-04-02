@@ -51,8 +51,8 @@ def test_detect_ats(url, expected):
     assert detect_ats(url) == expected
 
 @pytest.mark.parametrize("ats,expected", [
-    ("greenhouse", True), ("ashby", True),
-    ("lever", False), ("workday", False), ("icims", False), (None, False),
+    ("greenhouse", True), ("ashby", True), ("lever", True),
+    ("workday", False), ("icims", False), (None, False),
 ])
 def test_auto_apply_supported(ats, expected):
     assert is_auto_apply_supported(ats) == expected

@@ -54,6 +54,13 @@ RECURRING_JOBS = [
         "recurrence_interval_seconds": 86400,
         "payload": {},
     },
+    {
+        "job_type": "watchdog_sweep",
+        "origin": "scheduled",
+        "priority": 15,
+        "recurrence_interval_seconds": 86400,
+        "payload": {"batch_size": 50, "max_concurrent": 3, "domain_delay_seconds": 5},
+    },
 ]
 
 

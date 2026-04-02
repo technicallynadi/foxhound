@@ -37,7 +37,9 @@ def foxhound_error_handler(request, exc: FoxhoundError) -> JSONResponse:
         "retryable": exc.retryable,
     }
     if exc.debug_context:
-        body["debug_context"] = exc.debug_context
+        from app.core.config import settings
+        if settings.ENVIRONMENT != "production":
+            body["debug_context"] = exc.debug_context
     if exc.retry_after_seconds is not None:
         body["retry_after_seconds"] = exc.retry_after_seconds
     return JSONResponse(status_code=exc.status_code, content=body)

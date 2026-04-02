@@ -230,6 +230,7 @@ FIELD_PATTERNS: dict[str, list[str]] = {
     "full_name": ["full name", "name", "your name"],
     "email": ["email", "e-mail", "email address"],
     "phone": ["phone", "telephone", "mobile", "cell", "phone number"],
+    "phone_country_code": ["country code", "phone country", "dialing code", "dial code"],
     "linkedin": ["linkedin", "linkedin url", "linkedin profile"],
     "portfolio": ["website", "portfolio", "personal site", "url", "github"],
     "location": ["location", "city", "address", "where are you located"],
@@ -238,8 +239,10 @@ FIELD_PATTERNS: dict[str, list[str]] = {
     "years_experience": ["years of experience", "years experience", "how many years"],
     "salary": ["salary", "compensation", "pay", "expected salary", "desired salary"],
     "start_date": ["start date", "availability", "when can you start", "notice period"],
-    "visa": ["visa", "work authorization", "authorized to work", "sponsorship"],
+    "visa": ["visa", "work authorization", "authorized to work"],
     "education": ["education", "degree", "university", "school"],
+    "work_preference": ["working policy", "work arrangement", "remote or onsite", "hybrid"],
+    "clearance": ["security clearance", "clearance level"],
 }
 
 # Fields that are custom/narrative and may need user input
@@ -255,6 +258,7 @@ SENSITIVE_PATTERNS: list[str] = [
     "criminal", "background check", "felony",
     "disability", "veteran", "gender", "race", "ethnicity",
     "start date", "notice period",
+    "sponsorship", "visa", "right to work", "authorized to work", "eligible to work",
 ]
 
 

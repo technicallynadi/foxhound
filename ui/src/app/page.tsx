@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import type { ReactNode } from "react";
 import LandingNav from "@/components/landing/LandingNav";
 import TypingHeadline from "@/components/landing/TypingHeadline";
 import ScrollReveal from "@/components/landing/ScrollReveal";
@@ -9,6 +10,68 @@ import FormFillDemo from "@/components/landing/FormFillDemo";
 import Ticker from "@/components/landing/Ticker";
 
 export default function LandingPage() {
+  const features: Array<{
+    n: string;
+    t: ReactNode;
+    d: string;
+    data?: string;
+  }> = [
+    {
+      n: "01",
+      t: (
+        <>
+          WORKS WHILE YOU <span style={{ color: "var(--v)" }}>SLEEP</span>
+        </>
+      ),
+      d: "You sleep. Foxhound applies. You wake up to a briefing of everything it did overnight.",
+    },
+    {
+      n: "02",
+      t: (
+        <>
+          LIVE WEB <span style={{ color: "var(--v)" }}>INTELLIGENCE</span>
+        </>
+      ),
+      d: "Foxhound searches the live web \u2014 not just job boards. It verifies postings are real, researches companies and people, and keeps watching after you apply.",
+    },
+    {
+      n: "03",
+      t: (
+        <>
+          ONLY STRONG <span style={{ color: "var(--v)" }}>MATCHES</span>
+        </>
+      ),
+      d: "Foxhound only acts on strong fits. If a role isn\u2019t right, it tells you why and what to add to your resume to get there.",
+    },
+    {
+      n: "04",
+      t: (
+        <>
+          PEOPLE <span style={{ color: "var(--v)" }}>RESEARCH</span>
+        </>
+      ),
+      d: "Foxhound finds the likely hiring manager and nearby contacts, then drafts outreach so every application has a next move.",
+    },
+    {
+      n: "05",
+      t: (
+        <>
+          FOXHOUND <span style={{ color: "var(--v)" }}>BRIEFS</span>
+        </>
+      ),
+      d: "Every strong application becomes a living brief: proof it was submitted, company context, who to contact, a ready-to-send message, and what to do next.",
+    },
+    {
+      n: "06",
+      t: (
+        <>
+          STATUS, FOLLOW-UP, <span style={{ color: "var(--v)" }}>MOMENTUM</span>
+        </>
+      ),
+      d: "After you apply, Foxhound watches the posting, catches ghost jobs, and tells you when to follow up \u2014 so nothing falls through the cracks.",
+    },
+  ];
+
   return (
     <>
       <LandingNav />
@@ -78,7 +141,14 @@ export default function LandingPage() {
         </div>
 
         {/* Headline */}
-        <div style={{ position: "relative", marginBottom: 24, maxWidth: "100%", overflow: "hidden" }}>
+        <div
+          style={{
+            position: "relative",
+            marginBottom: 24,
+            maxWidth: "100%",
+            overflow: "hidden",
+          }}
+        >
           <div
             aria-hidden="true"
             style={{
@@ -120,7 +190,10 @@ export default function LandingPage() {
           >
             STOP APPLYING.
             <br />
-            <span className="hero-sub" style={{ fontSize: "clamp(28px, 8vw, 100px)" }}>
+            <span
+              className="hero-sub"
+              style={{ fontSize: "clamp(28px, 8vw, 100px)" }}
+            >
               START <TypingHeadline />
             </span>
           </h1>
@@ -137,8 +210,9 @@ export default function LandingPage() {
             zIndex: 1,
           }}
         >
-          Your personal career agent. Upload your resume, pick a job, and
-          Foxhound handles the rest.
+          Upload your resume and Foxhound gets to work. It hunts for strong
+          matches, checks the live web, researches the company and best
+          contact, and keeps monitoring every application while you sleep.
         </p>
 
         <ScrollReveal delay={3}>
@@ -181,7 +255,7 @@ export default function LandingPage() {
       <section
         id="how"
         style={{
-          padding: "var(--section-py) var(--section-px)",
+          padding: "40px var(--section-px) 40px",
           maxWidth: 1200,
           margin: "0 auto",
           position: "relative",
@@ -206,9 +280,9 @@ export default function LandingPage() {
               marginTop: 14,
             }}
           >
-            Upload your resume. Foxhound scans each form before filling — every
-            field, every custom question. Fills it. Submits it. Screenshots the
-            confirmation. You never touch a form.
+            Upload your resume and Foxhound starts right away. It finds strong
+            matches, acts on the best ones, researches the people behind each
+            role, and leaves you a clear briefing on what happened next.
           </p>
         </ScrollReveal>
 
@@ -237,8 +311,8 @@ export default function LandingPage() {
       <section
         id="features"
         style={{
-          paddingTop: 100,
-          paddingBottom: "var(--section-py)",
+          paddingTop: 32,
+          paddingBottom: 0,
           paddingLeft: "var(--section-px)",
           paddingRight: "var(--section-px)",
           maxWidth: 1200,
@@ -256,36 +330,7 @@ export default function LandingPage() {
           </div>
         </ScrollReveal>
 
-        {[
-          {
-            n: "01",
-            t: (
-              <>
-                QUALITY OVER <span style={{ color: "var(--v)" }}>VOLUME</span>
-              </>
-            ),
-            d: "70% match floor. Your agent refuses bad matches and tells you why. 30 targeted applications beat 200 spray-and-pray.",
-          },
-          {
-            n: "02",
-            t: (
-              <>
-                FORM <span style={{ color: "var(--v)" }}>INTELLIGENCE</span>
-              </>
-            ),
-            d: "Every form is scanned before filling. You see the fields, the custom questions, and how long it takes — before a single character is typed.",
-            data: "12 fields · 3 custom Qs · ~8 min",
-          },
-          {
-            n: "03",
-            t: (
-              <>
-                FOXHOUND <span style={{ color: "var(--v)" }}>FOLLOWS UP</span>
-              </>
-            ),
-            d: "Day 7: follow-up email to the hiring manager. Drafted, reviewed by you, sent. From applied to interviewed — your agent handles the entire lifecycle.",
-          },
-        ].map((f) => (
+        {features.map((f) => (
           <ScrollReveal key={f.n}>
             <div
               style={{ padding: "64px 0", borderBottom: "1px solid var(--b)" }}
@@ -358,10 +403,776 @@ export default function LandingPage() {
 
       <div className="divider" />
 
+      {/* ═══ REMOTE CONTROL ═══ */}
+      <section
+        className="notif-section"
+        style={{
+          padding: "80px var(--section-px) 80px",
+          maxWidth: 1200,
+          margin: "0 auto",
+          position: "relative",
+          zIndex: 1,
+        }}
+      >
+        <ScrollReveal>
+          <div className="section-label">03 / Foxhound Anywhere</div>
+        </ScrollReveal>
+        <ScrollReveal delay={1}>
+          <div className="section-heading">
+            STAY IN THE LOOP. <span className="dim">STEER IT FROM ANYWHERE.</span>
+          </div>
+        </ScrollReveal>
+        <ScrollReveal delay={2}>
+          <p
+            style={{
+              fontSize: 16,
+              color: "var(--t2)",
+              lineHeight: 1.7,
+              maxWidth: 520,
+              marginTop: 14,
+            }}
+          >
+            Foxhound keeps working in the background and reaches you when
+            something matters. Get updates, approve actions, answer questions,
+            or steer the agent from Slack, Discord, or email without living in
+            the dashboard.
+          </p>
+        </ScrollReveal>
+
+        {/* Channel pills */}
+        <ScrollReveal delay={2}>
+          <div
+            className="notif-channels"
+            style={{
+              display: "flex",
+              gap: 10,
+              marginTop: 28,
+              flexWrap: "wrap",
+            }}
+          >
+            {[
+              {
+                label: "Slack",
+                icon: (
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    aria-hidden="true"
+                  >
+                    <path
+                      d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zm1.271 0a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313z"
+                      fill="currentColor"
+                    />
+                    <path
+                      d="M8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zm0 1.271a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312z"
+                      fill="currentColor"
+                    />
+                    <path
+                      d="M18.956 8.834a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zm-1.27 0a2.528 2.528 0 0 1-2.522 2.521 2.528 2.528 0 0 1-2.52-2.521V2.522A2.528 2.528 0 0 1 15.165 0a2.528 2.528 0 0 1 2.521 2.522v6.312z"
+                      fill="currentColor"
+                    />
+                    <path
+                      d="M15.165 18.956a2.528 2.528 0 0 1 2.521 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zm0-1.27a2.527 2.527 0 0 1-2.52-2.522 2.527 2.527 0 0 1 2.52-2.52h6.313A2.528 2.528 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.521h-6.313z"
+                      fill="currentColor"
+                    />
+                  </svg>
+                ),
+              },
+              {
+                label: "Discord",
+                icon: (
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    aria-hidden="true"
+                  >
+                    <path
+                      d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.086-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.095 2.157 2.42 0 1.332-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.086-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.095 2.157 2.42 0 1.332-.946 2.418-2.157 2.418z"
+                      fill="currentColor"
+                    />
+                  </svg>
+                ),
+              },
+              {
+                label: "Email",
+                icon: (
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <rect x="2" y="4" width="20" height="16" rx="2" />
+                    <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+                  </svg>
+                ),
+              },
+            ].map((ch) => (
+              <div
+                key={ch.label}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "6px 14px",
+                  background: "var(--vf)",
+                  border: "1px solid rgba(139,92,246,0.08)",
+                  borderRadius: 6,
+                  fontFamily: "var(--font-mono)",
+                  fontSize: 11,
+                  color: "var(--vl)",
+                  letterSpacing: "0.06em",
+                  textTransform: "uppercase",
+                }}
+              >
+                {ch.icon}
+                {ch.label}
+              </div>
+            ))}
+          </div>
+        </ScrollReveal>
+
+        {/* Notifications + remote control */}
+        <ScrollReveal delay={3}>
+          <div
+            className="notif-card-grid"
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1.1fr 0.9fr",
+              gap: 24,
+              marginTop: 48,
+            }}
+          >
+            <div
+              style={{
+                display: "grid",
+                gap: 16,
+              }}
+            >
+              {/* Card 1: Application Submitted */}
+              <div
+                className="notif-card"
+                style={{
+                  background: "var(--sf)",
+                  border: "1px solid var(--b)",
+                  borderRadius: 12,
+                  padding: 0,
+                  overflow: "hidden",
+                  position: "relative",
+                }}
+              >
+                <div style={{ padding: "20px 20px 22px" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      marginBottom: 16,
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: 24,
+                          height: 24,
+                          borderRadius: 6,
+                          background: "var(--el)",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontFamily: "var(--font-display)",
+                          fontSize: 11,
+                          fontWeight: 700,
+                          color: "var(--v)",
+                        }}
+                      >
+                        F
+                      </div>
+                      <span
+                        style={{
+                          fontFamily: "var(--font-display)",
+                          fontSize: 13,
+                          fontWeight: 600,
+                          color: "var(--t)",
+                        }}
+                      >
+                        Foxhound
+                      </span>
+                    </div>
+                    <span
+                      style={{
+                        fontFamily: "var(--font-mono)",
+                        fontSize: 10,
+                        color: "var(--t3)",
+                        letterSpacing: "0.04em",
+                      }}
+                    >
+                      2m ago
+                    </span>
+                  </div>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      marginBottom: 8,
+                    }}
+                  >
+                    <span
+                      className="status-dot status-dot-green"
+                      aria-hidden="true"
+                    />
+                    <span
+                      style={{
+                        fontFamily: "var(--font-display)",
+                        fontSize: 14,
+                        fontWeight: 600,
+                        color: "var(--t)",
+                      }}
+                    >
+                      Application Submitted
+                    </span>
+                  </div>
+                  <div
+                    style={{
+                      fontFamily: "var(--font-body)",
+                      fontSize: 13,
+                      color: "var(--t2)",
+                      lineHeight: 1.6,
+                      marginBottom: 14,
+                    }}
+                  >
+                    <strong style={{ color: "var(--t)" }}>Acme Corp</strong>{" "}
+                    &mdash; Senior Software Engineer
+                  </div>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: 12,
+                      flexWrap: "wrap",
+                      paddingTop: 12,
+                      borderTop: "1px solid var(--b)",
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontFamily: "var(--font-mono)",
+                        fontSize: 10,
+                        color: "var(--vl)",
+                        letterSpacing: "0.04em",
+                      }}
+                    >
+                      SUBMITTED
+                    </span>
+                    <span
+                      style={{
+                        fontFamily: "var(--font-mono)",
+                        fontSize: 10,
+                        color: "var(--g)",
+                        letterSpacing: "0.04em",
+                      }}
+                    >
+                      RESUME UPLOADED
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Card 2: Question Needs Answer */}
+              <div
+                className="notif-card"
+                style={{
+                  background: "var(--sf)",
+                  border: "1px solid var(--b)",
+                  borderRadius: 12,
+                  padding: 0,
+                  overflow: "hidden",
+                  position: "relative",
+                }}
+              >
+                <div style={{ padding: "20px 20px 22px" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      marginBottom: 16,
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: 24,
+                          height: 24,
+                          borderRadius: 6,
+                          background: "var(--el)",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontFamily: "var(--font-display)",
+                          fontSize: 11,
+                          fontWeight: 700,
+                          color: "var(--v)",
+                        }}
+                      >
+                        F
+                      </div>
+                      <span
+                        style={{
+                          fontFamily: "var(--font-display)",
+                          fontSize: 13,
+                          fontWeight: 600,
+                          color: "var(--t)",
+                        }}
+                      >
+                        Foxhound
+                      </span>
+                    </div>
+                    <span
+                      style={{
+                        fontFamily: "var(--font-mono)",
+                        fontSize: 10,
+                        color: "var(--t3)",
+                        letterSpacing: "0.04em",
+                      }}
+                    >
+                      18m ago
+                    </span>
+                  </div>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      marginBottom: 8,
+                    }}
+                  >
+                    <span
+                      className="status-dot status-dot-violet"
+                      aria-hidden="true"
+                    />
+                    <span
+                      style={{
+                        fontFamily: "var(--font-display)",
+                        fontSize: 14,
+                        fontWeight: 600,
+                        color: "var(--t)",
+                      }}
+                    >
+                      Question Needs Answer
+                    </span>
+                  </div>
+                  <div
+                    style={{
+                      fontFamily: "var(--font-body)",
+                      fontSize: 13,
+                      color: "var(--t2)",
+                      lineHeight: 1.6,
+                      marginBottom: 14,
+                    }}
+                  >
+                    <strong style={{ color: "var(--t)" }}>Nova Labs</strong>{" "}
+                    &mdash; Staff Frontend Engineer
+                  </div>
+
+                  <div
+                    style={{
+                      fontFamily: "var(--font-mono)",
+                      fontSize: 11,
+                      color: "var(--t2)",
+                      background: "var(--bg)",
+                      border: "1px solid var(--b)",
+                      borderRadius: 6,
+                      padding: "10px 12px",
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    <span style={{ color: "var(--t3)" }}>&ldquo;</span>
+                    Describe a time you improved developer experience at scale.
+                    <span style={{ color: "var(--t3)" }}>&rdquo;</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Card 3: Status Change */}
+              <div
+                className="notif-card"
+                style={{
+                  background: "var(--sf)",
+                  border: "1px solid var(--b)",
+                  borderRadius: 12,
+                  padding: 0,
+                  overflow: "hidden",
+                  position: "relative",
+                }}
+              >
+                <div style={{ padding: "20px 20px 22px" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      marginBottom: 16,
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: 24,
+                          height: 24,
+                          borderRadius: 6,
+                          background: "var(--el)",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontFamily: "var(--font-display)",
+                          fontSize: 11,
+                          fontWeight: 700,
+                          color: "var(--v)",
+                        }}
+                      >
+                        F
+                      </div>
+                      <span
+                        style={{
+                          fontFamily: "var(--font-display)",
+                          fontSize: 13,
+                          fontWeight: 600,
+                          color: "var(--t)",
+                        }}
+                      >
+                        Foxhound
+                      </span>
+                    </div>
+                    <span
+                      style={{
+                        fontFamily: "var(--font-mono)",
+                        fontSize: 10,
+                        color: "var(--t3)",
+                        letterSpacing: "0.04em",
+                      }}
+                    >
+                      1h ago
+                    </span>
+                  </div>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      marginBottom: 8,
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: 6,
+                        height: 6,
+                        borderRadius: "50%",
+                        background: "#FBBF24",
+                        boxShadow: "0 0 6px #FBBF24",
+                        display: "inline-block",
+                        flexShrink: 0,
+                      }}
+                      aria-hidden="true"
+                    />
+                    <span
+                      style={{
+                        fontFamily: "var(--font-display)",
+                        fontSize: 14,
+                        fontWeight: 600,
+                        color: "var(--t)",
+                      }}
+                    >
+                      Posting Closed
+                    </span>
+                  </div>
+                  <div
+                    style={{
+                      fontFamily: "var(--font-body)",
+                      fontSize: 13,
+                      color: "var(--t2)",
+                      lineHeight: 1.6,
+                      marginBottom: 14,
+                    }}
+                  >
+                    <strong style={{ color: "var(--t)" }}>Apex Inc</strong>{" "}
+                    &mdash; Design Engineer
+                  </div>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: 12,
+                      flexWrap: "wrap",
+                      paddingTop: 12,
+                      borderTop: "1px solid var(--b)",
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontFamily: "var(--font-mono)",
+                        fontSize: 10,
+                        color: "var(--t3)",
+                        letterSpacing: "0.04em",
+                      }}
+                    >
+                      APPLIED 3 DAYS AGO
+                    </span>
+                    <span
+                      style={{
+                        fontFamily: "var(--font-mono)",
+                        fontSize: 10,
+                        color: "var(--warning)",
+                        letterSpacing: "0.04em",
+                      }}
+                    >
+                      NO LONGER ACCEPTING
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 12,
+                maxWidth: 560,
+              }}
+            >
+              {/* User message */}
+              <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                <div
+                  style={{
+                    background: "var(--v)",
+                    color: "#fff",
+                    padding: "10px 16px",
+                    borderRadius: "14px 14px 4px 14px",
+                    fontFamily: "var(--font-body)",
+                    fontSize: 14,
+                    lineHeight: 1.5,
+                    maxWidth: "75%",
+                  }}
+                >
+                  Apply to my top match
+                </div>
+              </div>
+
+              {/* Bot response */}
+	              <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                <div
+                  style={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: 8,
+                    background: "var(--el)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontFamily: "var(--font-display)",
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: "var(--v)",
+                    flexShrink: 0,
+                  }}
+                >
+                  F
+                </div>
+                <div
+                  style={{
+                    background: "var(--sf)",
+                    border: "1px solid var(--b)",
+                    padding: "12px 16px",
+                    borderRadius: "4px 14px 14px 14px",
+                    fontFamily: "var(--font-body)",
+                    fontSize: 14,
+                    color: "var(--t2)",
+                    lineHeight: 1.6,
+                    maxWidth: "80%",
+                  }}
+                >
+                  Applying to{" "}
+                  <strong style={{ color: "var(--t)" }}>Stripe</strong> &mdash;
+                  Senior Software Engineer (87% match). I&apos;ll let you know
+                  when it&apos;s done.
+                </div>
+              </div>
+
+              {/* Bot follow-up with card */}
+              <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                <div
+                  style={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: 8,
+                    background: "transparent",
+                    flexShrink: 0,
+                  }}
+                />
+                <div
+                  style={{
+                    background: "var(--sf)",
+                    border: "1px solid var(--b)",
+                    borderRadius: "4px 14px 14px 14px",
+                    padding: "14px 16px",
+                    maxWidth: "80%",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      marginBottom: 10,
+                    }}
+                  >
+                    <span
+                      className="status-dot status-dot-green"
+                      aria-hidden="true"
+                    />
+                    <span
+                      style={{
+                        fontFamily: "var(--font-display)",
+                        fontSize: 13,
+                        fontWeight: 600,
+                        color: "var(--t)",
+                      }}
+                    >
+                      Application Submitted
+                    </span>
+                  </div>
+                  <div
+                    style={{
+                      fontFamily: "var(--font-body)",
+                      fontSize: 13,
+                      color: "var(--t2)",
+                      lineHeight: 1.6,
+                      marginBottom: 10,
+                    }}
+                  >
+                    Application submitted. Resume uploaded. I need your input on{" "}
+                    <strong style={{ color: "var(--t)" }}>2 questions</strong>:
+                  </div>
+                  <div
+                    style={{
+                      fontFamily: "var(--font-mono)",
+                      fontSize: 11,
+                      color: "var(--t2)",
+                      background: "var(--bg)",
+                      border: "1px solid var(--b)",
+                      borderRadius: 6,
+                      padding: "10px 12px",
+                      lineHeight: 1.7,
+                    }}
+                  >
+                    1. Why are you interested in Stripe?
+                    <br />
+                    2. Salary expectations?
+                    <br />
+                    <br />
+                    <span style={{ color: "var(--t3)" }}>
+                      Reply with your answers: 1. [answer] 2. [answer]
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* User reply */}
+              <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                <div
+                  style={{
+                    background: "var(--v)",
+                    color: "#fff",
+                    padding: "10px 16px",
+                    borderRadius: "14px 14px 4px 14px",
+                    fontFamily: "var(--font-body)",
+                    fontSize: 14,
+                    lineHeight: 1.5,
+                    maxWidth: "75%",
+                  }}
+                >
+                  1. Love Stripe&apos;s developer tools &nbsp;2. $180k base
+                </div>
+              </div>
+
+              {/* Bot confirmation */}
+              <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                <div
+                  style={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: 8,
+                    background: "var(--el)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontFamily: "var(--font-display)",
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: "var(--v)",
+                    flexShrink: 0,
+                  }}
+                >
+                  F
+                </div>
+                <div
+                  style={{
+                    background: "var(--sf)",
+                    border: "1px solid var(--b)",
+                    padding: "12px 16px",
+                    borderRadius: "4px 14px 14px 14px",
+                    fontFamily: "var(--font-body)",
+                    fontSize: 14,
+                    color: "var(--t2)",
+                    lineHeight: 1.6,
+                  }}
+                >
+	                  Got it. Answers submitted. Application complete.
+	                </div>
+	              </div>
+	            </div>
+	          </div>
+	        </ScrollReveal>
+	      </section>
+
+      <div className="divider" />
+
       {/* Jobs preview */}
       <section
         style={{
-          padding: "var(--section-py) var(--section-px)",
+          padding: "60px var(--section-px) 40px",
           maxWidth: 1200,
           margin: "0 auto",
           position: "relative",
@@ -370,18 +1181,20 @@ export default function LandingPage() {
       >
         <ScrollReveal>
           <div style={{ padding: "12px" }} className="section-label">
-            03 / Marketplace
+            05 / Opportunity Flow
           </div>
         </ScrollReveal>
         <ScrollReveal delay={1}>
           <div className="section-heading">
-            BROWSE 10,000+ JOBS. <span className="dim">FREE.</span>
+            SEE WHAT FOXHOUND FOUND.{" "}
+            <span className="dim">ACT ONLY WHEN YOU WANT TO.</span>
           </div>
         </ScrollReveal>
         <ScrollReveal delay={2}>
           <p style={{ color: "var(--t2)", marginTop: 12, fontSize: 15 }}>
-            No account needed. See what companies are hiring and what their
-            forms look like.
+            Foxhound surfaces strong matches, explains weak ones, and keeps the
+            pipeline moving in the background. You can review the opportunities
+            yourself or let the agent handle the heavy lifting.
           </p>
         </ScrollReveal>
 
@@ -402,19 +1215,19 @@ export default function LandingPage() {
                 s: "Ashby · Remote",
                 t: "Senior ML Engineer",
                 c: "AI Research Co.",
-                i: "12 fields · 3 custom Qs · ~8 min",
+                i: "94% match · ready to apply",
               },
               {
                 s: "Greenhouse · San Francisco",
                 t: "Staff Backend Engineer",
                 c: "Payments Co.",
-                i: "8 fields · 2 custom Qs · ~5 min",
+                i: "91% match · high-priority fit",
               },
               {
                 s: "Lever · Remote",
                 t: "Product Designer",
                 c: "Dev Tools Co.",
-                i: "10 fields · 1 custom Q · ~6 min",
+                i: "87% match · review and queue",
               },
             ].map((j) => (
               <div
@@ -497,18 +1310,16 @@ export default function LandingPage() {
           }}
         >
           <span aria-hidden="true">🔒</span> Your data is encrypted. Foxhound
-          never applies without your approval. Screenshot proof for every
-          submission. Cancel anytime.
+          follows your autonomy settings for every application. Confirmation
+          receipt for every submission.
         </div>
       </ScrollReveal>
-
-      <div className="divider" />
 
       {/* Bottom CTA */}
       <section
         style={{
           textAlign: "center",
-          padding: "var(--section-py) var(--section-px)",
+          padding: "24px var(--section-px) var(--section-py)",
           position: "relative",
           zIndex: 1,
         }}
@@ -552,7 +1363,7 @@ export default function LandingPage() {
                 letterSpacing: "-0.02em",
               }}
             >
-              START INTERVIEWING.
+              START WAKING UP TO PROGRESS.
             </span>
           </h2>
         </ScrollReveal>

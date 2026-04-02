@@ -24,6 +24,9 @@ async def lifespan(app: FastAPI):
     await init_db()
     logger.info("Lifespan startup completed in %.3fs", time.perf_counter() - startup_t0)
 
+    # Register event handlers (import triggers @on_event decorators)
+    import app.services.events.handlers  # noqa: F401
+
     # Register recurring scheduled jobs
     from app.services.scheduling.scheduler import ensure_recurring_jobs
     await ensure_recurring_jobs()
@@ -79,6 +82,23 @@ for module_path in (
     "app.api.routes.profile",
     "app.api.routes.jobs",
     "app.api.routes.applications",
+    # --- Foxhound Recon ---
+    "app.api.routes.recon",
+    # --- Foxhound Pathfinder ---
+    "app.api.routes.pathfinder",
+    # --- Foxhound Watchdog ---
+    "app.api.routes.watchdog",
+    # --- Foxhound Dossier ---
+    "app.api.routes.dossier",
+    # --- Ghost Job Detector ---
+    "app.api.routes.ghost_check",
+    # --- Intelligence Hub ---
+    "app.api.routes.intelligence",
+    # --- Slack Bot ---
+    "app.api.routes.slack_bot",
+    # --- Activity Feed + Brief ---
+    "app.api.routes.activity",
+    "app.api.routes.brief",
     # --- FoxhoundAgent ---
     "app.api.routes.agent",
     "app.api.routes.agent_webhooks",

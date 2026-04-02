@@ -21,7 +21,7 @@ async def test_schedule_followups_creates_three_jobs(db, user_id):
     app_id = str(uuid4())
     job_id = str(uuid4())
 
-    jobs = await schedule_followups(db, user_id, app_id, job_id)
+    jobs = await schedule_followups(user_id, app_id, job_id, db=db)
     await db.commit()
 
     assert len(jobs) == 3
@@ -40,7 +40,7 @@ async def test_schedule_followups_creates_three_jobs(db, user_id):
 @pytest.mark.asyncio
 async def test_schedule_followups_correct_timing(db, user_id):
     now = datetime.now(timezone.utc)
-    jobs = await schedule_followups(db, user_id, str(uuid4()), str(uuid4()))
+    jobs = await schedule_followups(user_id, str(uuid4()), str(uuid4()), db=db)
     await db.commit()
 
     for j in jobs:

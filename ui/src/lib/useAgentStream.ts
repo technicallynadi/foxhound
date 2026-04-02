@@ -133,6 +133,7 @@ export function useAgentStream(userId: string) {
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
+        let eventType = '';
 
         while (true) {
           const { done, value } = await reader.read();
@@ -142,7 +143,6 @@ export function useAgentStream(userId: string) {
           const lines = buffer.split('\n');
           buffer = lines.pop() || '';
 
-          let eventType = '';
           for (const line of lines) {
             if (line.startsWith('event: ')) {
               eventType = line.slice(7).trim();
@@ -150,10 +150,12 @@ export function useAgentStream(userId: string) {
               const dataStr = line.slice(6);
               try {
                 const data = JSON.parse(dataStr);
+                console.log('[SSE] event:', eventType, 'keys:', Object.keys(data));
                 handleSSEEvent(eventType, data, assistantId);
-              } catch {
-                // Skip malformed JSON
+              } catch (e) {
+                console.warn('[SSE] JSON parse failed for event:', eventType, 'data:', dataStr.slice(0, 100), e);
               }
+              eventType = '';
             }
           }
         }
@@ -202,10 +204,14 @@ export function useAgentStream(userId: string) {
           message: (data.message || '') as string,
         };
         setActiveToolResult(result);
+        console.log('[SSE] tool_result:', result.toolName, 'has pending_questions:', !!(result.data as Record<string, unknown>).pending_questions, 'keys:', Object.keys(result.data));
 
-        // Append tool result as a separate message for rendering
+        // Append tool result as a separate message, and clear toolName from the
+        // assistant placeholder so it renders as plain text (not a broken card)
         setMessages((prev) => [
-          ...prev,
+          ...prev.map((m) =>
+            m.id === assistantId ? { ...m, toolName: undefined } : m,
+          ),
           {
             id: nextId(),
             role: 'assistant',

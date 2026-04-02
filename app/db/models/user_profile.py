@@ -41,7 +41,19 @@ class UserProfile(Base):
     seniority_level: Mapped[str | None] = mapped_column(String, nullable=True)
     years_experience: Mapped[int | None] = mapped_column(Integer, nullable=True)
     has_clearance: Mapped[bool] = mapped_column(Boolean, default=False)
-    visa_status: Mapped[str | None] = mapped_column(String, nullable=True)
+    clearance_type: Mapped[str | None] = mapped_column(String, nullable=True)
+    visa_status: Mapped[str | None] = mapped_column(String, nullable=True)  # citizen, green_card, h1b, opt, need_sponsorship
+    salary_expectation: Mapped[str | None] = mapped_column(String, nullable=True)
+    notice_period: Mapped[str | None] = mapped_column(String, nullable=True)
+    work_preference: Mapped[str | None] = mapped_column(String, nullable=True)  # remote, hybrid, office
+    willing_to_relocate: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    # --- EEO demographics (auto-fill on applications) ---
+    gender: Mapped[str | None] = mapped_column(String, nullable=True)  # male, female, non_binary, decline
+    race: Mapped[str | None] = mapped_column(String, nullable=True)  # white, black, asian, native, pacific, two_or_more, decline
+    hispanic_latino: Mapped[bool | None] = mapped_column(Boolean, nullable=True)  # True=yes, False=no, None=decline
+    veteran_status: Mapped[str | None] = mapped_column(String, nullable=True)  # not_veteran, veteran, decline
+    disability_status: Mapped[str | None] = mapped_column(String, nullable=True)  # no, yes, decline
+    how_did_you_hear: Mapped[str | None] = mapped_column(String, nullable=True)  # linkedin, job_board, referral, etc.
 
     # --- Resume file reference ---
     resume_storage_path: Mapped[str | None] = mapped_column(String, nullable=True)
@@ -50,7 +62,7 @@ class UserProfile(Base):
 
     # --- Settings ---
     autopilot_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
-    autopilot_threshold: Mapped[int] = mapped_column(Integer, default=75)
+    autopilot_threshold: Mapped[int] = mapped_column(Integer, default=70)
     daily_apply_limit: Mapped[int] = mapped_column(Integer, default=10)
     blacklisted_companies_json: Mapped[str] = mapped_column(Text, default="[]")
     whitelisted_companies_json: Mapped[str] = mapped_column(Text, default="[]")
@@ -68,6 +80,9 @@ class UserProfile(Base):
     notify_channels_json: Mapped[str] = mapped_column(Text, default='["email"]')
     notify_on_apply: Mapped[bool] = mapped_column(Boolean, default=True)
     notify_daily_digest: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    # --- Slack integration ---
+    slack_user_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
 
     archetype: Mapped[str | None] = mapped_column(String, nullable=True)
 

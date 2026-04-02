@@ -81,14 +81,16 @@ async def test_update_profile(db, sample_profile):
 
 
 @pytest.mark.asyncio
-async def test_update_profile_not_found(user_id):
+async def test_update_profile_auto_creates(user_id):
+    """Updating a nonexistent profile now auto-creates it (bootstrap)."""
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.put(
             "/api/v1/profile",
             json={"first_name": "Ghost"},
         )
-    assert resp.status_code == 404
+    assert resp.status_code == 200
+    assert resp.json()["first_name"] == "Ghost"
 
 
 # ---------------------------------------------------------------------------

@@ -186,7 +186,120 @@ def get_dropdown_selection(field_label: str, options: list[str], profile_data: d
     """
     label_lower = field_label.lower()
 
-    # EEO/demographic — always decline
+    # EEO/demographic — use profile values if set, otherwise decline
+    # Gender
+    if "gender" in label_lower:
+        if profile_data and profile_data.get("gender"):
+            gender_map = {
+                "male": ["male", "man"],
+                "female": ["female", "woman"],
+                "non_binary": ["non-binary", "non binary", "nonbinary"],
+                "decline": ["decline", "prefer not"],
+            }
+            user_gender = profile_data["gender"]
+            for opt in options:
+                patterns = gender_map.get(user_gender, [])
+                if any(p in opt.lower() for p in patterns):
+                    return opt
+        # Default: decline
+        for opt in options:
+            if "decline" in opt.lower() or "prefer not" in opt.lower():
+                return opt
+
+    # Hispanic/Latino
+    if "hispanic" in label_lower or "latino" in label_lower or "latina" in label_lower:
+        if profile_data and profile_data.get("hispanic_latino") is not None:
+            target = "yes" if profile_data["hispanic_latino"] else "no"
+            for opt in options:
+                if target in opt.lower():
+                    return opt
+        # Default: decline
+        for opt in options:
+            if "decline" in opt.lower() or "prefer not" in opt.lower():
+                return opt
+        for opt in options:
+            if "no" in opt.lower():
+                return opt
+
+    # Race
+    if "race" in label_lower or "ethnicity" in label_lower:
+        if profile_data and profile_data.get("race"):
+            race_map = {
+                "white": ["white", "caucasian"],
+                "black": ["black", "african american"],
+                "asian": ["asian"],
+                "native": ["american indian", "native american", "alaska native"],
+                "pacific": ["pacific islander", "native hawaiian"],
+                "two_or_more": ["two or more", "multiracial"],
+                "decline": ["decline", "prefer not"],
+            }
+            user_race = profile_data["race"]
+            for opt in options:
+                patterns = race_map.get(user_race, [])
+                if any(p in opt.lower() for p in patterns):
+                    return opt
+        # Default: decline
+        for opt in options:
+            if "decline" in opt.lower() or "prefer not" in opt.lower():
+                return opt
+
+    # Veteran status
+    if "veteran" in label_lower:
+        if profile_data and profile_data.get("veteran_status"):
+            vet_map = {
+                "not_veteran": ["not a protected veteran", "i am not", "no"],
+                "veteran": ["i am a protected veteran", "yes"],
+                "decline": ["decline", "prefer not"],
+            }
+            user_vet = profile_data["veteran_status"]
+            for opt in options:
+                patterns = vet_map.get(user_vet, [])
+                if any(p in opt.lower() for p in patterns):
+                    return opt
+        for opt in options:
+            if "not a protected" in opt.lower() or "decline" in opt.lower():
+                return opt
+
+    # Disability status
+    if "disability" in label_lower:
+        if profile_data and profile_data.get("disability_status"):
+            dis_map = {
+                "no": ["no, i do not", "no"],
+                "yes": ["yes, i have", "yes"],
+                "decline": ["decline", "prefer not"],
+            }
+            user_dis = profile_data["disability_status"]
+            for opt in options:
+                patterns = dis_map.get(user_dis, [])
+                if any(p in opt.lower() for p in patterns):
+                    return opt
+        for opt in options:
+            if "no, i do not" in opt.lower() or "decline" in opt.lower():
+                return opt
+
+    # How did you hear
+    if "how did you" in label_lower or "hear about" in label_lower or "source" in label_lower:
+        if profile_data and profile_data.get("how_did_you_hear"):
+            hear_map = {
+                "linkedin": ["linkedin"],
+                "job_board": ["job board"],
+                "referral": ["referral", "friend"],
+                "company_website": ["company website", "website"],
+                "social_media": ["social media", "twitter", "facebook"],
+                "other": ["other"],
+            }
+            user_hear = profile_data["how_did_you_hear"]
+            for opt in options:
+                patterns = hear_map.get(user_hear, [])
+                if any(p in opt.lower() for p in patterns):
+                    return opt
+        for opt in options:
+            if "job board" in opt.lower() or "other" in opt.lower():
+                return opt
+        if options:
+            return options[-1]
+
+    # Other EEO — always decline
     for key, default_value in DEFAULT_DROPDOWN_SELECTIONS.items():
         if key in label_lower:
             # Find the closest match in available options
@@ -199,14 +312,8 @@ def get_dropdown_selection(field_label: str, options: list[str], profile_data: d
                     if "prefer not" in opt.lower() or "not to" in opt.lower():
                         return opt
 
-    # Work authorization
-    if any(kw in label_lower for kw in ["authorized", "authorization", "legally"]):
-        if profile_data and profile_data.get("visa_status") in ("citizen", "green_card"):
-            for opt in options:
-                if "yes" in opt.lower():
-                    return opt
 
-    # Sponsorship
+    # Sponsorship — only auto-fill if visa_status is explicitly set
     if "sponsor" in label_lower:
         if profile_data and profile_data.get("visa_status") in ("citizen", "green_card"):
             for opt in options:
@@ -215,6 +322,18 @@ def get_dropdown_selection(field_label: str, options: list[str], profile_data: d
         elif profile_data and profile_data.get("visa_status") in ("h1b", "opt", "need_sponsorship"):
             for opt in options:
                 if "yes" in opt.lower():
+                    return opt
+        # If unset, return None — will be routed to user as a question
+
+    # Work authorization — only auto-fill if visa_status is explicitly set
+    if any(kw in label_lower for kw in ["authorized", "authorization", "legally", "right to work", "eligible to work"]):
+        if profile_data and profile_data.get("visa_status") in ("citizen", "green_card"):
+            for opt in options:
+                if "yes" in opt.lower():
+                    return opt
+        elif profile_data and profile_data.get("visa_status") in ("h1b", "opt", "need_sponsorship"):
+            for opt in options:
+                if "no" in opt.lower():
                     return opt
 
     # How did you hear — default to Job Board

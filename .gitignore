@@ -73,3 +73,8 @@ scripts/
 
 # Screenshots
 Screenshot*
+
+# Demo data — resumes and personal docs
+demo/
+*.pdf
+*.resume

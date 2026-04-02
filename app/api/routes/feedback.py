@@ -1,8 +1,10 @@
 import json
 import logging
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
+
+from app.services.auth_service import get_current_user
 
 router = APIRouter(prefix="/v1/feedback", tags=["feedback"])
 logger = logging.getLogger(__name__)
@@ -29,7 +31,7 @@ class BatchEventRequest(BaseModel):
 
 
 @router.post("/events")
-async def record_events(batch: BatchEventRequest):
+async def record_events(batch: BatchEventRequest, user: dict = Depends(get_current_user)):
     """Batch-record interaction events for ML feedback.
 
     Frontend sends these in batches every 5 seconds or on page unload
@@ -58,6 +60,6 @@ async def record_events(batch: BatchEventRequest):
             await session.commit()
     except Exception as e:
         logger.warning("Failed to record feedback events: %s", e)
-        return {"recorded": 0, "error": str(e)}
+        return {"recorded": 0, "error": "Failed to record events. Please try again."}
 
     return {"recorded": len(valid_events)}

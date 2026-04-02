@@ -1355,6 +1355,12 @@ async def claim_next_job(
                 )
             )
             .where(FoxhoundJob.status != "canceled")
+            .where(
+                or_(
+                    FoxhoundJob.next_scheduled_at.is_(None),
+                    FoxhoundJob.next_scheduled_at <= now,
+                )
+            )
             .order_by(FoxhoundJob.priority.desc(), FoxhoundJob.created_at.asc())
             .limit(1)
         )
@@ -1384,6 +1390,7 @@ async def _execute_job(job_id: str, run_id: str, job_type: str, payload: dict) -
     foxhound_job_types = {
         "job_discovery", "autopilot_apply", "single_apply",
         "daily_digest", "stale_cleanup", "followup_check",
+        "watchdog_sweep",
     }
     if normalized_job_type in foxhound_job_types:
         from app.services.scheduling.executors import (
@@ -1393,6 +1400,7 @@ async def _execute_job(job_id: str, run_id: str, job_type: str, payload: dict) -
             execute_job_discovery,
             execute_single_apply,
             execute_stale_cleanup,
+            execute_watchdog_sweep,
         )
         from app.services.scheduling.scheduler import reschedule_completed_job
 
@@ -1408,6 +1416,7 @@ async def _execute_job(job_id: str, run_id: str, job_type: str, payload: dict) -
             "daily_digest": execute_daily_digest,
             "stale_cleanup": execute_stale_cleanup,
             "followup_check": execute_followup,
+            "watchdog_sweep": execute_watchdog_sweep,
         }
         await executor_map[normalized_job_type](job)
 

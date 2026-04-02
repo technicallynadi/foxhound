@@ -16,6 +16,10 @@ from app.db.models.application_question import ApplicationQuestion
 from app.db.models.job_match import JobMatch
 from app.db.models.job_listing import JobListing
 from app.db.models.user_profile import UserProfile
+from app.services.application_guidance import (
+    build_application_context,
+    build_recommended_next_action,
+)
 from app.services.agent.registry import tool
 from app.services.agent.utils.profile_filler import update_answer_bank
 
@@ -26,7 +30,8 @@ logger = logging.getLogger(__name__)
     name="apply_to_job",
     description=(
         "Start an application to a specific job. Use this when the user wants "
-        "to apply. Specify by job_id, or by company name and/or title to fuzzy match. "
+        "to apply. Specify by job_id, company name/title to fuzzy match, or "
+        "a direct job URL (e.g. 'apply to https://jobs.ashbyhq.com/...'). "
         "Returns immediately — the form scan runs in the background. "
         "If the form has questions, they'll be included in the result."
     ),
@@ -36,6 +41,7 @@ logger = logging.getLogger(__name__)
             "job_id": {"type": "string", "description": "Exact job ID if known"},
             "company_name": {"type": "string", "description": "Company name (fuzzy match)"},
             "job_title": {"type": "string", "description": "Job title (fuzzy match)"},
+            "job_url": {"type": "string", "description": "Direct job application URL"},
         },
     },
     permissions=["apply"],
@@ -49,6 +55,9 @@ async def apply_to_job(db: AsyncSession, user_id: str, params: dict) -> dict:
         return {"error": "job_not_found", "message": "Could not find that job.",
                 "suggestion": "Try searching first with search_jobs."}
 
+    # Skip quality floor for direct URL applications (no match data)
+    is_url_apply = bool(params.get("job_url"))
+
     # Quality floor: check match score before applying
     match_result = await db.execute(
         select(JobMatch).where(JobMatch.user_id == user_id, JobMatch.job_id == job.id)
@@ -56,12 +65,25 @@ async def apply_to_job(db: AsyncSession, user_id: str, params: dict) -> dict:
     match = match_result.scalar_one_or_none()
     match_score = match.match_score if match else None
 
-    if match_score is not None and match_score < 40:
-        # Get better alternatives
+    profile_result = await db.execute(
+        select(UserProfile).where(UserProfile.user_id == user_id)
+    )
+    profile = profile_result.scalar_one_or_none()
+    if not profile or not profile.resume_storage_path:
+        return {
+            "error": "resume_required",
+            "message": (
+                "Foxhound can find jobs for you now, but it can't apply until you upload a resume."
+            ),
+            "suggestion": "Upload a resume in onboarding or profile, then try again.",
+        }
+
+    if not is_url_apply and match_score is not None and match_score < 55:
+        # Below 55%: skip with gap analysis + suggest alternatives
         alt_result = await db.execute(
             select(JobMatch, JobListing)
             .join(JobListing, JobMatch.job_id == JobListing.id)
-            .where(JobMatch.user_id == user_id, JobMatch.match_score >= 60, JobMatch.disqualified == False)
+            .where(JobMatch.user_id == user_id, JobMatch.match_score >= 70, JobMatch.disqualified == False)
             .order_by(JobMatch.match_score.desc())
             .limit(3)
         )
@@ -69,13 +91,18 @@ async def apply_to_job(db: AsyncSession, user_id: str, params: dict) -> dict:
             {"title": j.title, "company": j.company, "match_score": m.match_score}
             for m, j in alt_result.all()
         ]
+
+        # Gap analysis: compare user skills vs job requirements
+        gap_analysis = await _analyze_skill_gaps(db, user_id, job)
+
         return {
             "error": "below_quality_floor",
             "match_score": match_score,
             "message": (
                 f"{job.company} — {job.title} is a {match_score}% match. "
-                f"Applying to weak matches hurts your callback rate. "
+                f"Below the 55% floor — applying to weak matches hurts your callback rate."
             ),
+            "gap_analysis": gap_analysis,
             "alternatives": alternatives,
             "suggestion": "Here are stronger matches instead." if alternatives else "Try searching for better-fitting roles.",
             "override_available": True,
@@ -112,6 +139,8 @@ async def apply_to_job(db: AsyncSession, user_id: str, params: dict) -> dict:
         result["message"] = f"Applied to {job.company} — {job.title}. Application submitted."
         if application.tinyfish_streaming_url:
             result["streaming_url"] = application.tinyfish_streaming_url
+        if application.pre_submit_screenshot_path:
+            result["pre_submit_screenshot"] = application.pre_submit_screenshot_path
         if application.screenshot_storage_path:
             result["screenshot"] = application.screenshot_storage_path
     elif application.status == "failed":
@@ -132,6 +161,10 @@ async def apply_to_job(db: AsyncSession, user_id: str, params: dict) -> dict:
     auto_only = [a for a in auto_filled if not a.get("needs_approval")]
     if auto_only:
         result["auto_filled"] = [{"field": a["question"], "value": a["answer"][:50]} for a in auto_only]
+
+    context = build_application_context(application, job)
+    result["application_context"] = context
+    result["recommended_next_action"] = build_recommended_next_action(context)
 
     return result
 
@@ -279,6 +312,8 @@ async def answer_application_questions(db: AsyncSession, user_id: str, params: d
             }
             if result_app.tinyfish_streaming_url:
                 resp["streaming_url"] = result_app.tinyfish_streaming_url
+            if result_app.pre_submit_screenshot_path:
+                resp["pre_submit_screenshot"] = result_app.pre_submit_screenshot_path
             if result_app.screenshot_storage_path:
                 resp["screenshot"] = result_app.screenshot_storage_path
             return resp
@@ -383,11 +418,16 @@ async def check_application_status(db: AsyncSession, user_id: str, params: dict)
         data["submitted_at"] = app.submitted_at.isoformat()
     if app.error_type:
         data["error"] = app.error_type
+    if app.pre_submit_screenshot_path:
+        data["pre_submit_screenshot"] = app.pre_submit_screenshot_path
     if app.screenshot_storage_path:
-        data["has_screenshot"] = True
+        data["screenshot"] = app.screenshot_storage_path
 
     company_name = job.company if job else "this company"
     data["message"] = f"{company_name} — {data.get('title', '')}: {app.status}"
+    context = build_application_context(app, job)
+    data["application_context"] = context
+    data["recommended_next_action"] = build_recommended_next_action(context)
 
     return data
 
@@ -398,13 +438,48 @@ async def check_application_status(db: AsyncSession, user_id: str, params: dict)
 
 
 async def _resolve_job(db: AsyncSession, params: dict) -> JobListing | None:
-    """Resolve a job from params (ID or fuzzy company+title match)."""
+    """Resolve a job from params (ID, fuzzy company+title match, or URL).
+
+    If a job_url is provided and not in the DB, creates a temporary JobListing
+    so the apply flow can proceed with any URL the user provides.
+    """
     job_id = params.get("job_id")
+    job_url = params.get("job_url", "").strip()
     company = params.get("company_name", "").lower()
     title = params.get("job_title", "").lower()
 
     if job_id:
         return await db.get(JobListing, job_id)
+
+    # URL-based lookup: check if we have it, otherwise create a temp listing
+    if job_url:
+        result = await db.execute(
+            select(JobListing).where(JobListing.apply_url == job_url)
+        )
+        existing = result.scalar_one_or_none()
+        if existing:
+            return existing
+
+        # Create a temporary job listing for this URL
+        from uuid import uuid4
+        from app.services.discovery.ats_detector import detect_ats
+        ats = detect_ats(job_url) or "unknown"
+        # Extract company name from URL
+        url_company = _company_from_url(job_url)
+        job = JobListing(
+            id=str(uuid4()),
+            title=title or "Job Application",
+            company=url_company or company or "Unknown",
+            apply_url=job_url,
+            source_url=job_url,
+            ats_type=ats,
+            status="active",
+            auto_apply_supported=True,
+        )
+        db.add(job)
+        await db.flush()
+        logger.info("Created temp job listing for URL: %s (%s)", job_url, url_company)
+        return job
 
     if not company and not title:
         return None
@@ -429,6 +504,71 @@ async def _resolve_job(db: AsyncSession, params: dict) -> JobListing | None:
             best_job = job
 
     return best_job
+
+
+def _company_from_url(url: str) -> str:
+    """Extract a company name from a job URL."""
+    import re
+    # Greenhouse: job-boards.greenhouse.io/COMPANY/...
+    m = re.search(r'greenhouse\.io/([^/]+)', url)
+    if m:
+        return m.group(1).replace('-', ' ').title()
+    # Ashby: jobs.ashbyhq.com/COMPANY/...
+    m = re.search(r'ashbyhq\.com/([^/]+)', url)
+    if m:
+        return m.group(1).replace('-', ' ').title()
+    # Lever: jobs.lever.co/COMPANY/...
+    m = re.search(r'lever\.co/([^/]+)', url)
+    if m:
+        return m.group(1).replace('-', ' ').title()
+    return ""
+
+
+async def _analyze_skill_gaps(db: AsyncSession, user_id: str, job: JobListing) -> dict:
+    """Analyze the gap between user skills and job requirements."""
+    result = await db.execute(
+        select(UserProfile).where(UserProfile.user_id == user_id)
+    )
+    profile = result.scalar_one_or_none()
+    if not profile:
+        return {"summary": "Set up your profile to see skill gap analysis."}
+
+    user_skills = set(s.lower() for s in json.loads(profile.skills_json or "[]"))
+    required = set(s.lower() for s in json.loads(job.required_skills_json or "[]"))
+    preferred = set(s.lower() for s in json.loads(job.preferred_skills_json or "[]"))
+
+    missing_required = sorted(required - user_skills)
+    missing_preferred = sorted(preferred - user_skills)
+    matching = sorted(required & user_skills)
+
+    gap: dict = {
+        "matching_skills": matching[:10],
+        "missing_required": missing_required[:10],
+        "missing_preferred": missing_preferred[:5],
+    }
+
+    # Build coaching message
+    parts = []
+    if missing_required:
+        parts.append(f"Missing required skills: {', '.join(missing_required[:5])}")
+    if missing_preferred:
+        parts.append(f"Missing preferred skills: {', '.join(missing_preferred[:3])}")
+    if matching:
+        parts.append(f"You match on: {', '.join(matching[:5])}")
+
+    if missing_required:
+        parts.append(
+            "To become qualified: add these skills to your resume if you have them, "
+            "or consider projects/courses to build them."
+        )
+    elif not missing_required and missing_preferred:
+        parts.append(
+            "You meet the requirements but are missing preferred qualifications. "
+            "This is a stretch role — consider applying if the company interests you."
+        )
+
+    gap["summary"] = " ".join(parts) if parts else "Could not determine specific skill gaps."
+    return gap
 
 
 async def _load_pending_questions(db: AsyncSession, application_id: str) -> list[dict]:
