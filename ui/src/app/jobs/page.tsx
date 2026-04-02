@@ -491,7 +491,7 @@ function JobDetailModal({ job, onClose, canApplyWithFoxhound }: { job: Job; onCl
           }}
         />
 
-        {/* CTA — Beta waitlist */}
+        {/* CTA — Early access waitlist */}
         <div style={{ marginTop: 24, textAlign: "center" }}>
           <button
             onClick={handleApplyWithFoxhound}

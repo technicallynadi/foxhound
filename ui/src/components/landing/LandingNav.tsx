@@ -38,7 +38,7 @@ export default function LandingNav() {
       </div>
 
       <Link href="/login" className="btn-violet nav-cta-desktop">
-        Join Beta →
+        Join Early Access →
       </Link>
 
       <button
@@ -63,7 +63,7 @@ export default function LandingNav() {
           <Link href="/#how" onClick={() => setMenuOpen(false)} style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--t2)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>How it works</Link>
           <Link href="/#features" onClick={() => setMenuOpen(false)} style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--t2)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Features</Link>
           <Link href="/jobs" onClick={() => setMenuOpen(false)} style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--t2)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Jobs</Link>
-          <Link href="/login" onClick={() => setMenuOpen(false)} className="btn-violet" style={{ textAlign: 'center', marginTop: 8 }}>Join Beta →</Link>
+          <Link href="/login" onClick={() => setMenuOpen(false)} className="btn-violet" style={{ textAlign: 'center', marginTop: 8 }}>Join Early Access →</Link>
         </div>
       )}
     </nav>
