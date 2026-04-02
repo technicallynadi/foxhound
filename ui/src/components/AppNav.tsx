@@ -105,7 +105,7 @@ export default function AppNav() {
         ))}
       </div>
 
-      {/* Right side: avatar when signed in, "Join Beta" when not */}
+      {/* Right side: avatar when signed in, "Join Early Access" when not */}
       {isSignedIn ? (
         <div className="nav-cta-desktop" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <Link href="/profile" style={{
@@ -146,7 +146,7 @@ export default function AppNav() {
           </button>
         </div>
       ) : (
-        <Link href="/login" className="btn-violet nav-cta-desktop">Join Beta</Link>
+        <Link href="/login" className="btn-violet nav-cta-desktop">Join Early Access</Link>
       )}
 
       <button
@@ -199,7 +199,7 @@ export default function AppNav() {
               </button>
             </>
           ) : (
-            <Link href="/login" onClick={() => setMenuOpen(false)} className="btn-violet" style={{ textAlign: 'center', marginTop: 8 }}>Join Beta</Link>
+            <Link href="/login" onClick={() => setMenuOpen(false)} className="btn-violet" style={{ textAlign: 'center', marginTop: 8 }}>Join Early Access</Link>
           )}
         </div>
       )}

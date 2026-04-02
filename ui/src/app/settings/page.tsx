@@ -715,7 +715,7 @@ export default function SettingsPage() {
             <div style={{ padding: '16px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--b)' }}>
               <div>
                 <div style={{ fontSize: 14, fontWeight: 500 }}>Plan</div>
-                <div style={{ fontSize: 13, color: 'var(--t3)', marginTop: 2 }}>Beta — Free</div>
+                <div style={{ fontSize: 13, color: 'var(--t3)', marginTop: 2 }}>Early Access — Free</div>
               </div>
               <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--vl)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
                 Active

@@ -226,7 +226,7 @@ export default function LandingPage() {
             }}
           >
             <Link href="/login" className="btn-solid">
-              Join Beta →
+              Join Early Access →
             </Link>
             <Link href="/jobs" className="btn-ghost">
               Browse Jobs
@@ -245,7 +245,7 @@ export default function LandingPage() {
             textTransform: "uppercase",
           }}
         >
-          V.01 / Beta
+          V.01 / Early Access
         </div>
       </section>
 
@@ -1378,7 +1378,7 @@ export default function LandingPage() {
             }}
           >
             <Link href="/login" className="btn-solid">
-              Join Beta →
+              Join Early Access →
             </Link>
             <Link href="/jobs" className="btn-ghost">
               Browse Jobs
