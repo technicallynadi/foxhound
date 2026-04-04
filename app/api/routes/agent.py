@@ -34,7 +34,6 @@ class AgentRequest(BaseModel):
     message: str
     session_id: str | None = None
     channel: str = "web"
-    user_id: str | None = None  # Ignored — user_id comes from JWT
 
 
 # ---------------------------------------------------------------------------

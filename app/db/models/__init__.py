@@ -14,6 +14,7 @@ from app.db.models.job_match import JobMatch
 from app.db.models.notification_delivery import NotificationDelivery
 from app.db.models.notification_destination import NotificationDestination
 from app.db.models.recon_dossier import ReconDossier
+from app.db.models.tinyfish_cache import TinyFishBriefCache
 from app.db.models.tinyfish_run import TinyFishRun
 from app.db.models.user_profile import UserProfile
 from app.db.models.waitlist_entry import WaitlistEntry
@@ -36,6 +37,7 @@ __all__ = [
     "NotificationDelivery",
     "NotificationDestination",
     "ReconDossier",
+    "TinyFishBriefCache",
     "TinyFishRun",
     "UserProfile",
     "WaitlistEntry",
