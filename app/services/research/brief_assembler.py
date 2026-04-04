@@ -63,15 +63,21 @@ async def assemble_brief(
 
             brief.watchdog_status = "active"
 
+            # Always touch updated_at so the stale check in the brief route works
+            from datetime import datetime, timezone
+            brief.updated_at = datetime.now(timezone.utc)
+
             # Generate recommended next action
             brief.recommended_next_action = serialize_recommended_next_action(
                 _generate_recommendation(data)
             )
 
-            # Determine completeness
-            sections = [brief.company_brief_json, brief.pathfinder_json]
-            filled = sum(1 for s in sections if s)
-            brief.status = "ready" if filled >= 2 else "partial" if filled >= 1 else "assembling"
+            # Determine completeness — company_brief + pathfinder are core,
+            # network_map is a bonus (LinkedIn search often fails)
+            core = [brief.company_brief_json, brief.pathfinder_json]
+            core_filled = sum(1 for s in core if s)
+            all_filled = core_filled + (1 if brief.network_map_json else 0)
+            brief.status = "ready" if core_filled >= 2 else "partial" if all_filled >= 1 else "assembling"
 
             await db.commit()
             logger.info(
