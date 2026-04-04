@@ -105,7 +105,8 @@ class ReconEngine:
                 "salary_max": posting_data.get("salary_max"),
             })
 
-            # No TinyFish calls — Claude extracts everything from the job description
+            # Quick brief — LLM only, no TinyFish (instant)
+            # For deep research, the cascade calls TinyFish directly
             careers_data: dict[str, Any] | None = None
             company_data: dict[str, Any] | None = None
             sources_completed: list[str] = ["posting"]

@@ -40,7 +40,51 @@ async def get_brief(
     )
     brief = result.scalar_one_or_none()
     if not brief:
-        raise HTTPException(404, "Brief not found for this application")
+        # Brief doesn't exist — create it and start research
+        from uuid import uuid4
+        from app.db.models.foxhound_brief import FoxhoundBrief as BriefModel
+
+        # Verify the application exists and belongs to this user
+        app_check = await db.execute(
+            select(Application).where(Application.id == application_id, Application.user_id == user_id)
+        )
+        app_obj = app_check.scalar_one_or_none()
+        if not app_obj:
+            raise HTTPException(404, "Application not found")
+
+        brief = BriefModel(
+            id=str(uuid4()),
+            user_id=user_id,
+            application_id=application_id,
+            status="assembling",
+            watchdog_status="active",
+        )
+        db.add(brief)
+        await db.commit()
+
+        # Start research cascade in background
+        try:
+            from app.services.research.cascade import start_research_cascade
+            await start_research_cascade(user_id, application_id, app_obj.job_id, None)
+        except Exception:
+            pass  # Best effort — cascade logs its own errors
+
+    elif brief.status != "ready":
+        # Brief exists but incomplete — only re-run if cascade isn't already running
+        # and enough time has passed since last update (avoid re-triggering on every poll)
+        from datetime import datetime, timezone, timedelta
+        stale_threshold = datetime.now(timezone.utc) - timedelta(minutes=2)
+        if brief.updated_at and brief.updated_at < stale_threshold:
+            app_check = await db.execute(
+                select(Application).where(Application.id == application_id, Application.user_id == user_id)
+            )
+            app_obj = app_check.scalar_one_or_none()
+            if app_obj:
+                try:
+                    from app.services.research.cascade import start_research_cascade
+                    await start_research_cascade(user_id, application_id, app_obj.job_id, None)
+                except Exception:
+                    pass
 
     # Get application + job for context
     app_result = await db.execute(
