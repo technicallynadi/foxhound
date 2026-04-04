@@ -59,6 +59,12 @@ export const metadata: Metadata = {
       "Personal career agent that finds jobs, applies with precision, and proves every submission with a screenshot.",
     images: ["/opengraph-image"],
   },
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/icon.svg", type: "image/svg+xml" },
+    ],
+  },
   metadataBase: new URL("https://usefoxhound.com"),
 };
 
