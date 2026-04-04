@@ -81,6 +81,17 @@ class ApplicationOrchestrator:
         self._check_limits(profile)
         match_score = await self._get_match_score(db, user_id, job_id)
 
+        # 1.5 Duplicate check — don't apply to the same job twice
+        existing = await db.execute(
+            select(Application).where(
+                Application.user_id == user_id,
+                Application.job_id == job_id,
+                Application.status.notin_(["failed", "canceled"]),
+            )
+        )
+        if existing.scalar_one_or_none():
+            raise ValueError(f"Already applied to {job.company} — {job.title}.")
+
         # 2. Create application record
         app = Application(
             id=str(uuid4()),
@@ -89,9 +100,34 @@ class ApplicationOrchestrator:
             status="scanning",
             trigger=trigger,
             resume_version_path=profile.resume_storage_path,
+            posting_status="active",
         )
         db.add(app)
         await db.commit()  # Commit early — TinyFish calls take minutes and DB sessions timeout
+
+        # 2.1: Create initial brief so the brief page has something to show immediately
+        try:
+            from app.db.models.foxhound_brief import FoxhoundBrief
+            from app.db.session import async_session as _async_session
+            async with _async_session() as brief_db:
+                brief = FoxhoundBrief(
+                    id=str(uuid4()),
+                    user_id=user_id,
+                    application_id=app.id,
+                    status="assembling",
+                    watchdog_status="active",
+                )
+                brief_db.add(brief)
+                await brief_db.commit()
+        except Exception as e:
+            logger.warning("Initial brief creation failed: %s", e)
+
+        # 2.2: Start research cascade in background (doesn't need submission to complete)
+        try:
+            from app.services.research.cascade import start_research_cascade
+            await start_research_cascade(user_id, app.id, job_id, match_score)
+        except Exception as e:
+            logger.warning("Research cascade start failed: %s", e)
 
         # 2.5: Try API submission path (Greenhouse, Lever, Ashby)
         from app.services.apply.ats_url_parser import parse_ats_url
@@ -253,12 +289,12 @@ class ApplicationOrchestrator:
                     "needs_approval": False,
                 })
 
-        # 6. PHASE 2: Fill + submit via Playwright CDP
-        #    Uses TinyFish's CDP browser with Playwright for precise control + file upload.
-        from app.services.apply.playwright_filler import fill_from_profile
+        # 6. PHASE 2: Fill + submit via AgentQL
+        #    Uses TinyFish CDP browser with AgentQL for semantic field finding + file upload.
+        from app.services.apply.agentql_filler import fill_from_profile
 
         app.status = "in_progress"
-        logger.info("Phase 2: Starting CDP fill for %s at %s", job.company, job.apply_url)
+        logger.info("Phase 2: Starting AgentQL fill for %s at %s", job.company, job.apply_url)
 
         fill_result = await fill_from_profile(
             apply_url=job.apply_url,
@@ -743,10 +779,10 @@ class ApplicationOrchestrator:
                 except ApiSubmitFallbackError as e:
                     logger.info("API resume fallback: %s — trying browser", e)
 
-        # Fill via Playwright CDP
-        from app.services.apply.playwright_filler import fill_from_profile
+        # Fill via AgentQL
+        from app.services.apply.agentql_filler import fill_from_profile
 
-        logger.info("Phase 2 resume: Starting CDP fill for %s at %s", job.company, job.apply_url)
+        logger.info("Phase 2 resume: Starting AgentQL fill for %s at %s", job.company, job.apply_url)
         fill_result = await fill_from_profile(
             apply_url=job.apply_url,
             scan_result=scan_result,
