@@ -296,12 +296,24 @@ class ApplicationOrchestrator:
         app.status = "in_progress"
         logger.info("Phase 2: Starting AgentQL fill for %s at %s", job.company, job.apply_url)
 
-        fill_result = await fill_from_profile(
-            apply_url=job.apply_url,
-            scan_result=scan_result,
-            profile=profile,
-            custom_answers=custom_answers,
-        )
+        try:
+            fill_result = await fill_from_profile(
+                apply_url=job.apply_url,
+                scan_result=scan_result,
+                profile=profile,
+                custom_answers=custom_answers,
+            )
+        except Exception as fill_exc:
+            logger.exception("Phase 2 fill raised unexpected exception: %s", fill_exc)
+            async with async_session() as fresh_db:
+                fresh_app = await fresh_db.get(Application, app.id)
+                if fresh_app:
+                    fresh_app.status = "failed"
+                    fresh_app.error_type = "fill_exception"
+                    fresh_app.error_message = str(fill_exc)[:500]
+                    await fresh_db.commit()
+            app.status = "failed"
+            return app
 
         # 7. Upload screenshots to Supabase Storage
         from app.services.storage.supabase_storage import upload_file
@@ -365,6 +377,8 @@ class ApplicationOrchestrator:
 
             await fresh_db.commit()
             app.status = fresh_app.status
+            app.error_type = fresh_app.error_type
+            app.error_message = fresh_app.error_message
 
         # 9. Send notification (doesn't need DB)
         from app.services.apply.notifications import send_application_receipt
