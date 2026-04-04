@@ -162,15 +162,22 @@ async def upload_resume(
         match_count = len([m for m in matches if not m.disqualified and m.match_score > 0])
 
         # Log to activity feed so the user sees it on the dashboard
-        if match_count > 0:
+        strong = len([m for m in matches if not m.disqualified and m.match_score >= 70])
+        decent = len([m for m in matches if not m.disqualified and m.match_score >= 55])
+        if strong > 0 or decent > 0:
             from app.services.activity.logger import log_activity
-            strong = len([m for m in matches if not m.disqualified and m.match_score >= 70])
+            if strong > 0:
+                title_text = f"Found {strong} strong match{'es' if strong != 1 else ''} for your profile"
+                desc_text = f"{strong} role{'s' if strong != 1 else ''} above 70% fit. Browse your matches or let Foxhound apply automatically."
+            else:
+                title_text = f"Found {decent} possible match{'es' if decent != 1 else ''} for your profile"
+                desc_text = "No strong fits yet — these are stretch roles. Foxhound will keep searching for better ones."
             await log_activity(
                 user_id=profile.user_id,
                 event_type="matches_discovered",
-                title=f"Foxhound found {match_count} jobs matching your profile",
-                description=f"{strong} strong fits above 70%. Browse your matches or let Foxhound apply automatically.",
-                metadata={"count": match_count, "strong": strong, "source": "initial_scoring"},
+                title=title_text,
+                description=desc_text,
+                metadata={"strong": strong, "decent": decent, "source": "initial_scoring"},
             )
     except Exception:
         match_count = 0

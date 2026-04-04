@@ -113,8 +113,8 @@ def _module_default_action(module: str | None) -> RecommendedNextAction:
             "Practice likely questions and align your strongest examples to this role.",
         ),
         "discovery": _action(
-            "Move top matches into your active pipeline",
-            "Track the strongest roles in Foxhound so monitoring, briefing, and follow-up can run automatically.",
+            "Apply to your top matches",
+            "Let Foxhound track, research, and follow up on the strongest roles automatically.",
         ),
         "status": _action(
             "Keep Foxhound monitoring your active applications",
@@ -218,10 +218,10 @@ def build_recommended_next_action(
         )
 
     return _action(
-        "Let Foxhound continue the post-apply workflow",
-        "Research is underway and monitoring is active. Act only on new signals while Foxhound handles routine checks.",
+        "Foxhound is working on this",
+        "Research and monitoring are active. Foxhound will notify you when something needs your attention.",
         href=f"/brief/{app_id}" if context.get("brief_ready") else "/applications",
-        href_label="Open Pipeline",
+        href_label="View Applications",
         priority="low",
     )
 

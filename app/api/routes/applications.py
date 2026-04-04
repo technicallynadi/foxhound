@@ -391,3 +391,149 @@ async def archive_application(
     await db.commit()
 
     return {"ok": True, "application_id": app.id, "status": app.status}
+
+
+@router.get("/{application_id}/questions")
+async def get_pending_questions(
+    application_id: str,
+    user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get pending questions for an application."""
+    from app.db.models.application_question import ApplicationQuestion
+
+    user_id = user["user_id"]
+    # Verify ownership
+    app_result = await db.execute(
+        select(Application).where(Application.id == application_id, Application.user_id == user_id)
+    )
+    if not app_result.scalar_one_or_none():
+        raise HTTPException(404, "Application not found")
+
+    result = await db.execute(
+        select(ApplicationQuestion)
+        .where(ApplicationQuestion.application_id == application_id, ApplicationQuestion.status == "pending")
+        .order_by(ApplicationQuestion.question_index)
+    )
+    questions = []
+    for q in result.scalars():
+        item: dict = {
+            "index": q.question_index,
+            "question": q.field_label,
+            "field_type": q.field_type,
+            "category": q.category,
+        }
+        if q.draft_answer:
+            item["suggested_answer"] = q.draft_answer
+        try:
+            opts = json.loads(q.options_json or "[]")
+            if opts:
+                item["options"] = opts
+        except (json.JSONDecodeError, TypeError):
+            pass
+        questions.append(item)
+
+    return {"application_id": application_id, "questions": questions}
+
+
+class AnswerSubmission(BaseModel):
+    answers: list[dict]  # [{index: 0, action: "approve"} or {index: 1, action: "answer", answer: "text"}]
+
+
+@router.post("/{application_id}/questions/answer")
+async def submit_answers(
+    application_id: str,
+    body: AnswerSubmission,
+    user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Submit answers and kick off Phase 2 in the background. Returns immediately."""
+    import asyncio
+    from app.db.models.application_question import ApplicationQuestion
+    from app.db.models.user_profile import UserProfile
+    from app.services.agent.utils.profile_filler import update_answer_bank
+
+    user_id = user["user_id"]
+
+    # Verify ownership
+    app_obj = await db.get(Application, application_id)
+    if not app_obj or app_obj.user_id != user_id:
+        raise HTTPException(404, "Application not found")
+
+    # Load pending questions
+    q_result = await db.execute(
+        select(ApplicationQuestion)
+        .where(ApplicationQuestion.application_id == application_id, ApplicationQuestion.status == "pending")
+        .order_by(ApplicationQuestion.question_index)
+    )
+    pending = list(q_result.scalars().all())
+
+    # Load profile for answer bank
+    profile_result = await db.execute(select(UserProfile).where(UserProfile.user_id == user_id))
+    profile = profile_result.scalar_one_or_none()
+
+    # Apply answers
+    for answer_data in body.answers:
+        idx = answer_data.get("index")
+        action = answer_data.get("action", "answer")
+        text = answer_data.get("answer", "")
+
+        pq = next((q for q in pending if q.question_index == idx), None)
+        if not pq and idx is not None:
+            pq = next((q for q in pending if q.question_index == idx - 1), None)
+        if not pq:
+            continue
+
+        if action == "approve":
+            pq.status = "approved"
+            pq.final_answer = pq.draft_answer
+        else:
+            pq.status = "answered"
+            pq.final_answer = text
+
+        if profile and pq.final_answer:
+            update_answer_bank(profile, pq.field_label, pq.final_answer)
+
+    # Check if all questions are now answered
+    remaining = [q for q in pending if q.status == "pending"]
+
+    if not remaining:
+        # All answered — update application and kick off Phase 2 in background
+        existing = json.loads(app_obj.custom_answers_json or "[]")
+        for q in pending:
+            if q.final_answer:
+                existing.append({
+                    "question": q.field_label,
+                    "answer": q.final_answer,
+                    "confidence": 0.9 if q.status == "approved" else 0.8,
+                    "needs_approval": False,
+                })
+        app_obj.custom_answers_json = json.dumps(existing)
+        app_obj.phase = "fill"
+        app_obj.status = "in_progress"
+        await db.commit()
+
+        # Background: resume Phase 2 (TinyFish fill + submit)
+        async def _background_fill():
+            try:
+                from app.services.apply.orchestrator import ApplicationOrchestrator
+                orch = ApplicationOrchestrator()
+                await orch.resume_fill(db=db, application_id=application_id)
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).exception("Background Phase 2 failed: %s", e)
+
+        asyncio.create_task(_background_fill())
+
+        return {
+            "status": "all_answered",
+            "application_id": application_id,
+            "message": "Answers saved. Foxhound is submitting the application now.",
+        }
+
+    await db.commit()
+    return {
+        "status": "partial",
+        "remaining": len(remaining),
+        "message": f"Saved. Still need {len(remaining)} more answer{'s' if len(remaining) != 1 else ''}.",
+    }
