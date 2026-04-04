@@ -16,6 +16,8 @@ const EVENT_COLORS: Record<string, string> = {
   dossier_ready: 'var(--vl)',
   research_started: 'var(--vl)',
   research_completed: 'var(--g)',
+  discovery_started: 'var(--vl)',
+  discovery_completed: 'var(--g)',
   scan_completed: 'var(--t3)',
   briefing_sent: 'var(--t3)',
 };

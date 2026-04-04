@@ -175,3 +175,143 @@ async def test_apply_scan_error(db, sample_profile, sample_jobs):
 
     assert app.status == "failed"
     assert app.error_type == "error"
+
+
+# CDP disconnect recovery
+
+@pytest.mark.asyncio
+async def test_apply_cdp_disconnect_returns_error(db, sample_profile, sample_jobs):
+    from app.services.apply.form_scanner import ScanResult, FormField
+    import httpx
+    orch = ApplicationOrchestrator()
+    with patch("app.services.apply.form_scanner.scan_form", new_callable=AsyncMock) as ms, patch("app.services.apply.agentql_filler.fill_from_profile", new_callable=AsyncMock) as mf, patch("app.services.apply.ats_url_parser.parse_ats_url", return_value=None):
+        ms.return_value = ScanResult(status="scannable", fields=[FormField(label="Email", field_type="email", required=True)])
+        mf.side_effect = httpx.ConnectError("CDP connection refused")
+        app = await orch.apply(db, user_id=sample_profile.user_id, job_id=sample_jobs[0].id)
+    assert app.status == "failed"
+
+
+@pytest.mark.asyncio
+async def test_apply_cdp_disconnect_mid_fill_returns_error(db, sample_profile, sample_jobs):
+    from app.services.apply.form_scanner import ScanResult, FormField
+    orch = ApplicationOrchestrator()
+    with patch("app.services.apply.form_scanner.scan_form", new_callable=AsyncMock) as ms, patch("app.services.apply.agentql_filler.fill_from_profile", new_callable=AsyncMock) as mf, patch("app.services.apply.ats_url_parser.parse_ats_url", return_value=None):
+        ms.return_value = ScanResult(status="scannable", fields=[FormField(label="Email", field_type="email", required=True)])
+        mf.side_effect = Exception("Target closed")
+        app = await orch.apply(db, user_id=sample_profile.user_id, job_id=sample_jobs[0].id)
+    assert app.status == "failed"
+
+
+@pytest.mark.asyncio
+async def test_apply_fill_status_error_sets_failed(db, sample_profile, sample_jobs):
+    from app.services.apply.form_scanner import ScanResult, FormField
+    from app.services.apply.playwright_filler import FillResult
+    orch = ApplicationOrchestrator()
+    with patch("app.services.apply.form_scanner.scan_form", new_callable=AsyncMock) as ms, patch("app.services.apply.agentql_filler.fill_from_profile", new_callable=AsyncMock) as mf, patch("app.services.apply.ats_url_parser.parse_ats_url", return_value=None):
+        ms.return_value = ScanResult(status="scannable", fields=[FormField(label="Email", field_type="email", required=True)])
+        mf.return_value = FillResult(status="error", error="CDP failed 429", duration_ms=500)
+        app = await orch.apply(db, user_id=sample_profile.user_id, job_id=sample_jobs[0].id)
+    assert app.status == "failed"
+
+
+@pytest.mark.asyncio
+async def test_apply_fill_status_captcha_sets_needs_manual(db, sample_profile, sample_jobs):
+    from app.services.apply.form_scanner import ScanResult, FormField
+    from app.services.apply.playwright_filler import FillResult
+    orch = ApplicationOrchestrator()
+    with patch("app.services.apply.form_scanner.scan_form", new_callable=AsyncMock) as ms, patch("app.services.apply.agentql_filler.fill_from_profile", new_callable=AsyncMock) as mf, patch("app.services.apply.ats_url_parser.parse_ats_url", return_value=None):
+        ms.return_value = ScanResult(status="scannable", fields=[FormField(label="Email", field_type="email", required=True)])
+        mf.return_value = FillResult(status="captcha", error="CAPTCHA detected", duration_ms=3000)
+        app = await orch.apply(db, user_id=sample_profile.user_id, job_id=sample_jobs[0].id)
+    assert app.status == "needs_manual"
+    assert app.error_type == "captcha"
+
+
+@pytest.mark.asyncio
+async def test_apply_fill_submitted_sets_submitted(db, sample_profile, sample_jobs):
+    from app.services.apply.form_scanner import ScanResult, FormField
+    from app.services.apply.playwright_filler import FillResult, FieldFillResult
+    orch = ApplicationOrchestrator()
+    with patch("app.services.apply.form_scanner.scan_form", new_callable=AsyncMock) as ms, patch("app.services.apply.agentql_filler.fill_from_profile", new_callable=AsyncMock) as mf, patch("app.services.apply.ats_url_parser.parse_ats_url", return_value=None), patch("app.services.apply.notifications.send_application_receipt", new_callable=AsyncMock), patch("app.services.storage.supabase_storage.upload_file", new_callable=AsyncMock), patch("app.services.events.emit", new_callable=AsyncMock):
+        ms.return_value = ScanResult(status="scannable", fields=[FormField(label="Email", field_type="email", required=True)])
+        mf.return_value = FillResult(status="submitted", fields=[FieldFillResult(label="Email", status="filled", value_used="t@e.com")], fields_filled_count=1, confirmation_text="Thank you", duration_ms=4000)
+        app = await orch.apply(db, user_id=sample_profile.user_id, job_id=sample_jobs[0].id)
+    assert app.status == "submitted"
+
+
+# Question review flow
+
+@pytest.mark.asyncio
+async def test_apply_waiting_user_input_when_sensitive_fields(db, sample_profile, sample_jobs):
+    from app.services.apply.form_scanner import ScanResult, FormField
+    orch = ApplicationOrchestrator()
+    with patch("app.services.apply.form_scanner.scan_form", new_callable=AsyncMock) as ms, patch("app.services.apply.notifications.send_conversation_question", new_callable=AsyncMock), patch("app.services.apply.ats_url_parser.parse_ats_url", return_value=None):
+        ms.return_value = ScanResult(status="scannable", fields=[FormField(label="Email", field_type="email", required=True), FormField(label="Expected salary", field_type="text", required=True)])
+        app = await orch.apply(db, user_id=sample_profile.user_id, job_id=sample_jobs[0].id)
+    assert app.status == "waiting_user_input"
+
+
+@pytest.mark.asyncio
+async def test_apply_question_records_created_for_sensitive_fields(db, sample_profile, sample_jobs):
+    from sqlalchemy import select
+    from app.services.apply.form_scanner import ScanResult, FormField
+    from app.db.models.application_question import ApplicationQuestion
+    orch = ApplicationOrchestrator()
+    with patch("app.services.apply.form_scanner.scan_form", new_callable=AsyncMock) as ms, patch("app.services.apply.notifications.send_conversation_question", new_callable=AsyncMock), patch("app.services.apply.ats_url_parser.parse_ats_url", return_value=None):
+        ms.return_value = ScanResult(status="scannable", fields=[FormField(label="Email", field_type="email", required=True), FormField(label="Desired salary", field_type="text", required=True)])
+        app = await orch.apply(db, user_id=sample_profile.user_id, job_id=sample_jobs[0].id)
+    from app.db.session import async_session
+    async with async_session() as check_db:
+        result = await check_db.execute(select(ApplicationQuestion).where(ApplicationQuestion.application_id == app.id))
+        questions = result.scalars().all()
+    assert len(questions) > 0
+    assert all(q.status == "pending" for q in questions)
+
+
+@pytest.mark.asyncio
+async def test_apply_no_user_input_needed_proceeds_to_fill(db, sample_profile, sample_jobs):
+    from app.services.apply.form_scanner import ScanResult, FormField
+    from app.services.apply.playwright_filler import FillResult
+    orch = ApplicationOrchestrator()
+    with patch("app.services.apply.form_scanner.scan_form", new_callable=AsyncMock) as ms, patch("app.services.apply.agentql_filler.fill_from_profile", new_callable=AsyncMock) as mf, patch("app.services.apply.notifications.send_conversation_question", new_callable=AsyncMock) as mc, patch("app.services.apply.ats_url_parser.parse_ats_url", return_value=None):
+        ms.return_value = ScanResult(status="scannable", fields=[FormField(label="Email", field_type="email", required=True), FormField(label="First name", field_type="text", required=True)])
+        mf.return_value = FillResult(status="needs_manual", error="No submit", duration_ms=2000)
+        app = await orch.apply(db, user_id=sample_profile.user_id, job_id=sample_jobs[0].id)
+    mc.assert_not_called()
+    mf.assert_called_once()
+
+
+# DB session resilience
+
+@pytest.mark.asyncio
+async def test_duplicate_application_rejected(db, sample_profile, sample_jobs):
+    from app.services.apply.form_scanner import ScanResult
+    from app.services.apply.playwright_filler import FillResult
+    orch = ApplicationOrchestrator()
+    with patch("app.services.apply.form_scanner.scan_form", new_callable=AsyncMock) as ms, patch("app.services.apply.agentql_filler.fill_from_profile", new_callable=AsyncMock) as mf, patch("app.services.apply.ats_url_parser.parse_ats_url", return_value=None), patch("app.services.apply.notifications.send_application_receipt", new_callable=AsyncMock), patch("app.services.storage.supabase_storage.upload_file", new_callable=AsyncMock), patch("app.services.events.emit", new_callable=AsyncMock):
+        ms.return_value = ScanResult(status="scannable", fields=[])
+        mf.return_value = FillResult(status="submitted", fields=[], fields_filled_count=0, confirmation_text="Thank you", duration_ms=1000)
+        app1 = await orch.apply(db, user_id=sample_profile.user_id, job_id=sample_jobs[0].id)
+        assert app1.status == "submitted"
+        with pytest.raises(ValueError, match="Already applied"):
+            await orch.apply(db, user_id=sample_profile.user_id, job_id=sample_jobs[0].id)
+
+
+@pytest.mark.asyncio
+async def test_apply_fill_needs_manual_preserves_fields_filled(db, sample_profile, sample_jobs):
+    import json as _json
+    from app.services.apply.form_scanner import ScanResult, FormField
+    from app.services.apply.playwright_filler import FillResult, FieldFillResult
+    from app.db.models.application import Application as AppModel
+    orch = ApplicationOrchestrator()
+    with patch("app.services.apply.form_scanner.scan_form", new_callable=AsyncMock) as ms, patch("app.services.apply.agentql_filler.fill_from_profile", new_callable=AsyncMock) as mf, patch("app.services.apply.ats_url_parser.parse_ats_url", return_value=None):
+        ms.return_value = ScanResult(status="scannable", fields=[FormField(label="Email", field_type="email", required=True), FormField(label="First name", field_type="text", required=True)])
+        mf.return_value = FillResult(status="needs_manual", fields=[FieldFillResult(label="Email", status="filled", value_used="test@foxhound.com"), FieldFillResult(label="First name", status="filled", value_used="Test")], fields_filled_count=2, error="Submit button not found", duration_ms=2000)
+        app = await orch.apply(db, user_id=sample_profile.user_id, job_id=sample_jobs[0].id)
+    assert app.status == "needs_manual"
+    from app.db.session import async_session
+    async with async_session() as check_db:
+        stored = await check_db.get(AppModel, app.id)
+        fields_filled = _json.loads(stored.fields_filled_json or "[]")
+    assert "Email" in fields_filled
+    assert "First name" in fields_filled

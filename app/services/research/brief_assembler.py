@@ -74,10 +74,12 @@ async def assemble_brief(
 
             # Determine completeness — company_brief + pathfinder are core,
             # network_map is a bonus (LinkedIn search often fails)
-            core = [brief.company_brief_json, brief.pathfinder_json]
-            core_filled = sum(1 for s in core if s)
-            all_filled = core_filled + (1 if brief.network_map_json else 0)
-            brief.status = "ready" if core_filled >= 2 else "partial" if all_filled >= 1 else "assembling"
+            # Never overwrite "failed" — the API route sets that as a terminal state
+            if brief.status != "failed":
+                core = [brief.company_brief_json, brief.pathfinder_json]
+                core_filled = sum(1 for s in core if s)
+                all_filled = core_filled + (1 if brief.network_map_json else 0)
+                brief.status = "ready" if core_filled >= 2 else "partial" if all_filled >= 1 else "assembling"
 
             await db.commit()
             logger.info(
