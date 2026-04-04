@@ -131,7 +131,7 @@ export default function AgentPanel() {
       </div>
 
       {/* Notification banner — pending items */}
-      <PanelNotifications messages={messages} />
+      <PanelNotifications messages={messages} onSend={send} />
 
       <MessageList
         messages={messages}
@@ -183,7 +183,7 @@ interface AgentMsg {
   toolResult?: Record<string, unknown>;
 }
 
-function PanelNotifications({ messages }: { messages: AgentMsg[] }) {
+function PanelNotifications({ messages, onSend }: { messages: AgentMsg[]; onSend?: (msg: string) => void }) {
   type BannerType = "question" | "brief" | "alert";
   type BannerItem = {
     label: string;
@@ -358,6 +358,16 @@ function PanelNotifications({ messages }: { messages: AgentMsg[] }) {
             <Link href={item.href} style={{ color: "var(--vl)", fontSize: 12 }}>
               {item.label}
             </Link>
+          ) : item.type === "question" ? (
+            <button
+              onClick={() => onSend?.("check my pending application questions")}
+              style={{
+                background: "none", border: "none", padding: 0, cursor: "pointer",
+                color: "var(--warning)", fontSize: 12, textAlign: "left",
+              }}
+            >
+              {item.label}
+            </button>
           ) : (
             <span>{item.label}</span>
           )}

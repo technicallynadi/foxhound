@@ -8,6 +8,33 @@ import PageSkeleton from '@/components/PageSkeleton';
 import ScrollReveal from '@/components/landing/ScrollReveal';
 import { getProfile, getSettings, updateProfile, updatePreferences, updateAutopilot, updateNotifications, updateBlocklist } from '@/lib/api';
 
+function SettingsSection({ num, title, defaultOpen = false, children }: { num: string; title: string; defaultOpen?: boolean; children: React.ReactNode }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div style={{ background: 'var(--sf)', border: '1px solid var(--b)', borderRadius: 12, overflow: 'hidden' }}>
+      <button
+        onClick={() => setOpen(!open)}
+        style={{
+          width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          padding: '16px 24px', background: 'none', border: 'none', cursor: 'pointer',
+        }}
+      >
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--vl)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+          {num} / {title}
+        </span>
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--t3)', transition: 'transform 0.2s', transform: open ? 'rotate(180deg)' : 'rotate(0)' }}>
+          &#9662;
+        </span>
+      </button>
+      {open && (
+        <div style={{ padding: '0 24px 20px', borderTop: '1px solid var(--b)' }}>
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Toggle({ label, desc, enabled, onChange }: { label: string; desc: string; enabled: boolean; onChange: () => void }) {
   return (
     <div style={{
@@ -167,6 +194,14 @@ export default function SettingsPage() {
   const [howDidYouHear, setHowDidYouHear] = useState('');
   const [resumeFilename, setResumeFilename] = useState<string | null>(null);
 
+  // Account
+  const [profileName, setProfileName] = useState('');
+  const [profileLastName, setProfileLastName] = useState('');
+  const [profilePhone, setProfilePhone] = useState('');
+  const [profileLinkedin, setProfileLinkedin] = useState('');
+  const [profileLocation, setProfileLocation] = useState('');
+  const [profileTier, setProfileTier] = useState('free');
+
   // Load from API on mount
   useEffect(() => {
     let cancelled = false;
@@ -195,6 +230,12 @@ export default function SettingsPage() {
           setDisabilityStatus((p.disability_status as string) || '');
           setHowDidYouHear((p.how_did_you_hear as string) || '');
           setResumeFilename((p.resume_filename as string | null) || null);
+          setProfileName((p.first_name as string) || '');
+          setProfileLastName((p.last_name as string) || '');
+          setProfilePhone((p.phone as string) || '');
+          setProfileLinkedin((p.linkedin_url as string) || '');
+          setProfileLocation((p.location as string) || '');
+          setProfileTier((p.tier as string) || 'free');
         }
 
         if (!cancelled && settings.status === 'fulfilled') {
@@ -335,21 +376,36 @@ export default function SettingsPage() {
                 YOUR PREFERENCES
               </h1>
             </div>
-            {(saving || saveMsg) && (
-              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: saving ? 'var(--t3)' : saveMsg === 'Saved' ? 'var(--g)' : 'var(--error, #f87171)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-                {saving ? 'Saving...' : saveMsg}
-              </div>
-            )}
+            {/* Save indicator inline for alignment */}
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--t3)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+              Auto-saves
+            </div>
           </div>
         </ScrollReveal>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(440px, 1fr))', gap: 24, marginTop: 8 }}>
-        {/* Job Preferences */}
-        <ScrollReveal delay={1}>
-          <div style={{ background: 'var(--sf)', border: '1px solid var(--b)', borderRadius: 12, padding: '8px 24px', height: '100%', boxSizing: 'border-box' as const }}>
-            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--vl)', letterSpacing: '0.08em', textTransform: 'uppercase', padding: '16px 0', borderBottom: '1px solid var(--b)' }}>
-              01 / Job Preferences
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20, marginTop: 8, maxWidth: 640 }}>
+        {/* Profile */}
+        <SettingsSection num="01" title="Profile" defaultOpen={true}>
+          <SettingInput label="First name" placeholder="Your first name" value={profileName} onChange={(v) => { setProfileName(v); updateProfile({ first_name: v }); }} />
+          <SettingInput label="Last name" placeholder="Your last name" value={profileLastName} onChange={(v) => { setProfileLastName(v); updateProfile({ last_name: v }); }} />
+          <SettingInput label="Phone" placeholder="+1 (555) 000-0000" value={profilePhone} onChange={(v) => { setProfilePhone(v); updateProfile({ phone: v }); }} />
+          <SettingInput label="LinkedIn" placeholder="linkedin.com/in/yourname" value={profileLinkedin} onChange={(v) => { setProfileLinkedin(v); updateProfile({ linkedin_url: v }); }} />
+          <SettingInput label="Location" placeholder="San Francisco, CA" value={profileLocation} onChange={(v) => { setProfileLocation(v); updateProfile({ location: v }); }} />
+          {resumeFilename && (
+            <div style={{ padding: '12px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--b)' }}>
+              <div>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--t3)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>Resume</div>
+                <div style={{ fontSize: 13, color: 'var(--t2)' }}>{resumeFilename}</div>
+              </div>
+              <Link href="/profile" style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--vl)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Update
+              </Link>
             </div>
+          )}
+        </SettingsSection>
+
+        {/* Job Preferences */}
+        <SettingsSection num="02" title="Job Preferences" defaultOpen={false}>
             <SettingInput label="Target roles" placeholder="Senior Backend Engineer, ML Engineer..." value={targetRoles} onChange={(v) => { setTargetRoles(v); savePreferences({ target_titles: v.split(',').map(s => s.trim()).filter(Boolean) }); }} />
             <SettingInput label="Target locations" placeholder="San Francisco, New York, Remote..." value={targetLocations} onChange={(v) => { setTargetLocations(v); savePreferences({ target_locations: v.split(',').map(s => s.trim()).filter(Boolean) }); }} />
 
@@ -357,7 +413,7 @@ export default function SettingsPage() {
               <label style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--t3)', letterSpacing: '0.08em', textTransform: 'uppercase', display: 'block', marginBottom: 10 }}>
                 Remote preference
               </label>
-              <div style={{ display: 'flex', gap: 8 }}>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {[
                   { key: 'remote', label: 'Remote only' },
                   { key: 'hybrid', label: 'Hybrid' },
@@ -409,7 +465,7 @@ export default function SettingsPage() {
               <label style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--t3)', letterSpacing: '0.08em', textTransform: 'uppercase', display: 'block', marginBottom: 10 }}>
                 Company size
               </label>
-              <div style={{ display: 'flex', gap: 8 }}>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {[
                   { key: 'startup', label: 'Startup' },
                   { key: 'mid', label: 'Mid-size' },
@@ -429,20 +485,15 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            <div style={{ padding: '12px 0', fontSize: 12, color: 'var(--t3)' }}>
-              Changes save automatically and update your job matches.
+            <div style={{ paddingTop: 14, paddingBottom: 4, fontSize: 11, color: 'var(--t3)', fontStyle: 'italic', opacity: 0.7 }}>
+              Changes save automatically
             </div>
-          </div>
-        </ScrollReveal>
+        </SettingsSection>
 
         {/* Application Profile */}
-        <ScrollReveal delay={2}>
-          <div style={{ background: 'var(--sf)', border: '1px solid var(--b)', borderRadius: 12, padding: '8px 24px', height: '100%', boxSizing: 'border-box' as const }}>
-            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--vl)', letterSpacing: '0.08em', textTransform: 'uppercase', padding: '16px 0', borderBottom: '1px solid var(--b)' }}>
-              02 / Application Profile
-            </div>
-            <div style={{ fontSize: 13, color: 'var(--t3)', padding: '12px 0', borderBottom: '1px solid var(--b)', lineHeight: 1.6 }}>
-              Set these once and Foxhound fills them in on every application.
+        <SettingsSection num="03" title="Application Profile" defaultOpen={false}>
+            <div style={{ fontSize: 13, color: 'var(--t3)', padding: '14px 0 2px', lineHeight: 1.6 }}>
+              Set these once -- Foxhound fills them in on every application.
             </div>
 
             <SettingSelect
@@ -564,19 +615,14 @@ export default function SettingsPage() {
               onChange={() => { const next = !willingToRelocate; setWillingToRelocate(next); saveApplicationProfile({ willing_to_relocate: next }); }}
             />
 
-            <div style={{ padding: '12px 0', fontSize: 12, color: 'var(--t3)' }}>
-              Foxhound uses these to fill in common application questions.
+            <div style={{ paddingTop: 14, paddingBottom: 4, fontSize: 11, color: 'var(--t3)', fontStyle: 'italic', opacity: 0.7 }}>
+              Foxhound fills these in on every application
             </div>
-          </div>
-        </ScrollReveal>
+        </SettingsSection>
 
         {/* Autopilot */}
-        <ScrollReveal delay={3}>
-          <div style={{ background: 'var(--sf)', border: '1px solid var(--b)', borderRadius: 12, padding: '8px 24px', height: '100%', boxSizing: 'border-box' as const }}>
-            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--vl)', letterSpacing: '0.08em', textTransform: 'uppercase', padding: '16px 0', borderBottom: '1px solid var(--b)' }}>
-              03 / Autopilot
-            </div>
-            <div style={{ fontSize: 13, color: 'var(--t3)', padding: '12px 0', borderBottom: '1px solid var(--b)', lineHeight: 1.6 }}>
+        <SettingsSection num="04" title="Autopilot" defaultOpen={false}>
+            <div style={{ fontSize: 13, color: 'var(--t3)', padding: '14px 0 2px', lineHeight: 1.6 }}>
               Control how much Foxhound does on its own.
             </div>
             <Toggle
@@ -609,7 +655,7 @@ export default function SettingsPage() {
             <SettingInput label="Max applications per day" placeholder="10" value={dailyLimit} onChange={(v) => { setDailyLimit(v); saveAutopilot({ daily_limit: v }); }} />
             {!resumeFilename && (
               <div style={{
-                marginTop: 12,
+                marginTop: 16,
                 padding: '10px 12px',
                 borderRadius: 8,
                 border: '1px solid rgba(251,191,36,0.2)',
@@ -627,8 +673,8 @@ export default function SettingsPage() {
                 to unlock autopilot apply.
               </div>
             )}
-            <div style={{ padding: '16px 0 4px' }}>
-              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--t3)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 10 }}>
+            <div style={{ paddingTop: 16 }}>
+              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--t3)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 12 }}>
                 What Foxhound does for you
               </div>
               <div style={{ display: 'grid', gap: 10 }}>
@@ -638,15 +684,10 @@ export default function SettingsPage() {
                 <AutoCapability label="Morning briefing and alerts" desc="Sum up what happened overnight and flag anything that needs you." />
               </div>
             </div>
-          </div>
-        </ScrollReveal>
+        </SettingsSection>
 
         {/* Notifications */}
-        <ScrollReveal delay={3}>
-          <div style={{ background: 'var(--sf)', border: '1px solid var(--b)', borderRadius: 12, padding: '8px 24px', height: '100%', boxSizing: 'border-box' as const }}>
-            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--vl)', letterSpacing: '0.08em', textTransform: 'uppercase', padding: '16px 0', borderBottom: '1px solid var(--b)' }}>
-              04 / Notifications
-            </div>
+        <SettingsSection num="05" title="Notifications" defaultOpen={false}>
             <Toggle
               label="Application confirmations"
               desc="Get notified every time Foxhound applies for you"
@@ -659,7 +700,7 @@ export default function SettingsPage() {
               enabled={notifyDigest}
               onChange={() => { const next = !notifyDigest; setNotifyDigest(next); saveNotifications({ daily_digest: next }); }}
             />
-            <div style={{ padding: '16px 0', borderBottom: '1px solid var(--b)' }}>
+            <div style={{ padding: '16px 0 0' }}>
               <label style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--t3)', letterSpacing: '0.08em', textTransform: 'uppercase', display: 'block', marginBottom: 10 }}>
                 How to reach you
               </label>
@@ -681,47 +722,39 @@ export default function SettingsPage() {
                   </button>
                 ))}
               </div>
-              <div style={{ marginTop: 10, fontSize: 12, color: 'var(--t3)', lineHeight: 1.6 }}>
-                Slack and Discord notifications are reply-aware. You can answer pending questions and steer Foxhound directly from those channels.
+              <div style={{ marginTop: 10, fontSize: 11, color: 'var(--t3)', lineHeight: 1.6, opacity: 0.7 }}>
+                Slack and Discord are reply-aware -- steer Foxhound directly from those channels.
               </div>
             </div>
-          </div>
-        </ScrollReveal>
+        </SettingsSection>
 
         {/* Blocklist */}
-        <ScrollReveal delay={4}>
-          <div style={{ background: 'var(--sf)', border: '1px solid var(--b)', borderRadius: 12, padding: '8px 24px', height: '100%', boxSizing: 'border-box' as const }}>
-            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--vl)', letterSpacing: '0.08em', textTransform: 'uppercase', padding: '16px 0', borderBottom: '1px solid var(--b)' }}>
-              05 / Blocklist
-            </div>
+        <SettingsSection num="06" title="Blocklist" defaultOpen={false}>
             <SettingInput
               label="Companies to avoid"
               placeholder="Company A, Company B..."
               value={blocklist}
               onChange={(v) => { setBlocklist(v); saveBlocklist(v); }}
             />
-            <div style={{ fontSize: 12, color: 'var(--t3)', padding: '12px 0' }}>
-              Foxhound will never apply to these companies, even on autopilot.
+            <div style={{ paddingTop: 2, paddingBottom: 4, fontSize: 11, color: 'var(--t3)', fontStyle: 'italic', opacity: 0.7 }}>
+              Foxhound will never apply to these, even on autopilot.
             </div>
-          </div>
-        </ScrollReveal>
+        </SettingsSection>
 
         {/* Account */}
-        <ScrollReveal delay={5}>
-          <div style={{ background: 'var(--sf)', border: '1px solid var(--b)', borderRadius: 12, padding: '8px 24px', height: '100%', boxSizing: 'border-box' as const }}>
-            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--vl)', letterSpacing: '0.08em', textTransform: 'uppercase', padding: '16px 0', borderBottom: '1px solid var(--b)' }}>
-              06 / Account
-            </div>
-            <div style={{ padding: '16px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--b)' }}>
+        <SettingsSection num="07" title="Account" defaultOpen={false}>
+            <div style={{ padding: '16px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
                 <div style={{ fontSize: 14, fontWeight: 500 }}>Plan</div>
-                <div style={{ fontSize: 13, color: 'var(--t3)', marginTop: 2 }}>Early Access — Free</div>
+                <div style={{ fontSize: 13, color: 'var(--t3)', marginTop: 2 }}>
+                  {profileTier === 'free' ? 'Early Access — Free' : profileTier === 'pro' ? 'Pro' : profileTier.charAt(0).toUpperCase() + profileTier.slice(1)}
+                </div>
               </div>
               <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--vl)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
                 Active
               </span>
             </div>
-            <div style={{ padding: '16px 0', display: 'flex', gap: 16 }}>
+            <div style={{ borderTop: '1px solid var(--b)', paddingTop: 16, display: 'flex', gap: 12 }}>
               <button style={{
                 fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--t3)', background: 'none',
                 border: '1px solid var(--b)', borderRadius: 6, padding: '8px 16px', cursor: 'pointer',
@@ -730,17 +763,32 @@ export default function SettingsPage() {
                 Export data
               </button>
               <button style={{
-                fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--error)', background: 'none',
+                fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--error, #f87171)', background: 'none',
                 border: '1px solid rgba(239,68,68,0.15)', borderRadius: 6, padding: '8px 16px', cursor: 'pointer',
                 letterSpacing: '0.04em', textTransform: 'uppercase',
               }}>
                 Delete account
               </button>
             </div>
-          </div>
-        </ScrollReveal>
-        </div>{/* close 2-column grid */}
+        </SettingsSection>
+        </div>
       </main>
+
+      {/* Save toast — fixed at bottom */}
+      {(saving || saveMsg) && (
+        <div style={{
+          position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)',
+          zIndex: 100,
+          background: saving ? 'var(--sf)' : saveMsg === 'Saved' ? 'rgba(52,211,153,0.1)' : 'rgba(248,113,113,0.1)',
+          border: `1px solid ${saving ? 'var(--b)' : saveMsg === 'Saved' ? 'rgba(52,211,153,0.2)' : 'rgba(248,113,113,0.2)'}`,
+          borderRadius: 8, padding: '8px 20px',
+          fontFamily: 'var(--font-mono)', fontSize: 11,
+          color: saving ? 'var(--t3)' : saveMsg === 'Saved' ? 'var(--g)' : 'var(--error)',
+          letterSpacing: '0.04em', textTransform: 'uppercase',
+        }}>
+          {saving ? 'Saving...' : saveMsg}
+        </div>
+      )}
     </AuthGuard>
   );
 }

@@ -10,7 +10,8 @@ import SummaryBar from '@/components/briefing/SummaryBar';
 import MorningBriefing from '@/components/briefing/MorningBriefing';
 import ActivityFeed from '@/components/feed/ActivityFeed';
 import { useAgent } from '@/components/agent/AgentProvider';
-import { getDashboard, getActivityFeed, getMorningBriefing, getDashboardStats, getMatches, uploadResume } from '@/lib/api';
+import QuestionReviewPanel from '@/components/QuestionReviewPanel';
+import { getDashboard, getActivityFeed, getMorningBriefing, getDashboardStats, getMatches, uploadResume, listApplications } from '@/lib/api';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -58,6 +59,14 @@ export default function DashboardPage() {
   // Top matches
   const [topMatches, setTopMatches] = useState<Array<{ match_id: string; match_score: number; job: { id: string; title: string; company: string; location: string; ats_type: string; apply_url: string } }>>([]);
 
+  // Discovered jobs (from TinyFish discovery)
+  const [discoveredJobs, setDiscoveredJobs] = useState<Array<{ title?: string; company?: string; location?: string; apply_url?: string; description?: string; salary?: string }>>([]);
+  const [discoveryQuery, setDiscoveryQuery] = useState('');
+
+  // Question review panel
+  const [reviewAppId, setReviewAppId] = useState<string | null>(null);
+  const [pendingAppIds, setPendingAppIds] = useState<string[]>([]);
+
   // Resume
   const [resumeFilename, setResumeFilename] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -73,7 +82,8 @@ export default function DashboardPage() {
       getMorningBriefing().catch(() => null),
       getActivityFeed(1, 20).catch(() => null),
       getMatches({ min_score: 55, per_page: 5 }).catch(() => null),
-    ]).then(([dashResult, statsResult, briefingResult, feedResult, matchesResult]) => {
+      listApplications({ status: 'waiting_user_input', per_page: 10 }).catch(() => null),
+    ]).then(([dashResult, statsResult, briefingResult, feedResult, matchesResult, pendingAppsResult]) => {
       if (dashResult.status === 'fulfilled') {
         const d = dashResult.value as any;
         if (d.error === 'no_profile') {
@@ -108,12 +118,23 @@ export default function DashboardPage() {
       }
       if (feedResult.status === 'fulfilled' && feedResult.value) {
         const f = feedResult.value as any;
-        setEvents(f.events || []);
+        const allEvents = f.events || [];
+        setEvents(allEvents);
         setFeedHasMore(f.has_more || false);
+        // Extract most recent discovery results
+        const discoveryEvent = allEvents.find((e: any) => e.type === 'discovery_completed' && e.metadata?.jobs?.length);
+        if (discoveryEvent) {
+          setDiscoveredJobs(discoveryEvent.metadata.jobs);
+          setDiscoveryQuery(discoveryEvent.metadata.query || '');
+        }
       }
       if (matchesResult.status === 'fulfilled' && matchesResult.value) {
         const m = matchesResult.value as any;
         setTopMatches((m.items || []).slice(0, 5));
+      }
+      if (pendingAppsResult.status === 'fulfilled' && pendingAppsResult.value) {
+        const pa = pendingAppsResult.value as any;
+        setPendingAppIds((pa.items || []).map((a: any) => a.id));
       }
     }).finally(() => setLoading(false));
   }, []);
@@ -129,8 +150,14 @@ export default function DashboardPage() {
           getMatches({ min_score: 55, per_page: 5 }).catch(() => null),
         ]);
         if (feedData) {
-          setEvents(feedData.events || []);
+          const allEvents = feedData.events || [];
+          setEvents(allEvents);
           setFeedHasMore(feedData.has_more || false);
+          const discoveryEvent = allEvents.find((e: any) => e.type === 'discovery_completed' && e.metadata?.jobs?.length);
+          if (discoveryEvent) {
+            setDiscoveredJobs((discoveryEvent as any).metadata?.jobs || []);
+            setDiscoveryQuery(String((discoveryEvent as any).metadata?.query || ''));
+          }
         }
         if (statsData) {
           setStats({
@@ -212,6 +239,40 @@ export default function DashboardPage() {
                 monthlyLimit={stats.monthlyLimit}
               />
             </div>
+
+            {/* Pending questions alert — above everything */}
+            {pendingAppIds.length > 0 && (
+              <div style={{
+                background: 'var(--sf)',
+                border: '1px solid rgba(251,191,36,0.18)',
+                borderRadius: 12,
+                padding: '14px 20px',
+                marginTop: 16,
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: 16,
+              }}>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 600 }}>Foxhound needs your input</div>
+                  <div style={{ fontSize: 13, color: 'var(--t3)', marginTop: 2 }}>
+                    {pendingAppIds.length} application{pendingAppIds.length !== 1 ? 's have' : ' has'} questions before Foxhound can finish.
+                  </div>
+                </div>
+                <button
+                  onClick={() => setReviewAppId(pendingAppIds[0] || null)}
+                  style={{
+                    fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--warning)',
+                    textTransform: 'uppercase', letterSpacing: '0.05em',
+                    border: '1px solid rgba(251,191,36,0.18)', borderRadius: 6,
+                    padding: '8px 12px', flexShrink: 0, whiteSpace: 'nowrap',
+                    background: 'none', cursor: 'pointer',
+                  }}
+                >
+                  Review Questions
+                </button>
+              </div>
+            )}
 
             <div style={{
               marginTop: 24,
@@ -370,39 +431,7 @@ export default function DashboardPage() {
               />
             )}
 
-            {pendingQuestions > 0 && (
-              <div style={{
-                background: 'var(--sf)',
-                border: '1px solid rgba(251,191,36,0.18)',
-                borderRadius: 12,
-                padding: '16px 20px',
-                marginTop: 16,
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                gap: 16,
-              }}>
-                <div>
-                  <div style={{ fontSize: 14, fontWeight: 600 }}>Foxhound is waiting on your input</div>
-                  <div style={{ fontSize: 13, color: 'var(--t3)', marginTop: 4 }}>
-                    Some applications need your input before Foxhound can finish them.
-                  </div>
-                </div>
-                <Link href="/applications" style={{
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: 10,
-                  color: 'var(--warning)',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.05em',
-                  border: '1px solid rgba(251,191,36,0.18)',
-                  borderRadius: 6,
-                  padding: '8px 12px',
-                  flexShrink: 0,
-                }}>
-                  Review Questions
-                </Link>
-              </div>
-            )}
+            {/* Pending questions alert moved above status section */}
 
             {/* Top Matches */}
             {topMatches.length > 0 && (
@@ -470,6 +499,92 @@ export default function DashboardPage() {
               </div>
             )}
 
+            {/* Jobs Discovered */}
+            {discoveredJobs.length > 0 && (
+              <div style={{
+                background: 'var(--sf)', border: '1px solid var(--b)', borderRadius: 12,
+                padding: 20, marginTop: 24,
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                  <div>
+                    <span style={{
+                      fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--vl)',
+                      textTransform: 'uppercase', letterSpacing: '0.08em',
+                    }}>
+                      Jobs Discovered
+                    </span>
+                    <div style={{ fontSize: 13, color: 'var(--t3)', marginTop: 4 }}>
+                      {discoveryQuery ? `Results for "${discoveryQuery}"` : 'Found by Foxhound'}
+                    </div>
+                  </div>
+                  <Link href="/intelligence" style={{
+                    fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--t3)',
+                    textTransform: 'uppercase', letterSpacing: '0.06em',
+                  }}>
+                    New search &rarr;
+                  </Link>
+                </div>
+                {discoveredJobs.map((job, i) => (
+                  <div key={i} style={{
+                    padding: '12px 0',
+                    borderBottom: i < discoveredJobs.length - 1 ? '1px solid var(--b)' : 'none',
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ fontSize: 14, fontWeight: 500, lineHeight: 1.3 }}>
+                          {job.title || 'Untitled Position'}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3, flexWrap: 'wrap' }}>
+                          {job.company && (
+                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--vl)' }}>
+                              {job.company}
+                            </span>
+                          )}
+                          {job.company && job.location && (
+                            <span style={{ width: 3, height: 3, borderRadius: '50%', background: 'var(--t3)' }} />
+                          )}
+                          {job.location && (
+                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--t3)' }}>
+                              {job.location}
+                            </span>
+                          )}
+                          {job.salary && (
+                            <>
+                              <span style={{ width: 3, height: 3, borderRadius: '50%', background: 'var(--t3)' }} />
+                              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--t3)' }}>
+                                {job.salary}
+                              </span>
+                            </>
+                          )}
+                        </div>
+                        {job.description && (
+                          <div style={{ fontSize: 12, color: 'var(--t3)', marginTop: 6, lineHeight: 1.5, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const }}>
+                            {job.description}
+                          </div>
+                        )}
+                      </div>
+                      {job.apply_url && (
+                        <a
+                          href={job.apply_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--vl)',
+                            textTransform: 'uppercase', letterSpacing: '0.04em',
+                            padding: '4px 10px', borderRadius: 4,
+                            border: '1px solid var(--bv)', background: 'transparent',
+                            whiteSpace: 'nowrap', flexShrink: 0,
+                          }}
+                        >
+                          View
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {/* Activity Feed */}
             <div style={{ marginTop: 32 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
@@ -490,11 +605,29 @@ export default function DashboardPage() {
                 loading={feedLoading}
                 hasMore={feedHasMore}
                 onLoadMore={loadMoreEvents}
+                onAnswerQuestions={(appId) => setReviewAppId(appId)}
               />
             </div>
           </>
         )}
       </main>
+
+      {/* Question review modal */}
+      {reviewAppId && (
+        <QuestionReviewPanel
+          applicationId={reviewAppId}
+          allAppIds={pendingAppIds}
+          isOpen={true}
+          onClose={() => setReviewAppId(null)}
+          onSubmitted={() => {
+            setReviewAppId(null);
+            // Refresh pending apps
+            listApplications({ status: 'waiting_user_input', per_page: 50 })
+              .then((pa: any) => setPendingAppIds((pa.items || []).map((a: any) => a.id)))
+              .catch(() => {});
+          }}
+        />
+      )}
     </AuthGuard>
   );
 }

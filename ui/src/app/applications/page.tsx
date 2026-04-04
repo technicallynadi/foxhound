@@ -909,7 +909,7 @@ export default function ApplicationsPage() {
             </div>
           ) : (
             /* ─── List View ─── */
-            <div style={{ background: 'var(--sf)', border: '1px solid var(--b)', borderRadius: 12, overflow: 'hidden' }}>
+            <div style={{ background: 'var(--sf)', border: '1px solid var(--b)', borderRadius: 12, overflow: 'hidden', marginBottom: 20 }}>
               {filtered.length > 0 ? (
                 filtered.map((app, i) => {
                   const cfg = STATUS_CONFIG[app.status] || { color: 'var(--t3)', label: app.status };
@@ -1042,57 +1042,15 @@ export default function ApplicationsPage() {
                           </div>
                           <div style={{ display: 'flex', gap: 6, marginLeft: 'auto', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                             <CheckNowButton appId={app.id} />
-                            {app.status === 'submitted' && app.brief_ready && (
-                              <Link href={`/brief/${app.id}`} style={{
-                                fontFamily: 'var(--font-mono)', fontSize: 10,
-                                letterSpacing: '0.04em', textTransform: 'uppercase',
-                                padding: '4px 10px', borderRadius: 4,
-                                border: '1px solid var(--bv)', color: 'var(--vl)',
-                                display: 'inline-flex', alignItems: 'center',
-                                minHeight: 28, whiteSpace: 'nowrap',
-                              }}>
-                                View Brief
-                              </Link>
-                            )}
-                            <Link href={researchHref('people', app)} style={{
+                            <Link href={`/brief/${app.id}`} style={{
                               fontFamily: 'var(--font-mono)', fontSize: 10,
                               letterSpacing: '0.04em', textTransform: 'uppercase',
                               padding: '4px 10px', borderRadius: 4,
-                              border: '1px solid var(--b)', color: 'var(--t3)',
+                              border: '1px solid var(--bv)', color: 'var(--vl)',
                               display: 'inline-flex', alignItems: 'center',
                               minHeight: 28, whiteSpace: 'nowrap',
                             }}>
-                              People Research
-                            </Link>
-                            <Link href={researchHref('brief', app)} style={{
-                              fontFamily: 'var(--font-mono)', fontSize: 10,
-                              letterSpacing: '0.04em', textTransform: 'uppercase',
-                              padding: '4px 10px', borderRadius: 4,
-                              border: '1px solid var(--b)', color: 'var(--t3)',
-                              display: 'inline-flex', alignItems: 'center',
-                              minHeight: 28, whiteSpace: 'nowrap',
-                            }}>
-                              Company Brief
-                            </Link>
-                            <Link href={researchHref('interview', app)} style={{
-                              fontFamily: 'var(--font-mono)', fontSize: 10,
-                              letterSpacing: '0.04em', textTransform: 'uppercase',
-                              padding: '4px 10px', borderRadius: 4,
-                              border: '1px solid var(--b)', color: 'var(--t3)',
-                              display: 'inline-flex', alignItems: 'center',
-                              minHeight: 28, whiteSpace: 'nowrap',
-                            }}>
-                              Interview Prep
-                            </Link>
-                            <Link href={researchHref('status', app)} style={{
-                              fontFamily: 'var(--font-mono)', fontSize: 10,
-                              letterSpacing: '0.04em', textTransform: 'uppercase',
-                              padding: '4px 10px', borderRadius: 4,
-                              border: '1px solid var(--b)', color: 'var(--t3)',
-                              display: 'inline-flex', alignItems: 'center',
-                              minHeight: 28, whiteSpace: 'nowrap',
-                            }}>
-                              Status Tracker
+                              View Brief
                             </Link>
                             {canArchive && (
                               <button
@@ -1153,18 +1111,6 @@ export default function ApplicationsPage() {
                               {nextStep.detail}
                             </div>
                           </div>
-                          {nextStep.href && (
-                            <Link href={nextStep.href} style={{
-                              fontFamily: 'var(--font-mono)',
-                              fontSize: 10,
-                              color: 'var(--vl)',
-                              textTransform: 'uppercase',
-                              letterSpacing: '0.04em',
-                              whiteSpace: 'nowrap',
-                            }}>
-                              Open &rarr;
-                            </Link>
-                          )}
                         </div>
                       </div>
                     </div>

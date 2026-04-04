@@ -556,6 +556,26 @@ export default function ToolResultCard({ toolName, data, onSend }: Props) {
       );
     }
 
+    // Error with no application created (tier block, no resume, etc.)
+    if (errorCode && !status) {
+      const message = data.message as string || 'Could not apply';
+      return (
+        <div style={{ padding: '3px 0' }}>
+          <div style={{
+            background: 'var(--el)', border: '1px solid var(--b)', padding: 10, borderRadius: 12,
+            borderLeft: '3px solid var(--warning)',
+          }}>
+            <div style={{ fontSize: 13, color: 'var(--warning)', fontWeight: 500 }}>
+              {statusLabel(errorCode) || 'Could not apply'}
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--t2)', marginTop: 4 }}>
+              {message}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div style={{ padding: '3px 0' }}>
         <div style={{
@@ -1241,8 +1261,10 @@ function statusLabel(s: string): string {
     submitted: 'Submitted', waiting_user_input: 'Needs your input',
     failed: 'Failed', needs_manual: 'Manual needed',
     all_answered: 'Submitting...',
+    apply_failed: 'Could not apply', resume_required: 'Resume needed',
+    job_not_found: 'Job not found', below_quality_floor: 'Below threshold',
   };
-  if (!s) return 'Unknown';
+  if (!s) return '';
   return map[s] || s.replace(/_/g, ' ');
 }
 

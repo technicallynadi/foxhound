@@ -266,6 +266,27 @@ export async function archiveApplication(applicationId: string) {
   );
 }
 
+export async function getPendingQuestions(applicationId: string) {
+  return request<{
+    application_id: string;
+    questions: Array<{
+      index: number;
+      question: string;
+      field_type: string;
+      category: string;
+      suggested_answer?: string;
+      options?: string[];
+    }>;
+  }>(`/api/v1/applications/${applicationId}/questions`);
+}
+
+export async function submitAnswers(applicationId: string, answers: Array<{ index: number; action: string; answer?: string }>) {
+  return request<Record<string, unknown>>(`/api/v1/applications/${applicationId}/questions/answer`, {
+    method: 'POST',
+    body: JSON.stringify({ answers }),
+  });
+}
+
 export async function getApplicationStats() {
   return request<{
     total: number;
