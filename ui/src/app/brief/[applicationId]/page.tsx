@@ -8,6 +8,7 @@ import AuthGuard from '@/components/AuthGuard';
 import AppNav from '@/components/AppNav';
 import PageSkeleton from '@/components/PageSkeleton';
 import { getBrief } from '@/lib/api';
+import PathfinderCard, { type PathfinderData } from '@/components/PathfinderCard';
 
 interface BriefSubmission {
   pre_submit_screenshot?: string | null;
@@ -65,6 +66,9 @@ interface BriefData {
       relevance?: string;
     }>;
   } | null;
+  application_context?: {
+    job_id?: string | null;
+  } | null;
   recommended_next_action?: {
     label?: string | null;
     detail?: string | null;
@@ -94,7 +98,7 @@ export default function BriefPage() {
 
   // Poll every 10s while brief is still assembling — sections appear as they complete
   useEffect(() => {
-    if (!brief || brief.status === 'ready') return;
+    if (!brief || brief.status === 'ready' || brief.status === 'failed') return;
     const interval = setInterval(() => {
       getBrief(applicationId)
         .then((data) => setBrief(data as BriefData))
@@ -134,9 +138,6 @@ export default function BriefPage() {
 
   const pathfinder = brief.pathfinder || {};
   const companyBrief = brief.company_brief || {};
-  const managerSignals = pathfinder.manager_signals || {};
-  const outreach = pathfinder.outreach || {};
-  const searchUrls = pathfinder.search_urls || {};
   const fieldsFilled = brief.submission?.fields_filled ?? [];
   const techStack = companyBrief.tech_stack ?? [];
 
@@ -149,8 +150,21 @@ export default function BriefPage() {
           &larr; Dashboard
         </Link>
 
-        {/* Progress banner while assembling */}
-        {brief.status !== 'ready' && (
+        {/* Research status banner */}
+        {brief.status === 'failed' && (
+          <div style={{
+            background: 'rgba(255,80,80,0.06)', border: '1px solid rgba(255,80,80,0.25)', borderRadius: 10,
+            padding: '14px 16px', marginBottom: 20,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#ff5050' }} />
+              <span style={{ ...mono, fontSize: 11, color: '#ff5050' }}>
+                Research timed out — partial data shown below. Try refreshing or check back later.
+              </span>
+            </div>
+          </div>
+        )}
+        {brief.status !== 'ready' && brief.status !== 'failed' && (
           <div style={{
             background: 'var(--vf)', border: '1px solid var(--bv)', borderRadius: 10,
             padding: '14px 16px', marginBottom: 20,
@@ -303,39 +317,16 @@ export default function BriefPage() {
           </Card>
         )}
 
-        {/* Best Contact */}
-        {managerSignals.likely_title && (
-          <Card style={{ marginBottom: 16 }}>
-            <CardLabel>BEST CONTACT</CardLabel>
-            {managerSignals.likely_name && (
-              <div style={{ ...display, fontSize: 18, fontWeight: 700 }}>
-                {managerSignals.likely_name}
-              </div>
-            )}
-            <div style={{ fontSize: 13, color: 'var(--t2)', marginTop: managerSignals.likely_name ? 2 : 0, fontWeight: managerSignals.likely_name ? 400 : 600, ...(managerSignals.likely_name ? {} : { ...display, fontSize: 16 }) }}>
-              {managerSignals.likely_title}
-            </div>
-            <div style={{ ...mono, fontSize: 11, color: 'var(--t3)', marginTop: 2 }}>
-              {managerSignals.department || 'Unknown department'}
-            </div>
-            {searchUrls.linkedin && (
-              <a href={searchUrls.linkedin} target="_blank" rel="noopener noreferrer" style={{
-                ...mono, fontSize: 12, color: 'var(--vl)', marginTop: 8, display: 'inline-block',
-              }}>
-                Search on LinkedIn &rarr;
-              </a>
-            )}
-            {pathfinder.overlap?.summary_for_outreach && (
-              <div style={{
-                fontSize: 13, color: 'var(--t)', marginTop: 12,
-                padding: '8px 12px', background: 'var(--vf)',
-                borderLeft: '2px solid var(--v)', borderRadius: '0 6px 6px 0',
-              }}>
-                Why they might respond: {pathfinder.overlap.summary_for_outreach}
-              </div>
-            )}
-          </Card>
-        )}
+        {/* Pathfinder */}
+        <Card style={{ marginBottom: 16 }}>
+          <CardLabel>PATHFINDER</CardLabel>
+          <PathfinderCard
+            jobId={brief.application_context?.job_id ?? null}
+            initialData={brief.pathfinder as PathfinderData | null}
+            companyName={brief.company || 'this company'}
+            jobTitle={brief.title}
+          />
+        </Card>
 
         {/* Contacts Found via TinyFish */}
         {brief.network_map?.contacts && brief.network_map.contacts.length > 0 && (
@@ -378,26 +369,7 @@ export default function BriefPage() {
           </Card>
         )}
 
-        {/* Outreach Drafts */}
-        {(outreach.linkedin_note || outreach.email_body) && (
-          <Card style={{ marginBottom: 16 }}>
-            <CardLabel>READY-TO-SEND MESSAGES</CardLabel>
 
-            {outreach.linkedin_note && (
-              <DraftBlock
-                label={`LINKEDIN NOTE (${outreach.linkedin_note.length} chars)`}
-                text={outreach.linkedin_note}
-              />
-            )}
-
-            {outreach.email_body && (
-              <DraftBlock
-                label={outreach.email_subject ? `EMAIL — ${outreach.email_subject}` : 'EMAIL DRAFT'}
-                text={outreach.email_body}
-              />
-            )}
-          </Card>
-        )}
 
         {/* Recommended Next Steps */}
         {brief.recommended_next_action?.detail && (

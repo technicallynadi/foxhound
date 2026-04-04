@@ -69,12 +69,19 @@ async def get_brief(
         except Exception:
             pass  # Best effort — cascade logs its own errors
 
-    elif brief.status != "ready":
+    elif brief.status not in ("ready", "failed"):
         # Brief exists but incomplete — only re-run if cascade isn't already running
         # and enough time has passed since last update (avoid re-triggering on every poll)
         from datetime import datetime, timezone, timedelta
-        stale_threshold = datetime.now(timezone.utc) - timedelta(minutes=2)
-        if brief.updated_at and brief.updated_at < stale_threshold:
+        now = datetime.now(timezone.utc)
+        stale_threshold = now - timedelta(minutes=2)
+        failure_ceiling = now - timedelta(minutes=15)
+
+        # Hard ceiling: after 15 min still assembling → mark failed, stop re-triggering
+        if brief.created_at and brief.created_at < failure_ceiling and brief.status == "assembling":
+            brief.status = "failed"
+            await db.commit()
+        elif brief.updated_at and brief.updated_at < stale_threshold:
             app_check = await db.execute(
                 select(Application).where(Application.id == application_id, Application.user_id == user_id)
             )
