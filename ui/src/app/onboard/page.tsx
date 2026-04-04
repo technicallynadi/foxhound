@@ -872,7 +872,7 @@ export default function OnboardPage() {
                               cursor: saving ? 'default' : 'pointer', opacity: saving ? 0.6 : 1,
                             }}
                           >
-                            I'll Review First
+                            I&apos;ll Review First
                           </button>
                         </div>
                       </div>
