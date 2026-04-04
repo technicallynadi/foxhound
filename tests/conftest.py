@@ -23,7 +23,7 @@ os.environ["FOXHOUND_DATABASE_URL"] = _TEST_DB
 # Prevent load_dotenv from overriding test DB URL with production Postgres URL.
 # Patch dotenv BEFORE any app module imports config.py.
 import unittest.mock as _mock
-_mock.patch("dotenv.load_dotenv", lambda **kw: None).start()
+_mock.patch("dotenv.load_dotenv", lambda *a, **kw: None).start()
 
 # Local/CI test environments may not have TinyFish installed.
 # Provide a tiny import stub so app startup and router imports can proceed.

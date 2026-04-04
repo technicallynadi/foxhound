@@ -37,7 +37,10 @@ async def get_activity_feed(
         .where(AgentActivity.user_id == user_id)
         .order_by(AgentActivity.created_at.desc())
     )
-    if event_type:
+    # Hide internal cache events from the feed
+    if not event_type:
+        stmt = stmt.where(~AgentActivity.event_type.like("\\_%", escape="\\"))
+    else:
         stmt = stmt.where(AgentActivity.event_type == event_type)
 
     result = await db.execute(stmt.offset(offset).limit(page_size))

@@ -12,7 +12,22 @@ if not settings.DATABASE_URL:
         "or for tests use sqlite+aiosqlite:///..."
     )
 
-engine = create_async_engine(settings.DATABASE_URL, echo=False)
+_is_sqlite = settings.DATABASE_URL.startswith("sqlite")
+
+_engine_kwargs: dict = {"echo": False}
+if not _is_sqlite:
+    _engine_kwargs.update(
+        pool_size=8,
+        max_overflow=4,
+        pool_pre_ping=True,
+        pool_recycle=300,
+        connect_args={
+            "prepared_statement_cache_size": 0,
+            "statement_cache_size": 0,
+        },
+    )
+
+engine = create_async_engine(settings.DATABASE_URL, **_engine_kwargs)
 async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 Base = declarative_base()
