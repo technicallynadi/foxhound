@@ -29,8 +29,18 @@ async def start_research_cascade(
 
     Runs asynchronously so it doesn't block the apply response.
     """
-    asyncio.create_task(
+    task = asyncio.create_task(
         _run_cascade(user_id, application_id, job_id, match_score)
+    )
+    # Keep a strong reference and surface unexpected top-level failures.
+    task.add_done_callback(
+        lambda t: logger.error(
+            "Research cascade task failed unexpectedly for application %s: %s",
+            application_id,
+            t.exception(),
+        )
+        if not t.cancelled() and t.exception() is not None
+        else None
     )
     logger.info("Research cascade started for application %s", application_id)
 
@@ -63,8 +73,8 @@ async def _run_cascade(
                     select(FoxhoundBrief).where(FoxhoundBrief.application_id == application_id)
                 )
                 existing_brief = result.scalar_one_or_none()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Research cascade: failed to load existing brief for %s: %s", application_id, e)
 
         import json as _json
         brief_data: dict = {
@@ -232,8 +242,8 @@ async def _run_cascade(
                         has_network = True
                         brief_data["network_map"] = nm_check
                         logger.info("Research cascade: network map exists with %d contacts, skipping for %s", len(nm_check["contacts"]), company)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Research cascade: failed to check network map status for %s: %s", application_id, e)
         if not has_network:
           try:
             # Check TinyFishBriefCache for cached contacts first
@@ -319,8 +329,8 @@ async def _run_cascade(
                     has_pathfinder = True
                     brief_data["pathfinder"] = _json.loads(_current.pathfinder_json)
                     logger.info("Research cascade: pathfinder exists, skipping for %s", company)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Research cascade: failed to check pathfinder status for %s: %s", application_id, e)
         if not has_pathfinder:
           try:
             # Extract context from previous steps to feed into outreach
