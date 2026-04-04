@@ -17,8 +17,8 @@ _is_sqlite = settings.DATABASE_URL.startswith("sqlite")
 _engine_kwargs: dict = {"echo": False}
 if not _is_sqlite:
     _engine_kwargs.update(
-        pool_size=8,
-        max_overflow=4,
+        pool_size=16,
+        max_overflow=8,
         pool_pre_ping=True,
         pool_recycle=300,
         connect_args={
