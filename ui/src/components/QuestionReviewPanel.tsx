@@ -78,14 +78,24 @@ export default function QuestionReviewPanel({ applicationId, allAppIds, isOpen =
         }
         return { index: q.index, action: 'answer', answer: userAnswer || '' };
       });
-      await submitAnswers(activeAppId, payload);
-      onSubmitted?.();
-      onClose();
+      const response = await submitAnswers(activeAppId, payload);
+      if (response.status === 'all_answered') {
+        onSubmitted?.();
+        onClose();
+      } else {
+        const updated = await getPendingQuestions(activeAppId);
+        setQuestions(updated.questions);
+        const prefill: Record<number, string> = {};
+        updated.questions.forEach((q) => {
+          if (q.suggested_answer) prefill[q.index] = q.suggested_answer;
+        });
+        setAnswers(prefill);
+      }
     } catch {
       setError('Failed to submit. Please try again.');
     }
     setSubmitting(false);
-  }, [applicationId, questions, answers, onClose, onSubmitted]);
+  }, [activeAppId, questions, answers, onClose, onSubmitted]);
 
   // Close on Escape
   useEffect(() => {

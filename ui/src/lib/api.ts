@@ -281,7 +281,7 @@ export async function getPendingQuestions(applicationId: string) {
 }
 
 export async function submitAnswers(applicationId: string, answers: Array<{ index: number; action: string; answer?: string }>) {
-  return request<Record<string, unknown>>(`/api/v1/applications/${applicationId}/questions/answer`, {
+  return request<{ status: 'partial' | 'all_answered'; remaining?: number }>(`/api/v1/applications/${applicationId}/questions/answer`, {
     method: 'POST',
     body: JSON.stringify({ answers }),
   });
@@ -550,6 +550,51 @@ export async function getBrief(applicationId: string) {
     dossier: Record<string, unknown> | null;
     recommended_next_action: RecommendedNextActionContract;
   }>(`/api/v1/brief/${applicationId}`);
+}
+
+
+// ─── Pathfinder ───
+
+export async function runPathfinder(jobId: string) {
+  return request<{
+    job_id: string;
+    company: string;
+    job_title: string;
+    manager_signals: {
+      department: string;
+      likely_title: string;
+      team_size_hint: string;
+      seniority_of_manager: string;
+      reporting_clues: string;
+      confidence: 'high' | 'medium' | 'low';
+    };
+    search_urls: { linkedin: string; google: string };
+    overlap: {
+      shared_skills: string[];
+      user_only_skills: string[];
+      job_only_skills: string[];
+      industry_match: boolean;
+      industry_details: string;
+      location_match: boolean;
+      location_details: string;
+      seniority_alignment: string;
+      overlap_score: number;
+      summary_for_outreach: string;
+    };
+    outreach: {
+      linkedin_note: string;
+      email_subject: string;
+      email_body: string;
+      personalization_hooks: string[];
+    };
+    confirmed_manager?: {
+      name: string;
+      title: string;
+      team: string;
+      source: string;
+      source_url: string;
+    } | null;
+  }>(`/api/v1/pathfinder/${jobId}`, { method: 'POST' });
 }
 
 export { ApiError };
