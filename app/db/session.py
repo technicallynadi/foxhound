@@ -1,9 +1,13 @@
 from collections.abc import AsyncGenerator
+import logging
 
+from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import declarative_base
 
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 if not settings.DATABASE_URL:
     raise RuntimeError(
@@ -31,6 +35,27 @@ engine = create_async_engine(settings.DATABASE_URL, **_engine_kwargs)
 async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 Base = declarative_base()
+
+
+if not _is_sqlite:
+    @event.listens_for(engine.sync_engine, "checkout")
+    def _on_pool_checkout(dbapi_conn, conn_record, conn_proxy) -> None:
+        pool = engine.sync_engine.pool
+        size = pool.size()
+        checked_out = pool.checkedout()
+        overflow = pool.overflow()
+        if checked_out >= size + max(overflow - 2, 0):
+            logger.warning(
+                "DB pool near saturation: checkedout=%d pool_size=%d overflow=%d",
+                checked_out,
+                size,
+                overflow,
+            )
+
+    @event.listens_for(engine.sync_engine, "connect")
+    def _on_pool_connect(dbapi_conn, conn_record) -> None:
+        pool = engine.sync_engine.pool
+        logger.debug("DB pool: new connection opened (total checkedout=%d)", pool.checkedout())
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
