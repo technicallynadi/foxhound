@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
-import { getPendingReportNotifications, dismissReportNotification } from '@/lib/api';
+import { getPendingReportNotifications, dismissReportNotification, getProfile } from '@/lib/api';
 
 export default function AppNav() {
   const path = usePathname();
@@ -17,6 +17,20 @@ export default function AppNav() {
     role: string;
   } | null>(null);
   const toastDismissed = useRef<Set<string>>(new Set());
+  const [displayName, setDisplayName] = useState<string | null>(null);
+
+  // Fetch profile display name
+  useEffect(() => {
+    if (!user) return;
+    getProfile()
+      .then((p) => {
+        const first = (p as Record<string, unknown>).first_name as string || '';
+        const last = (p as Record<string, unknown>).last_name as string || '';
+        const full = `${first} ${last}`.trim();
+        if (full) setDisplayName(full);
+      })
+      .catch(() => { /* no profile yet */ });
+  }, [user]);
 
   const checkReportNotifications = useCallback(async () => {
     if (!user) return;
@@ -58,18 +72,13 @@ export default function AppNav() {
 
   const isSignedIn = !loading && !!user;
 
-  /** Derive initials from email or user metadata */
+  /** Derive initials from profile name, then fallback to email */
   const getInitials = (): string => {
+    if (displayName) {
+      const parts = displayName.split(' ');
+      return ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')).toUpperCase();
+    }
     if (!user) return '?';
-    const meta = user.user_metadata;
-    if (meta?.full_name) {
-      const parts = (meta.full_name as string).split(' ');
-      return (parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '');
-    }
-    if (meta?.name) {
-      const parts = (meta.name as string).split(' ');
-      return (parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '');
-    }
     return (user.email?.[0] ?? '?').toUpperCase();
   };
 
@@ -108,7 +117,7 @@ export default function AppNav() {
       {/* Right side: avatar when signed in, "Join Early Access" when not */}
       {isSignedIn ? (
         <div className="nav-cta-desktop" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <Link href="/profile" style={{
+          <Link href="/settings" style={{
             display: 'flex', alignItems: 'center', gap: 8,
             textDecoration: 'none',
           }}>
@@ -127,7 +136,7 @@ export default function AppNav() {
               color: 'var(--t2)', letterSpacing: '0.04em',
               maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
             }}>
-              {user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'Account'}
+              {displayName || user.email?.split('@')[0] || 'Account'}
             </span>
           </Link>
           <button
@@ -179,7 +188,7 @@ export default function AppNav() {
           ))}
           {isSignedIn ? (
             <>
-              <Link href="/profile" onClick={() => setMenuOpen(false)} style={{
+              <Link href="/settings" onClick={() => setMenuOpen(false)} style={{
                 fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--t2)',
                 letterSpacing: '0.08em', textTransform: 'uppercase',
               }}>

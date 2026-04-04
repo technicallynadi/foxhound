@@ -216,71 +216,6 @@ const TABS: TabDef[] = [
       </svg>
     ),
   },
-  {
-    id: "brief",
-    label: "Company Intel",
-    helper: "Culture, tech stack, red flags",
-    autoRun: "Runs for 70%+ matches",
-    requiresAuth: true,
-    icon: (
-      <svg
-        width="14"
-        height="14"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
-        <line x1="8" y1="21" x2="16" y2="21" />
-        <line x1="12" y1="17" x2="12" y2="21" />
-      </svg>
-    ),
-  },
-  {
-    id: "interview",
-    label: "Interview Prep",
-    helper: "Questions they ask and what they pay",
-    autoRun: "Runs when you advance a stage",
-    requiresAuth: true,
-    icon: (
-      <svg
-        width="14"
-        height="14"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-      </svg>
-    ),
-  },
-  {
-    id: "status",
-    label: "Posting Watch",
-    helper: "Still live, edited, or taken down",
-    autoRun: "Monitors daily after you apply",
-    requiresAuth: true,
-    icon: (
-      <svg
-        width="14"
-        height="14"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
-      </svg>
-    ),
-  },
 ];
 
 const BADGE_MAP = {
@@ -748,7 +683,7 @@ function SeedContextCard({
       }}
     >
       <SectionLabel>
-        {mode === "page" ? "Opened From Your Foxhound Pipeline" : "Foxhound Context"}
+        {mode === "page" ? "Opened From Your Applications" : "Foxhound Context"}
       </SectionLabel>
       <div style={{ fontSize: 13, color: "var(--t2)", lineHeight: 1.7 }}>
         {details.join(" · ")}
@@ -1080,8 +1015,6 @@ function GhostDetectorTab() {
         </div>
       )}
 
-      {/* Loading */}
-      {state === "loading" && <AnalyzingState label="Analyzing posting..." />}
 
       {/* Result */}
       {state === "result" && result && badge && (
@@ -1430,8 +1363,6 @@ function CompanyBriefTab({ seed }: { seed?: ContextSeed }) {
       {/* Error */}
       {state === "error" && error && <InlineError message={error} />}
 
-      {/* Loading */}
-      {state === "loading" && <AnalyzingState label="Researching company..." />}
 
       {/* Result */}
       {state === "result" && result && (
@@ -1876,112 +1807,67 @@ function PeopleResearchTab({ seed }: { seed?: ContextSeed }) {
       {/* Error */}
       {state === "error" && error && <InlineError message={error} />}
 
-      {/* Loading */}
-      {state === "loading" && <AnalyzingState label="Identifying the right people..." />}
+      {/* Started — background research confirmation */}
+      {state === "result" && result?.status === "started" && (
+        <div className="intel-fade-in" style={{ width: "100%", maxWidth: 620, marginTop: 24, textAlign: "center", padding: "40px 20px" }}>
+          <div style={{
+            width: 8, height: 8, borderRadius: "50%", background: "var(--vl)",
+            animation: "pulse 2s infinite", margin: "0 auto 16px",
+          }} />
+          <div style={{ fontFamily: "var(--font-display)", fontSize: 18, fontWeight: 700, marginBottom: 8 }}>
+            Foxhound is researching
+          </div>
+          <p style={{ fontSize: 14, color: "var(--t2)", lineHeight: 1.6, maxWidth: 420, margin: "0 auto 20px" }}>
+            Finding contacts at {String(result.company || company)}. This can take a few minutes.
+            You&apos;ll see a notification in your activity feed when results are ready.
+          </p>
+          <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+            <a href="/dashboard" style={{
+              fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--vl)",
+              textTransform: "uppercase", letterSpacing: "0.08em",
+            }}>
+              Go to Dashboard
+            </a>
+            <span style={{ color: "var(--t3)" }}>&middot;</span>
+            <button onClick={handleReset} style={{
+              fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--t3)",
+              textTransform: "uppercase", letterSpacing: "0.08em",
+              background: "none", border: "none", cursor: "pointer",
+            }}>
+              Search Again
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Result */}
-      {state === "result" && result && (
+      {state === "result" && result && result.status !== "started" && (
         <ResultCard style={{ marginTop: 24 }}>
           {/* Header */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
             <div>
-              <SectionLabel>People Research</SectionLabel>
+              <SectionLabel>People at {String(result.company || company)}</SectionLabel>
               <div style={{ fontFamily: "var(--font-display)", fontSize: 22, fontWeight: 700, letterSpacing: "-0.02em", textTransform: "uppercase" as const }}>
                 {String(result.company || company)}
               </div>
             </div>
-            {(likelyTitle || typeof result.contacts_count === "number" || typeof result.count === "number") && (
+            {contacts.length > 0 && (
               <span style={{
                 fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--vl)",
                 letterSpacing: "0.1em", textTransform: "uppercase" as const,
                 padding: "4px 10px", borderRadius: 6,
                 background: "var(--vf)", border: "1px solid var(--bv)",
               }}>
-                {likelyTitle ? "target found" : `${(result.contacts_count || result.count) as number} contacts`}
+                {contacts.length} {contacts.length === 1 ? "contact" : "contacts"}
               </span>
             )}
           </div>
 
-          {(likelyTitle || searchUrls || overlap || outreach) && (
-            <div style={{ display: "grid", gap: 16, marginBottom: 20 }}>
-              <div style={{ padding: 16, background: "rgba(255,255,255,0.02)", border: "1px solid var(--b)", borderRadius: 8 }}>
-                <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--vl)", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 8 }}>
-                  Best Contact
-                </div>
-                <div style={{ fontFamily: "var(--font-display)", fontSize: 20, fontWeight: 700, letterSpacing: "-0.02em" }}>
-                  {likelyTitle || "No clear manager identified"}
-                </div>
-                {(department || confidence) && (
-                  <div style={{ fontSize: 13, color: "var(--t2)", marginTop: 6, lineHeight: 1.6 }}>
-                    {[department ? `Department: ${department}` : "", confidence ? `Confidence: ${confidence}` : ""].filter(Boolean).join(" · ")}
-                  </div>
-                )}
-              </div>
-
-              {(searchUrls?.linkedin || searchUrls?.google) && (
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  {searchUrls?.linkedin && (
-                    <a href={searchUrls.linkedin} target="_blank" rel="noopener noreferrer" className="btn-violet" style={{ borderRadius: 10, padding: "12px 16px", fontSize: 11, letterSpacing: "0.06em" }}>
-                      Open LinkedIn Search
-                    </a>
-                  )}
-                  {searchUrls?.google && (
-                    <a href={searchUrls.google} target="_blank" rel="noopener noreferrer" className="btn-ghost" style={{ borderRadius: 10, padding: "12px 16px", fontSize: 11, letterSpacing: "0.06em" }}>
-                      Open Google Search
-                    </a>
-                  )}
-                </div>
-              )}
-
-              {overlap && (
-                <div style={{ padding: 16, background: "rgba(255,255,255,0.02)", border: "1px solid var(--b)", borderRadius: 8 }}>
-                  <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--vl)", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 8 }}>
-                    Why You Match
-                  </div>
-                  {overlapScore !== null && (
-                    <div style={{ fontFamily: "var(--font-display)", fontSize: 28, fontWeight: 700, letterSpacing: "-0.02em", marginBottom: 8 }}>
-                      {overlapScore}%
-                    </div>
-                  )}
-                  <div style={{ fontSize: 13, color: "var(--t2)", lineHeight: 1.7 }}>
-                    {sharedSkills.length > 0 ? `Shared skills: ${sharedSkills.slice(0, 5).join(", ")}` : "Foxhound found contextual overlap for this role even without strong skill matches."}
-                  </div>
-                </div>
-              )}
-
-              {(linkedinNote || emailBody) && (
-                <div style={{ display: "grid", gap: 12 }}>
-                  {linkedinNote && (
-                    <div style={{ padding: 16, background: "rgba(255,255,255,0.02)", border: "1px solid var(--b)", borderRadius: 8 }}>
-                      <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--vl)", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 8 }}>
-                        LinkedIn Note
-                      </div>
-                      <ProseBlock text={linkedinNote} />
-                    </div>
-                  )}
-                  {emailBody && (
-                    <div style={{ padding: 16, background: "rgba(255,255,255,0.02)", border: "1px solid var(--b)", borderRadius: 8 }}>
-                      <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--vl)", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 8 }}>
-                        Email Draft
-                      </div>
-                      {emailSubject && (
-                        <div style={{ fontSize: 12, color: "var(--t3)", marginBottom: 8 }}>
-                          Subject: {emailSubject}
-                        </div>
-                      )}
-                      <ProseBlock text={emailBody} />
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Additional contacts */}
+          {/* Contacts */}
           {contacts.length > 0 ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
               <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--t3)", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 8 }}>
-                Other Useful Contacts
+                Contacts Found
               </div>
               {contacts.map((contact, i) => {
                 const relevanceColor = contact.relevance === "high" ? "var(--g)" : contact.relevance === "medium" ? "var(--warning)" : "var(--t3)";
@@ -2056,26 +1942,6 @@ function PeopleResearchTab({ seed }: { seed?: ContextSeed }) {
 
           <ApplicationWorkflowCard context={appContext} />
 
-          <NextActionCard
-            label={
-              guidedAction?.label ||
-              (likelyTitle
-                ? "Reach out to the best contact first"
-                : "Use the search links to verify the right contact")
-            }
-            detail={
-              guidedAction?.detail ||
-              (likelyTitle
-                ? seed?.applicationId
-                  ? "Foxhound found a focused contact path for this tracked application. Use the outreach draft now, then fall back to the additional contacts if the likely hiring manager is unclear."
-                  : "Foxhound found a focused contact path. Use the outreach draft, then fall back to the additional contacts if the likely hiring manager is unclear."
-                : "Foxhound found partial people context. Use the search links and overlap summary to confirm the most relevant contact before sending outreach.")
-            }
-            href={guidedAction?.href || (seed?.applicationId ? `/brief/${seed.applicationId}` : undefined)}
-            hrefLabel={guidedAction?.href_label || "Open Foxhound Brief"}
-          />
-
-          <ResetButton onClick={handleReset} label="Research another company" />
         </ResultCard>
       )}
 
@@ -2120,10 +1986,10 @@ function JobDiscoveryTab({ seed }: { seed?: ContextSeed }) {
     e.preventDefault();
     const trimmedRole = role.trim();
     if (!trimmedRole) return;
-    setState("loading");
     setError("");
     setResult(null);
     try {
+      setState("loading");
       const data = await runJobDiscovery(
         trimmedRole,
         trimmedRole,
@@ -2217,11 +2083,41 @@ function JobDiscoveryTab({ seed }: { seed?: ContextSeed }) {
       {/* Error */}
       {state === "error" && error && <InlineError message={error} />}
 
-      {/* Loading */}
-      {state === "loading" && <AnalyzingState label="Searching for opportunities..." />}
+      {/* Started — background search confirmation */}
+      {state === "result" && result?.status === "started" && (
+        <div className="intel-fade-in" style={{ width: "100%", maxWidth: 620, marginTop: 24, textAlign: "center", padding: "40px 20px" }}>
+          <div style={{
+            width: 8, height: 8, borderRadius: "50%", background: "var(--vl)",
+            animation: "pulse 2s infinite", margin: "0 auto 16px",
+          }} />
+          <div style={{ fontFamily: "var(--font-display)", fontSize: 18, fontWeight: 700, marginBottom: 8 }}>
+            Foxhound is hunting
+          </div>
+          <p style={{ fontSize: 14, color: "var(--t2)", lineHeight: 1.6, maxWidth: 420, margin: "0 auto 20px" }}>
+            Searching for {searchSummary || "jobs"}. This can take a few minutes.
+            You&apos;ll see a notification in your activity feed when results are ready.
+          </p>
+          <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+            <a href="/dashboard" style={{
+              fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--vl)",
+              textTransform: "uppercase", letterSpacing: "0.08em",
+            }}>
+              Go to Dashboard
+            </a>
+            <span style={{ color: "var(--t3)" }}>&middot;</span>
+            <button onClick={handleReset} style={{
+              fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--t3)",
+              textTransform: "uppercase", letterSpacing: "0.08em",
+              background: "none", border: "none", cursor: "pointer",
+            }}>
+              Search Again
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Result */}
-      {state === "result" && result && (
+      {state === "result" && result && result.status !== "started" && (
         <div style={{ width: "100%", maxWidth: 620, marginTop: 24 }}>
           {/* Header */}
           <div className="intel-fade-in" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
@@ -2331,26 +2227,13 @@ function JobDiscoveryTab({ seed }: { seed?: ContextSeed }) {
                 : "Use discovery to surface options, then move the best ones into Foxhound’s application and research flow. If your resume is still missing, Foxhound can keep hunting but it still needs one before it can apply.")
             }
             href={guidedAction?.href ?? undefined}
-            hrefLabel={guidedAction?.href_label || "Open Pipeline"}
+            hrefLabel={guidedAction?.href_label || "View Applications"}
           />
 
           <ResetButton onClick={handleReset} label="Search again" />
         </div>
       )}
 
-      {/* Idle empty state */}
-      {state === "idle" && !result && (
-        <EmptyPrompt
-          icon={
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="11" cy="11" r="8" />
-              <line x1="21" y1="21" x2="16.65" y2="16.65" />
-            </svg>
-          }
-          heading="Discover matching jobs"
-          description="Enter a role and optional location or industry to search across job boards for matching opportunities."
-        />
-      )}
     </div>
   );
 }
@@ -3079,7 +2962,6 @@ export default function IntelligencePage() {
               </button>
             ))}
           </div>
-          {/* autoRun strip removed — users don't need to know when things run */}
         </div>
 
         {/* Tab panel */}
@@ -3098,37 +2980,6 @@ export default function IntelligencePage() {
           <TabContent seed={seed} />
         </div>
 
-        {/* Footer */}
-        <footer
-          style={{
-            marginTop: 80,
-            textAlign: "center",
-            position: "relative",
-            zIndex: 1,
-          }}
-        >
-          <p
-            style={{
-              fontFamily: "var(--font-mono)",
-              fontSize: 10,
-              color: "var(--t3)",
-              letterSpacing: "0.08em",
-              textTransform: "uppercase" as const,
-              lineHeight: 1.8,
-            }}
-          >
-            Powered by{" "}
-            <Link
-              href="/"
-              style={{
-                color: "var(--vl)",
-                borderBottom: "1px solid rgba(139,92,246,0.2)",
-              }}
-            >
-              Foxhound
-            </Link>
-          </p>
-        </footer>
       </main>
     </AuthGuard>
   );

@@ -34,6 +34,7 @@ interface ActivityFeedProps {
   loading: boolean;
   hasMore: boolean;
   onLoadMore: () => void;
+  onAnswerQuestions?: (applicationId: string) => void;
 }
 
 function formatTime(iso: string): string {
@@ -52,7 +53,7 @@ function formatDayLabel(iso: string): string {
   return d.toLocaleDateString([], { month: 'short', day: 'numeric' }).toUpperCase();
 }
 
-export default function ActivityFeed({ events, loading, hasMore, onLoadMore }: ActivityFeedProps) {
+export default function ActivityFeed({ events, loading, hasMore, onLoadMore, onAnswerQuestions }: ActivityFeedProps) {
   if (!events.length && !loading) {
     return (
       <div style={{
@@ -126,6 +127,7 @@ export default function ActivityFeed({ events, loading, hasMore, onLoadMore }: A
                       View Brief
                     </a>
                   )}
+                {/* Questions pending — user reviews via the top alert, not individual events */}
                 {!!(event.metadata?.application_id) &&
                   event.type === 'application_submitted' && (
                     <a href="/applications" style={{

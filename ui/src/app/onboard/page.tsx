@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from 'r
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import AuthGuard from '@/components/AuthGuard';
-import { bootstrapProfile, uploadResume, updatePreferences } from '@/lib/api';
+import { bootstrapProfile, uploadResume, updatePreferences, updateAutopilot } from '@/lib/api';
 
 type Stage =
   | 'roles'
@@ -337,6 +337,7 @@ export default function OnboardPage() {
   const [answers, setAnswers] = useState<Answers>(INITIAL_ANSWERS);
   const [error, setError] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [autopilotChoice, setAutopilotChoice] = useState<boolean | null>(null);
   const [parseStage, setParseStage] = useState<ParseStage | null>(null);
   const [parsedSummary, setParsedSummary] = useState<ParsedSummary | null>(null);
   const [saving, setSaving] = useState(false);
@@ -353,19 +354,24 @@ export default function OnboardPage() {
   const stageReplies = currentQuestion?.quickReplies || [];
 
   useEffect(() => {
-    setMessages([
-      {
-        id: crypto.randomUUID(),
-        role: 'assistant',
-        content:
-          "I’m Foxhound, your onboarding agent.\n\nI’ll ask six setup questions, start your search immediately, then keep running in the background.",
-      },
-      {
-        id: crypto.randomUUID(),
-        role: 'assistant',
-        content: QUESTION_CONFIG.roles.prompt,
-      },
-    ]);
+    // Simulate typing — messages appear one at a time with delays
+    setAssistantTyping(true);
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    timers.push(setTimeout(() => {
+      setMessages([{ id: crypto.randomUUID(), role: "assistant", content: "I\u2019m Foxhound. Let\u2019s set up your job search." }]);
+      setAssistantTyping(false);
+    }, 800));
+    timers.push(setTimeout(() => { setAssistantTyping(true); }, 1200));
+    timers.push(setTimeout(() => {
+      setMessages((prev) => [...prev, { id: crypto.randomUUID(), role: "assistant", content: "I\u2019ll ask a few quick questions, then start finding jobs for you in the background." }]);
+      setAssistantTyping(false);
+    }, 2000));
+    timers.push(setTimeout(() => { setAssistantTyping(true); }, 2400));
+    timers.push(setTimeout(() => {
+      setMessages((prev) => [...prev, { id: crypto.randomUUID(), role: "assistant", content: QUESTION_CONFIG.roles.prompt }]);
+      setAssistantTyping(false);
+    }, 3200));
+    return () => timers.forEach(clearTimeout);
   }, []);
 
   useEffect(() => {
@@ -571,7 +577,21 @@ export default function OnboardPage() {
       return;
     }
     await runResumeUpload(file);
+    // Show autopilot choice instead of immediately finalizing
+    queueAssistant(
+      "Last question — do you want Foxhound to apply to strong matches automatically, or would you prefer to review each one first?",
+      300,
+    );
+  }
+
+  async function handleAutopilotChoice(enabled: boolean) {
+    setAutopilotChoice(enabled);
+    appendUser(enabled ? "Apply automatically" : "I'll review first");
+    // Save autopilot preference after profile is created
     await finalizeOnboarding(false, true);
+    try {
+      await updateAutopilot({ enabled, threshold: 70 });
+    } catch { /* best effort */ }
   }
 
   const completedRequired = REQUIRED_QUESTION_SEQUENCE.reduce((count, key) => {
@@ -803,31 +823,104 @@ export default function OnboardPage() {
                   </>
                 ) : stage === 'resume' ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                      <button type="button" className="btn-violet" onClick={() => fileInputRef.current?.click()}>
-                        Upload Resume
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => finalizeOnboarding(true)}
-                        disabled={saving}
-                        style={{
-                          borderRadius: 10,
-                          padding: '12px 16px',
-                          border: '1px solid var(--b)',
-                          background: 'transparent',
-                          color: 'var(--t3)',
-                          fontFamily: 'var(--font-mono)',
-                          fontSize: 11,
-                          letterSpacing: '0.06em',
-                          textTransform: 'uppercase',
-                          cursor: saving ? 'default' : 'pointer',
-                          opacity: saving ? 0.6 : 1,
-                        }}
-                      >
-                        Skip For Now
-                      </button>
-                    </div>
+                    {parseStage && parseStage !== 'done' ? (
+                      /* Uploading / parsing in progress */
+                      <div style={{
+                        display: 'flex', alignItems: 'center', gap: 10,
+                        padding: '12px 16px', borderRadius: 10,
+                        background: 'var(--vf)', border: '1px solid var(--bv)',
+                      }}>
+                        <span style={{
+                          width: 8, height: 8, borderRadius: '50%',
+                          background: 'var(--vl)',
+                          animation: 'pulse 1.5s infinite',
+                        }} />
+                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--vl)', letterSpacing: '0.04em' }}>
+                          {PARSE_STAGES.find((s) => s.key === parseStage)?.label || 'Processing...'}
+                        </span>
+                      </div>
+                    ) : parsedSummary && autopilotChoice === null ? (
+                      /* Resume uploaded — show autopilot choice */
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        <div style={{
+                          display: 'flex', alignItems: 'center', gap: 10,
+                          padding: '12px 16px', borderRadius: 10,
+                          background: 'rgba(52,211,153,0.06)', border: '1px solid rgba(52,211,153,0.15)',
+                        }}>
+                          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--g)', letterSpacing: '0.04em' }}>
+                            Resume uploaded — {parsedSummary.skills.length} skills found
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                          <button
+                            type="button"
+                            className="btn-violet"
+                            onClick={() => handleAutopilotChoice(true)}
+                            disabled={saving}
+                          >
+                            Apply Automatically
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleAutopilotChoice(false)}
+                            disabled={saving}
+                            style={{
+                              borderRadius: 10, padding: '12px 16px',
+                              border: '1px solid var(--b)', background: 'transparent',
+                              color: 'var(--t3)', fontFamily: 'var(--font-mono)',
+                              fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase',
+                              cursor: saving ? 'default' : 'pointer', opacity: saving ? 0.6 : 1,
+                            }}
+                          >
+                            I'll Review First
+                          </button>
+                        </div>
+                      </div>
+                    ) : parsedSummary ? (
+                      /* Autopilot chosen — finalizing */
+                      <div style={{
+                        display: 'flex', alignItems: 'center', gap: 10,
+                        padding: '12px 16px', borderRadius: 10,
+                        background: 'var(--vf)', border: '1px solid var(--bv)',
+                      }}>
+                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--vl)', animation: 'pulse 1.5s infinite' }} />
+                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--vl)', letterSpacing: '0.04em' }}>
+                          Setting things up...
+                        </span>
+                      </div>
+                    ) : (
+                      /* Upload buttons */
+                      <>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                          <button type="button" className="btn-violet" onClick={() => fileInputRef.current?.click()}>
+                            Upload Resume
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => finalizeOnboarding(true)}
+                            disabled={saving}
+                            style={{
+                              borderRadius: 10,
+                              padding: '12px 16px',
+                              border: '1px solid var(--b)',
+                              background: 'transparent',
+                              color: 'var(--t3)',
+                              fontFamily: 'var(--font-mono)',
+                              fontSize: 11,
+                              letterSpacing: '0.06em',
+                              textTransform: 'uppercase',
+                              cursor: saving ? 'default' : 'pointer',
+                              opacity: saving ? 0.6 : 1,
+                            }}
+                          >
+                            Skip For Now
+                          </button>
+                        </div>
+                        <div style={{ fontSize: 12, color: 'var(--t3)', lineHeight: 1.6 }}>
+                          Resume is optional for job discovery, but required for autonomous applications.
+                        </div>
+                      </>
+                    )}
                     <input
                       ref={fileInputRef}
                       type="file"
@@ -835,9 +928,6 @@ export default function OnboardPage() {
                       style={{ display: 'none' }}
                       onChange={onFilePicked}
                     />
-                    <div style={{ fontSize: 12, color: 'var(--t3)', lineHeight: 1.6 }}>
-                      Resume is optional for job discovery, but required for autonomous applications.
-                    </div>
                   </div>
                 ) : (
                   <div
