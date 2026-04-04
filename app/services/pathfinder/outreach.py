@@ -56,6 +56,8 @@ async def draft_outreach(
     user_name: str,
     user_summary: str | None,
     overlap_summary: str,
+    company_context: str | None = None,
+    contacts_found: list[dict] | None = None,
 ) -> dict[str, Any]:
     """Draft personalized outreach messages using Claude Haiku.
 
@@ -71,14 +73,27 @@ async def draft_outreach(
     Returns:
         Dict with linkedin_note, email_subject, email_body, personalization_hooks.
     """
-    user_content = (
-        f"ROLE: {job_title} at {company}\n"
-        f"HIRING MANAGER (likely): {manager_title}\n\n"
-        f"JOB DESCRIPTION (excerpt):\n{description[:4000]}\n\n"
-        f"CANDIDATE NAME: {user_name}\n"
-        f"CANDIDATE SUMMARY: {user_summary or 'Not provided'}\n\n"
-        f"OVERLAP/CONNECTION POINTS: {overlap_summary}"
-    )
+    parts = [
+        f"ROLE: {job_title} at {company}",
+        f"HIRING MANAGER (likely): {manager_title}",
+        f"\nJOB DESCRIPTION (excerpt):\n{description[:3000]}",
+    ]
+    if company_context:
+        parts.append(f"\nCOMPANY RESEARCH (from live web scrape):\n{company_context[:1500]}")
+    if contacts_found:
+        contact_lines = []
+        for c in contacts_found[:5]:
+            line = f"- {c.get('name', 'Unknown')} — {c.get('title', '')}"
+            if c.get('connection_angle'):
+                line += f" (connection: {c['connection_angle']})"
+            contact_lines.append(line)
+        parts.append(f"\nCONTACTS FOUND AT {company.upper()} (from LinkedIn):\n" + "\n".join(contact_lines))
+    parts.extend([
+        f"\nCANDIDATE NAME: {user_name}",
+        f"CANDIDATE SUMMARY: {user_summary or 'Not provided'}",
+        f"\nOVERLAP/CONNECTION POINTS: {overlap_summary}",
+    ])
+    user_content = "\n".join(parts)
 
     try:
         client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
@@ -92,13 +107,11 @@ async def draft_outreach(
 
         text = response.content[0].text.strip()
 
-        # Strip markdown code fences if present
-        if text.startswith("```"):
-            lines = text.split("\n")
-            lines = [l for l in lines if not l.strip().startswith("```")]
-            text = "\n".join(lines)
-
-        result = json.loads(text)
+        from app.services.pathfinder.json_parser import extract_json
+        result = extract_json(text)
+        if not result or not isinstance(result, dict):
+            logger.warning("Pathfinder outreach: could not parse JSON from response")
+            return _fallback_outreach(job_title, company, manager_title, user_name, overlap_summary)
 
         # Enforce LinkedIn character limit
         note = result.get("linkedin_note", "")

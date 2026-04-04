@@ -75,13 +75,12 @@ async def extract_manager_signals(
 
         text = response.content[0].text.strip()
 
-        # Strip markdown code fences if present
-        if text.startswith("```"):
-            lines = text.split("\n")
-            lines = [l for l in lines if not l.strip().startswith("```")]
-            text = "\n".join(lines)
+        from app.services.pathfinder.json_parser import extract_json
+        result = extract_json(text)
+        if not result or not isinstance(result, dict):
+            logger.warning("Pathfinder extraction: could not parse JSON from response")
+            return _fallback_extraction(job_title, company, seniority)
 
-        result = json.loads(text)
         logger.info(
             "Pathfinder extraction for %s @ %s — dept=%s, title=%s, confidence=%s",
             job_title, company,
