@@ -93,15 +93,42 @@ async def on_watchdog_change(event: FoxhoundEvent) -> None:
 
 @on_event("research.completed")
 async def on_research_completed(event: FoxhoundEvent) -> None:
-    """Log research completion and notify about brief."""
+    """Log research completion — only say 'ready' when brief is actually complete."""
     from app.services.activity.logger import log_activity
+    from app.db.models.foxhound_brief import FoxhoundBrief
+    from app.db.session import async_session
+    from sqlalchemy import select
 
     company = event.data.get("company", "Unknown")
+    application_id = event.data.get("application_id")
 
-    await log_activity(
-        user_id=event.data["user_id"],
-        event_type="dossier_ready",
-        title=f"Foxhound Brief ready: {company}",
-        description="Company research, contacts, and outreach drafts assembled",
-        metadata=event.data,
-    )
+    # Check actual brief status
+    brief_status = "partial"
+    if application_id:
+        try:
+            async with async_session() as db:
+                result = await db.execute(
+                    select(FoxhoundBrief.status).where(FoxhoundBrief.application_id == application_id)
+                )
+                row = result.scalar_one_or_none()
+                if row:
+                    brief_status = row
+        except Exception:
+            pass
+
+    if brief_status == "ready":
+        await log_activity(
+            user_id=event.data["user_id"],
+            event_type="dossier_ready",
+            title=f"Foxhound Brief ready: {company}",
+            description="Company research, contacts, and outreach drafts assembled.",
+            metadata=event.data,
+        )
+    else:
+        await log_activity(
+            user_id=event.data["user_id"],
+            event_type="research_completed",
+            title=f"Research in progress: {company}",
+            description="Foxhound is still assembling your brief.",
+            metadata=event.data,
+        )

@@ -147,46 +147,97 @@ async def people_research(
     db: AsyncSession = Depends(get_db),
     _rl: None = Depends(rate_limit("intelligence", 10, 60)),
 ):
-    """Run people research: likely hiring manager plus broader contacts."""
-    from app.services.agent.tools.pathfinder import find_hiring_manager
-    from app.services.agent.tools.network import network_map as run_network
+    """Start people research in background. Returns immediately."""
+    import asyncio
+    user_id = user["user_id"]
 
-    context = await _load_application_context(db, user["user_id"], body.application_id)
+    context = await _load_application_context(db, user_id, body.application_id)
     company_name = body.company_name.strip() or (context.get("company") if context else "")
     role_context = body.role.strip() or (context.get("role") if context else "")
     if not company_name:
         raise HTTPException(400, "company_name is required")
 
-    manager_payload: dict = {"company_name": company_name}
-    if context and context.get("job_id"):
-        manager_payload["job_id"] = context["job_id"]
+    logger.info("People research requested: company=%s role=%s", company_name, role_context)
 
-    result = await find_hiring_manager(
-        db,
-        user["user_id"],
-        manager_payload,
+    from app.services.activity.logger import log_activity
+    await log_activity(
+        user_id=user_id,
+        event_type="people_research_started",
+        title=f"People research started: {company_name}",
+        description=f"Foxhound is finding contacts at {company_name}. You'll be notified when results are ready.",
+        metadata={"company": company_name, "role": role_context},
     )
 
-    # If we could not resolve a relevant job posting, fall back to broad network mapping.
-    if result.get("error"):
-        network_only = await run_network(
-            db,
-            user["user_id"],
-            {"company_name": company_name, "role_context": role_context},
+    job_id = context.get("job_id") if context else None
+    asyncio.create_task(_run_people_research_background(
+        user_id, company_name, role_context, job_id,
+    ))
+
+    return {
+        "status": "started",
+        "message": f"Foxhound is researching contacts at {company_name}. You'll be notified when results are ready.",
+        "company": company_name,
+    }
+
+
+async def _run_people_research_background(
+    user_id: str, company_name: str, role_context: str, job_id: str | None,
+) -> None:
+    """Run people research in background and notify when done."""
+    try:
+        from app.db.session import async_session
+        from app.services.agent.tools.pathfinder import find_hiring_manager
+        from app.services.agent.tools.network import network_map as run_network
+        from app.services.activity.logger import log_activity
+
+        async with async_session() as db:
+            manager_payload: dict = {"company_name": company_name}
+            if job_id:
+                manager_payload["job_id"] = job_id
+
+            result = await find_hiring_manager(db, user_id, manager_payload)
+
+            if result.get("error"):
+                network_only = await run_network(
+                    db, user_id,
+                    {"company_name": company_name, "role_context": role_context},
+                )
+                result = network_only
+            else:
+                network_result = await run_network(
+                    db, user_id,
+                    {"company_name": company_name, "role_context": role_context},
+                )
+                if network_result.get("contacts"):
+                    result["contacts"] = network_result["contacts"]
+                    result["contacts_count"] = network_result.get("count", len(network_result["contacts"]))
+
+        # Merge real contacts into best contact — don't use LLM guess
+        contacts = result.get("contacts", [])
+        high_contacts = [c for c in contacts if isinstance(c, dict) and c.get("relevance") == "high"]
+        top = high_contacts[0] if high_contacts else (contacts[0] if contacts else None)
+        if top and top.get("name") and top.get("title"):
+            result.setdefault("manager_signals", {})
+            result["manager_signals"]["likely_title"] = top["title"]
+            result["manager_signals"]["likely_name"] = top["name"]
+            result["manager_signals"]["department"] = ""
+            if top.get("linkedin_url"):
+                result.setdefault("search_urls", {})
+                result["search_urls"]["linkedin"] = top["linkedin_url"]
+
+        manager = top["title"] if top else result.get("manager_signals", {}).get("likely_title", "")
+        await log_activity(
+            user_id=user_id,
+            event_type="people_research_completed",
+            title=f"People research ready: {company_name}",
+            description=f"Found {len(contacts)} contacts{' — best contact: ' + manager if manager else ''} at {company_name}.",
+            metadata={"company": company_name, "contacts_count": len(contacts), "result": result},
+            dedup_minutes=0,
         )
-        return _augment_result("people", network_only, context)
+        logger.info("People research background complete: company=%s contacts=%d", company_name, len(contacts))
 
-    # Augment focused manager intel with broader company contacts when available.
-    network_result = await run_network(
-        db,
-        user["user_id"],
-        {"company_name": company_name, "role_context": role_context},
-    )
-    if network_result.get("contacts"):
-        result["contacts"] = network_result["contacts"]
-        result["contacts_count"] = network_result.get("count", len(network_result["contacts"]))
-
-    return _augment_result("people", result, context)
+    except Exception as e:
+        logger.exception("People research background failed: company=%s error=%s", company_name, e)
 
 
 @router.post("/discover")
@@ -196,18 +247,66 @@ async def discover_jobs(
     db: AsyncSession = Depends(get_db),
     _rl: None = Depends(rate_limit("intelligence", 10, 60)),
 ):
-    """Search for jobs matching criteria. Returns results directly."""
-    from app.services.agent.tools.discover import discover_jobs as run_discover
+    """Start job discovery in background. Returns immediately."""
+    import asyncio
+    user_id = user["user_id"]
+    logger.info("Discovery requested: query=%s role=%s location=%s industry=%s", body.query, body.role, body.location, body.industry)
 
-    context = await _load_application_context(db, user["user_id"], body.application_id)
-
-    result = await run_discover(
-        db, user["user_id"],
-        {
-            "query": body.query,
-            "role": body.role or (context.get("role") if context else ""),
-            "location": body.location,
-            "industry": body.industry,
-        },
+    from app.services.activity.logger import log_activity
+    await log_activity(
+        user_id=user_id,
+        event_type="discovery_started",
+        title=f"Job discovery started: {body.query}",
+        description=f"Foxhound is searching for {body.role or body.query} jobs{' in ' + body.location if body.location else ''}{' (' + body.industry + ')' if body.industry else ''}. You'll be notified when results are ready.",
+        metadata={"query": body.query, "role": body.role, "location": body.location, "industry": body.industry},
     )
-    return _augment_result("discovery", result, context)
+
+    asyncio.create_task(_run_discovery_background(
+        user_id, body.query, body.role, body.location, body.industry, body.application_id,
+    ))
+
+    return {
+        "status": "started",
+        "message": "Foxhound is searching for jobs. You'll be notified when results are ready.",
+        "query": body.query,
+    }
+
+
+async def _run_discovery_background(
+    user_id: str, query: str, role: str, location: str, industry: str, application_id: str | None,
+) -> None:
+    """Run job discovery in background and notify when done."""
+    try:
+        from app.db.session import async_session
+        from app.services.agent.tools.discover import discover_jobs as run_discover
+        from app.services.activity.logger import log_activity
+
+        async with async_session() as db:
+            result = await run_discover(
+                db, user_id,
+                {"query": query, "role": role, "location": location, "industry": industry},
+            )
+
+        jobs = result.get("jobs", [])
+        if jobs:
+            await log_activity(
+                user_id=user_id,
+                event_type="discovery_completed",
+                title=f"Found {len(jobs)} jobs for {query}",
+                description=f"Foxhound found {len(jobs)} matching opportunities. Check the Discovery tab to review them.",
+                metadata={"query": query, "count": len(jobs), "jobs": jobs[:10]},
+                dedup_minutes=0,
+            )
+        else:
+            await log_activity(
+                user_id=user_id,
+                event_type="discovery_completed",
+                title=f"No jobs found for {query}",
+                description=f"Foxhound searched but couldn't find matching jobs. Try broadening your search.",
+                metadata={"query": query, "count": 0},
+                dedup_minutes=0,
+            )
+        logger.info("Discovery background complete: query=%s found=%d", query, len(jobs))
+
+    except Exception as e:
+        logger.exception("Discovery background failed: query=%s error=%s", query, e)

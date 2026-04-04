@@ -7,6 +7,7 @@ Helps the user get warm introductions instead of cold applying.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 
@@ -60,7 +61,7 @@ async def network_map(db: AsyncSession, user_id: str, params: dict) -> dict:
     if not company:
         return {"error": "missing_company", "message": "Please specify a company name."}
 
-    # Load user profile for matching context
+    # Load user profile for matching context — then close session before TinyFish
     result = await db.execute(
         select(UserProfile).where(UserProfile.user_id == user_id)
     )
@@ -68,7 +69,7 @@ async def network_map(db: AsyncSession, user_id: str, params: dict) -> dict:
     if not profile:
         return {"error": "no_profile", "message": "Set up your profile first."}
 
-    # Build matching context from profile
+    # Extract what we need from profile before any long-running calls
     experience = json.loads(profile.experience_json or "[]")
     education = json.loads(profile.education_json or "[]") if hasattr(profile, "education_json") else []
     skills = json.loads(profile.skills_json or "[]")
@@ -93,52 +94,24 @@ async def network_map(db: AsyncSession, user_id: str, params: dict) -> dict:
     )
 
     # Small focused searches — one per angle
+    # Single focused search — find managers/leads related to the role
     searches = [
         {
-            "name": "team_search",
+            "name": "company_page",
             "url": f"https://www.google.com/search?q=site:linkedin.com+{company.replace(' ', '+')}+{department}+manager+OR+lead+OR+director",
             "goal": (
-                f"Find LinkedIn profiles of {department} team members at {company}. "
+                f"Find LinkedIn profiles of managers and senior people related to {department} at {company}. "
                 "Click into 3-4 profiles. For each, extract name, title, and profile URL. "
                 + _CONTACT_SCHEMA
             ),
         },
-        {
-            "name": "company_page",
-            "url": f"https://www.google.com/search?q=site:linkedin.com+{company.replace(' ', '+')}+people",
-            "goal": (
-                f"Find the {company} LinkedIn company page and browse their people/employees. "
-                f"Focus on {department} department. Extract name, title, LinkedIn URL "
-                "for 3-4 relevant people. " + _CONTACT_SCHEMA
-            ),
-        },
     ]
 
-    # Add school-specific search if we have education
-    if schools:
-        school = schools[0]
-        searches.append({
-            "name": "school_alumni",
-            "url": f"https://www.google.com/search?q=site:linkedin.com+{company.replace(' ', '+')}+{school.replace(' ', '+')}",
-            "goal": (
-                f"Find people at {company} who went to {school}. "
-                "Extract name, title, LinkedIn URL. Note the shared school. "
-                + _CONTACT_SCHEMA
-            ),
-        })
-
-    # Add previous company search
-    if previous_companies:
-        prev = previous_companies[0]
-        searches.append({
-            "name": "former_colleagues",
-            "url": f"https://www.google.com/search?q=site:linkedin.com+{company.replace(' ', '+')}+{prev.replace(' ', '+')}",
-            "goal": (
-                f"Find people at {company} who previously worked at {prev}. "
-                "Extract name, title, LinkedIn URL. Note the shared employer. "
-                + _CONTACT_SCHEMA
-            ),
-        })
+    # TODO: re-enable after demo — these searches are slower
+    # if schools:
+    #     searches.append({ "name": "school_alumni", ... })
+    # if previous_companies:
+    #     searches.append({ "name": "former_colleagues", ... })
 
     # Run TinyFish searches in parallel with global semaphore
     from app.services.tinyfish_concurrency import TINYFISH_SEMAPHORE
@@ -154,7 +127,7 @@ async def network_map(db: AsyncSession, user_id: str, params: dict) -> dict:
                 result = await client.agent.run(
                     goal=search["goal"],
                     url=search["url"],
-                    browser_profile=BrowserProfile.LITE,
+                    browser_profile=BrowserProfile.STEALTH,
                 )
 
                 if result.status == RunStatus.COMPLETED and result.result:
@@ -180,8 +153,10 @@ async def network_map(db: AsyncSession, user_id: str, params: dict) -> dict:
             seen.add(name)
             unique.append(c)
 
+    # Cache the results to DB so they survive session timeouts
+    result_data: dict
     if not unique:
-        return {
+        result_data = {
             "status": "no_results",
             "company": company,
             "message": (
@@ -190,18 +165,42 @@ async def network_map(db: AsyncSession, user_id: str, params: dict) -> dict:
                 "Try searching LinkedIn directly or check if you have mutual connections."
             ),
         }
+    else:
+        result_data = {
+            "status": "found",
+            "company": company,
+            "contacts": unique[:8],
+            "count": len(unique[:8]),
+            "message": (
+                f"Found {len(unique[:8])} potential contacts at {company}. "
+                "Contacts with shared backgrounds are marked. "
+                "Use these for warm outreach before or after applying."
+            ),
+        }
 
-    return {
-        "status": "found",
-        "company": company,
-        "contacts": unique[:8],
-        "count": len(unique[:8]),
-        "message": (
-            f"Found {len(unique[:8])} potential contacts at {company}. "
-            "Contacts with shared backgrounds are marked. "
-            "Use these for warm outreach before or after applying."
-        ),
-    }
+    # Cache contacts to DB with a fresh session (internal cache, not shown in feed)
+    try:
+        from app.db.session import async_session as _async_session
+        async with _async_session() as cache_db:
+            from app.db.models.agent_activity import AgentActivity
+            from uuid import uuid4
+            contacts_list = result_data.get("contacts", [])
+            names = [c.get("name", "") for c in contacts_list[:4] if c.get("name")]
+            summary = ", ".join(names) + ("..." if len(contacts_list) > 4 else "")
+            cache_db.add(AgentActivity(
+                id=str(uuid4()),
+                user_id=user_id,
+                event_type="_network_cache",
+                title=f"network_map:{company}",
+                description=json.dumps(contacts_list),
+                metadata_json=json.dumps({"company": company, "count": len(unique), "_internal": True}),
+            ))
+            await cache_db.commit()
+        logger.info("Network map: cached %d contacts for %s", len(unique), company)
+    except Exception as e:
+        logger.warning("Network map: cache save failed: %s", e)
+
+    return result_data
 
 
 def _parse_contacts(raw: str) -> list[dict]:

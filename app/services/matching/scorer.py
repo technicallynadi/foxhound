@@ -209,18 +209,29 @@ class MatchScorer:
     def _location_compatible(self, profile: UserProfile, job: JobListing) -> bool:
         """Check if location preferences are compatible.
 
-        Lenient: only disqualify if we're SURE it's incompatible.
-        Unknown remote_type passes through to scoring.
+        Disqualifies jobs that are clearly outside the user's target locations,
+        unless the job is remote or the user has no location preference.
         """
         pref = profile.remote_preference
         if pref == "any" or not pref:
             return True
         if job.remote_type == "remote":
             return True  # Remote jobs are always compatible
-        if pref == "remote_only" and job.remote_type == "onsite":
-            return False  # Explicitly onsite + user wants remote = disqualify
-        # For everything else (null remote_type, hybrid, etc.) — let it through
-        # The location_fit scorer will penalize it
+        if pref == "remote_only" and job.remote_type != "remote":
+            return False
+
+        # If user has target locations set, disqualify jobs that don't match
+        user_locations = json.loads(profile.target_locations_json or "[]")
+        if user_locations and job.location:
+            job_loc = job.location.lower()
+            for loc in user_locations:
+                if loc.lower() in job_loc or job_loc in loc.lower():
+                    return True
+            # Job has a location but it doesn't match any user preference
+            # and it's not remote — disqualify
+            if job.remote_type != "remote":
+                return False
+
         return True
 
     def _location_fit(self, profile: UserProfile, job: JobListing) -> float:
@@ -240,7 +251,7 @@ class MatchScorer:
             if loc.lower() in job_loc or job_loc in loc.lower():
                 return 1.0
 
-        return 0.3
+        return 0.0
 
     def _salary_fit(self, profile: UserProfile, job: JobListing) -> float:
         """Score salary alignment."""

@@ -45,6 +45,8 @@ async def find_hiring_manager(db: AsyncSession, user_id: str, params: dict) -> d
     """Run Pathfinder and return hiring manager intel + outreach drafts."""
     job_id = params.get("job_id")
     company_name = (params.get("company_name") or "").strip().lower()
+    company_context = params.get("_company_context")
+    contacts_found = params.get("_contacts_found")
 
     # Resolve job_id if only company_name given
     if not job_id and company_name:
@@ -132,6 +134,8 @@ async def find_hiring_manager(db: AsyncSession, user_id: str, params: dict) -> d
         user_name=user_name,
         user_summary=user_summary,
         overlap_summary=overlap_summary,
+        company_context=company_context,
+        contacts_found=contacts_found,
     )
 
     # Format response for agent

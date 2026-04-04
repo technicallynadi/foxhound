@@ -107,29 +107,9 @@ async def discover_jobs(db: AsyncSession, user_id: str, params: dict) -> dict:
             "goal": (
                 f"Find job openings from Google search results for: {search_query}. "
                 f"{f'Focus on {industry} companies. ' if industry else ''}"
-                "Click into 3-4 of the most relevant job posting links. "
+                "Click into 5-6 of the most relevant job posting links. "
                 "For each, extract: title, company, location, apply URL, "
-                "brief description. " + _RESULT_SCHEMA
-            ),
-        },
-        {
-            "name": "greenhouse_jobs",
-            "url": f"https://www.google.com/search?q=site:boards.greenhouse.io+{search_query.replace(' ', '+')}",
-            "goal": (
-                f"Find Greenhouse job postings matching: {search_query}. "
-                "Click into the top 3-4 results. For each, extract: "
-                "title, company, location, and the full Greenhouse apply URL. "
-                + _RESULT_SCHEMA
-            ),
-        },
-        {
-            "name": "lever_jobs",
-            "url": f"https://www.google.com/search?q=site:jobs.lever.co+{search_query.replace(' ', '+')}",
-            "goal": (
-                f"Find Lever job postings matching: {search_query}. "
-                "Click into the top 3-4 results. For each, extract: "
-                "title, company, location, and the full Lever URL. "
-                + _RESULT_SCHEMA
+                "brief description, and salary if listed. " + _RESULT_SCHEMA
             ),
         },
     ]
