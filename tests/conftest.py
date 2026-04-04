@@ -16,7 +16,10 @@ import pytest
 # FOXHOUND_DATABASE_URL is what pydantic-settings reads (env_prefix="FOXHOUND_").
 # DATABASE_URL is what the default fallback reads via os.environ.get().
 # Also set DOTENV_OVERRIDE to prevent load_dotenv from clobbering these.
-_TEST_DB = "sqlite+aiosqlite:///file:test?mode=memory&cache=shared&uri=true"
+import tempfile as _tempfile
+import pathlib as _pathlib
+_TEST_DB_FILE = _pathlib.Path(_tempfile.mkdtemp()) / "foxhound_test.db"
+_TEST_DB = f"sqlite+aiosqlite:///{_TEST_DB_FILE}"
 os.environ["DATABASE_URL"] = _TEST_DB
 os.environ["FOXHOUND_DATABASE_URL"] = _TEST_DB
 
