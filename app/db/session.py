@@ -1,7 +1,7 @@
 from collections.abc import AsyncGenerator
 import logging
 
-from sqlalchemy import event
+from sqlalchemy import event, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import declarative_base
 
@@ -63,8 +63,40 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
         yield session
 
 
+_db_initialized = False
+
+
 async def init_db() -> None:
+    global _db_initialized
+    if _db_initialized:
+        return
     import app.db.models  # noqa: F401
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # Inline migrations: add ownership columns that postdate initial schema.
+        await conn.execute(
+            text(
+                "ALTER TABLE notification_deliveries"
+                " ADD COLUMN IF NOT EXISTS user_id VARCHAR"
+            )
+        )
+        await conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_notification_deliveries_user_id"
+                " ON notification_deliveries (user_id)"
+            )
+        )
+        await conn.execute(
+            text(
+                "ALTER TABLE notification_destinations"
+                " ADD COLUMN IF NOT EXISTS user_id VARCHAR"
+            )
+        )
+        await conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_notification_destinations_user_id"
+                " ON notification_destinations (user_id)"
+            )
+        )
+    _db_initialized = True

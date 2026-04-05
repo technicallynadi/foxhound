@@ -12,6 +12,7 @@ class NotificationDestination(Base):
     __tablename__ = "notification_destinations"
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
+    user_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
     label: Mapped[str] = mapped_column(String, index=True)
     channel: Mapped[str] = mapped_column(String, index=True)
     audience_type: Mapped[str] = mapped_column(String, default="human", index=True)

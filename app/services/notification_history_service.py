@@ -25,28 +25,34 @@ def _to_response(row: NotificationDelivery) -> dict:
     }
 
 
-async def list_notification_deliveries(limit: int = 100, run_id: str | None = None) -> list[dict]:
+async def list_notification_deliveries(limit: int = 100, run_id: str | None = None, user_id: str | None = None) -> list[dict]:
     async with async_session() as session:
         stmt = select(NotificationDelivery).order_by(NotificationDelivery.created_at.desc()).limit(limit)
         if run_id:
             stmt = stmt.where(NotificationDelivery.run_id == run_id)
+        if user_id:
+            stmt = stmt.where(NotificationDelivery.user_id == user_id)
         result = await session.execute(stmt)
         rows = result.scalars().all()
     return [_to_response(row) for row in rows]
 
 
-async def get_notification_delivery(delivery_id: str) -> dict | None:
+async def get_notification_delivery(delivery_id: str, user_id: str | None = None) -> dict | None:
     async with async_session() as session:
         row = await session.get(NotificationDelivery, delivery_id)
         if not row:
             return None
+        if user_id and row.user_id != user_id:
+            return None
     return _to_response(row)
 
 
-async def retry_notification_delivery(delivery_id: str) -> dict | None:
+async def retry_notification_delivery(delivery_id: str, user_id: str | None = None) -> dict | None:
     async with async_session() as session:
         delivery = await session.get(NotificationDelivery, delivery_id)
         if not delivery:
+            return None
+        if user_id and delivery.user_id != user_id:
             return None
         run = await session.get(FoxhoundRun, delivery.run_id)
         if not run:
@@ -82,6 +88,7 @@ async def retry_notification_delivery(delivery_id: str) -> dict | None:
         new_row = NotificationDelivery(
             id=f"nd_{uuid.uuid4().hex[:10]}",
             run_id=delivery.run_id,
+            user_id=delivery.user_id,
             channel=delivery.channel,
             source_event=delivery.source_event,
             status=state.get("status", "unknown"),

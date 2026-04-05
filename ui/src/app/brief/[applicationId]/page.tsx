@@ -319,7 +319,6 @@ export default function BriefPage() {
 
         {/* Pathfinder */}
         <Card style={{ marginBottom: 16 }}>
-          <CardLabel>PATHFINDER</CardLabel>
           <PathfinderCard
             jobId={brief.application_context?.job_id ?? null}
             initialData={brief.pathfinder as PathfinderData | null}
