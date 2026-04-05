@@ -15,8 +15,12 @@ Foxhound is the personal career agent that runs your entire job search with prec
 
 ### Pillar 2: Deep Web Intelligence
 - **Value:** Be the best-prepared candidate in the pool.
-- **Proof:** "Foxhound Briefs" (company/hiring manager research), Ghost job detection, Live web monitoring.
+- **Proof:** "Foxhound Briefs" (company/hiring manager research), Ghost job detection (Signals: Age, Reposting, Response rates), Live web monitoring.
 - **Tone:** Investigative, insightful, comprehensive.
+
+### Vertical Messaging:
+- **Property Management:** "Foxhound knows the difference between a Leasing Agent and a Leasing Manager. It also knows which listings are just 'evergreen' ghost posts."
+- **AI Developer Tooling:** "Foxhound matches your repo activity to real, verified roles. No more applying to 'Ghost jobs' that are just talent-gathering exercises."
 
 ### Pillar 3: Agentic Autonomy
 - **Value:** Your job search works while you sleep.

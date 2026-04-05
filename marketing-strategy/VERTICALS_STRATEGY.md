@@ -29,8 +29,16 @@ Foxhound leverages domain-specific intelligence (terms, tools, communities) to d
 - **Messaging:** "The secure choice for your next move."
 - **Growth Channel:** cybersecurity Reddit, OWASP communities.
 
-## 4. GTM Tactical Checklist for each Vertical
-- [ ] Dedicated Landing Page (e.g., `usefoxhound.com/property-management`)
-- [ ] "Domain Lexicon" update for Agent matching logic (from `verticals.yaml`)
-- [ ] List of "Influencer" hiring managers in the vertical for "Network Map" seeding.
-- [ ] Partnership outreach to 1 niche industry job board for "Ghost Job Verification" API trial.
+## 4. GTM Tactical Checklist for Priority Verticals (Q2 2026)
+
+### Property Management:
+- [ ] Launch `usefoxhound.com/property-management` with tool-specific messaging (Appfolio/Yardi).
+- [ ] Outreach to `r/propertymanagement` for beta-testing the Ghost Job detector on stale rental management listings.
+- [ ] Partnership trial with 1 niche property management job board for "Verified by Foxhound" badge.
+- [ ] Seed "Leasing Operations Manager" match data into the core model using `verticals.yaml`.
+
+### AI Developer Tooling:
+- [ ] Launch `usefoxhound.com/ai-dev` highlighting MCP and Agentic stack knowledge.
+- [ ] Host an AMA on `r/LocalLLaMA` about "How to avoid Ghost Jobs in AI Tech".
+- [ ] Create a "Ghost Job Signal" browser extension prototype for AI dev job boards.
+- [ ] Partner with AI-focused recruiting firms for early access to the "Candidate Dossier".

@@ -142,6 +142,7 @@ async def _run_cascade(
                 async with async_session() as cache_db:
                     result = await cache_db.execute(
                         _select(TinyFishBriefCache).where(
+                            TinyFishBriefCache.user_id == user_id,
                             TinyFishBriefCache.company_normalized == _normalized
                         )
                     )
@@ -187,6 +188,7 @@ async def _run_cascade(
                     async with async_session() as cache_db:
                         cached = TinyFishBriefCache(
                             id=f"tfc_{_uuid4().hex[:12]}",
+                            user_id=user_id,
                             company_normalized=company.lower().strip(),
                             company_display=company,
                             careers_data=_json.dumps(careers_data, default=str) if careers_data else None,
@@ -255,6 +257,7 @@ async def _run_cascade(
                 async with async_session() as cache_db:
                     _cr = await cache_db.execute(
                         select(TinyFishBriefCache).where(
+                            TinyFishBriefCache.user_id == user_id,
                             TinyFishBriefCache.company_normalized == _normalized
                         )
                     )
@@ -291,6 +294,7 @@ async def _run_cascade(
                         async with async_session() as cache_db:
                             _cr = await cache_db.execute(
                                 select(TinyFishBriefCache).where(
+                                    TinyFishBriefCache.user_id == user_id,
                                     TinyFishBriefCache.company_normalized == _normalized
                                 )
                             )

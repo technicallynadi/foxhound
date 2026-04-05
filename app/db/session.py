@@ -38,6 +38,7 @@ Base = declarative_base()
 
 
 if not _is_sqlite:
+
     @event.listens_for(engine.sync_engine, "checkout")
     def _on_pool_checkout(dbapi_conn, conn_record, conn_proxy) -> None:
         pool = engine.sync_engine.pool
@@ -74,29 +75,81 @@ async def init_db() -> None:
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-        # Inline migrations: add ownership columns that postdate initial schema.
-        await conn.execute(
-            text(
-                "ALTER TABLE notification_deliveries"
-                " ADD COLUMN IF NOT EXISTS user_id VARCHAR"
+        if not _is_sqlite:
+            # Inline migrations: add ownership columns that postdate initial schema.
+            await conn.execute(text("ALTER TABLE notification_deliveries ADD COLUMN IF NOT EXISTS user_id VARCHAR"))
+            await conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_notification_deliveries_user_id ON notification_deliveries (user_id)"
+                )
             )
-        )
-        await conn.execute(
-            text(
-                "CREATE INDEX IF NOT EXISTS ix_notification_deliveries_user_id"
-                " ON notification_deliveries (user_id)"
+            await conn.execute(text("ALTER TABLE notification_destinations ADD COLUMN IF NOT EXISTS user_id VARCHAR"))
+            await conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_notification_destinations_user_id"
+                    " ON notification_destinations (user_id)"
+                )
             )
-        )
-        await conn.execute(
-            text(
-                "ALTER TABLE notification_destinations"
-                " ADD COLUMN IF NOT EXISTS user_id VARCHAR"
+
+            await conn.execute(text("ALTER TABLE recon_dossiers ADD COLUMN IF NOT EXISTS user_id VARCHAR"))
+            await conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_recon_dossiers_user_id ON recon_dossiers (user_id)"
+                )
             )
-        )
-        await conn.execute(
-            text(
-                "CREATE INDEX IF NOT EXISTS ix_notification_destinations_user_id"
-                " ON notification_destinations (user_id)"
+            await conn.execute(text("ALTER TABLE tinyfish_brief_cache ADD COLUMN IF NOT EXISTS user_id VARCHAR"))
+            await conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_tinyfish_brief_cache_user_id ON tinyfish_brief_cache (user_id)"
+                )
             )
-        )
+
+            # Inline RLS migration (FOX-106): protect newly added user-facing tables.
+            await conn.execute(text("ALTER TABLE dossiers ENABLE ROW LEVEL SECURITY"))
+            await conn.execute(text("ALTER TABLE foxhound_briefs ENABLE ROW LEVEL SECURITY"))
+            await conn.execute(text("ALTER TABLE agent_activities ENABLE ROW LEVEL SECURITY"))
+            await conn.execute(text("ALTER TABLE watchdog_checks ENABLE ROW LEVEL SECURITY"))
+            await conn.execute(text("ALTER TABLE recon_dossiers ENABLE ROW LEVEL SECURITY"))
+            await conn.execute(text("ALTER TABLE tinyfish_brief_cache ENABLE ROW LEVEL SECURITY"))
+
+            await conn.execute(text("DROP POLICY IF EXISTS users_read_own_dossiers ON dossiers"))
+            await conn.execute(
+                text("CREATE POLICY users_read_own_dossiers ON dossiers FOR SELECT USING (user_id = auth.uid()::text)")
+            )
+            await conn.execute(text("DROP POLICY IF EXISTS users_read_own_briefs ON foxhound_briefs"))
+            await conn.execute(
+                text(
+                    "CREATE POLICY users_read_own_briefs ON foxhound_briefs"
+                    " FOR SELECT USING (user_id = auth.uid()::text)"
+                )
+            )
+            await conn.execute(text("DROP POLICY IF EXISTS users_read_own_activities ON agent_activities"))
+            await conn.execute(
+                text(
+                    "CREATE POLICY users_read_own_activities ON agent_activities"
+                    " FOR SELECT USING (user_id = auth.uid()::text)"
+                )
+            )
+            await conn.execute(text("DROP POLICY IF EXISTS users_read_own_watchdog_checks ON watchdog_checks"))
+            await conn.execute(
+                text(
+                    "CREATE POLICY users_read_own_watchdog_checks ON watchdog_checks"
+                    " FOR SELECT USING (user_id = auth.uid()::text)"
+                )
+            )
+
+            await conn.execute(text("DROP POLICY IF EXISTS users_read_own_recon_dossiers ON recon_dossiers"))
+            await conn.execute(
+                text(
+                    "CREATE POLICY users_read_own_recon_dossiers ON recon_dossiers"
+                    " FOR SELECT USING (user_id = auth.uid()::text)"
+                )
+            )
+            await conn.execute(text("DROP POLICY IF EXISTS users_read_own_tinyfish_cache ON tinyfish_brief_cache"))
+            await conn.execute(
+                text(
+                    "CREATE POLICY users_read_own_tinyfish_cache ON tinyfish_brief_cache"
+                    " FOR SELECT USING (user_id = auth.uid()::text)"
+                )
+            )
     _db_initialized = True

@@ -35,8 +35,11 @@ Foxhound is the first high-precision AI Career Agent designed to handle the end-
 
 ### Phase 2: Vertical Launch (Q2 2026)
 - **Focus:** Deploy industry-specific landing pages and messaging.
-- **Target:** Property Management and AI Developer Tooling.
-- **Partnerships:** Reach out to niche job boards in these sectors for "Ghost Job Detector" co-branding.
+- **Priority Verticals:**
+  - **Property Management:** Target Operations and Property Managers in `r/propertymanagement`. Partner with industry niche job boards for "Ghost Job Verification".
+  - **AI Developer Tooling:** Target Senior Engineers in `r/LocalLLaMA` and Discord. Highlight MCP and LLM-specific matching precision.
+- **Lead Magnet:** Free "Foxhound Brief" + "Ghost Risk Audit" for a user's top target company.
+- **New KPI:** Ghost Job Avoidance Rate (% of matches flagged as "Ghost" before user applies).
 
 ### Phase 3: Platform Expansion (Q3 2026)
 - **Focus:** B2B pilot for small-to-midsize recruiting firms.
