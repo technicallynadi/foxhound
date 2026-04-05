@@ -114,6 +114,29 @@ export async function updateProfile(body: { archetype?: string; [key: string]: u
   });
 }
 
+export async function getEeoProfile() {
+  return request<{
+    gender: string | null;
+    race: string | null;
+    hispanic_latino: boolean | null;
+    veteran_status: string | null;
+    disability_status: string | null;
+  }>('/api/v1/profile/eeo');
+}
+
+export async function updateEeoProfile(body: {
+  gender?: string | null;
+  race?: string | null;
+  hispanic_latino?: boolean | null;
+  veteran_status?: string | null;
+  disability_status?: string | null;
+}) {
+  return request('/api/v1/profile/eeo', {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  });
+}
+
 export async function updatePreferences(body: {
   target_titles?: string[];
   target_locations?: string[];
