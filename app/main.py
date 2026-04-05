@@ -110,5 +110,7 @@ for module_path in (
     "app.api.routes.settings",
     "app.api.routes.matches",
     "app.api.routes.files",
+    # --- Agent Dispatch (Phase 2 — FOX-66) ---
+    "app.api.routes.dispatch",
 ):
     _include_router(module_path)
