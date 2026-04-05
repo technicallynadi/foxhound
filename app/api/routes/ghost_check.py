@@ -63,10 +63,14 @@ async def check_url(body: GhostCheckRequest, request: Request):
 
 
 @router.post("/deep-scan")
-async def deep_scan_url(body: GhostCheckRequest, request: Request):
+async def deep_scan_url(
+    body: GhostCheckRequest,
+    request: Request,
+    user: dict = Depends(get_current_user),
+):
     """Deep scan: runs TinyFish agents for deeper ghost signals.
 
-    Rate limited. Uses TinyFish credits. Returns richer analysis.
+    Requires authentication. Uses TinyFish credits. Returns richer analysis.
     """
     client_ip = request.client.host if request.client else "unknown"
     if not _check_rate_limit(client_ip):

@@ -55,6 +55,7 @@ async def create_notification_destination(request: dict) -> dict:
 
     row = NotificationDestination(
         id=f"dest_{uuid.uuid4().hex[:10]}",
+        user_id=request.get("user_id"),
         label=(request.get("label") or f"{channel} destination").strip()[:120],
         channel=channel,
         audience_type=audience_type,
@@ -70,11 +71,13 @@ async def create_notification_destination(request: dict) -> dict:
     return _to_response(row)
 
 
-async def list_notification_destinations(active_only: bool = False) -> list[dict]:
+async def list_notification_destinations(active_only: bool = False, user_id: str | None = None) -> list[dict]:
     async with async_session() as session:
         stmt = select(NotificationDestination).order_by(NotificationDestination.updated_at.desc())
         if active_only:
             stmt = stmt.where(NotificationDestination.active.is_(True))
+        if user_id:
+            stmt = stmt.where(NotificationDestination.user_id == user_id)
         result = await session.execute(stmt)
         rows = result.scalars().all()
     return [_to_response(row) for row in rows]
