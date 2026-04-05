@@ -12,6 +12,7 @@ class NotificationDelivery(Base):
     __tablename__ = "notification_deliveries"
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
+    user_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
     run_id: Mapped[str] = mapped_column(String, index=True)
     channel: Mapped[str] = mapped_column(String, index=True)
     source_event: Mapped[str] = mapped_column(String, index=True)
