@@ -284,6 +284,19 @@ export default function PathfinderCard({ jobId, initialData, companyName, jobTit
       {data && !loading && (
         <div style={{ paddingTop: 4 }}>
 
+          {!hasManagerData && !hasOverlap && !hasOutreach && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '8px 0' }}>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--t3)', lineHeight: 1.6, margin: 0 }}>
+                Pathfinder found limited data for this company and role. Try searching LinkedIn directly.
+              </p>
+              {searchUrls?.linkedin && (
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <SearchLink href={searchUrls.linkedin} label="Search LinkedIn" />
+                </div>
+              )}
+            </div>
+          )}
+
           {hasManagerData && (
             <>
               <SectionLabel index="1">Hiring Manager</SectionLabel>
@@ -296,6 +309,16 @@ export default function PathfinderCard({ jobId, initialData, companyName, jobTit
                   <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--t3)', marginTop: 3, letterSpacing: '0.02em' }}>
                     {confirmed.title}{confirmed.team ? ` · ${confirmed.team}` : ''}
                   </div>
+                  {(confirmed.source || confirmed.source_url) && (
+                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--t3)', marginTop: 6, letterSpacing: '0.04em', opacity: 0.8 }}>
+                      via{' '}
+                      {confirmed.source_url ? (
+                        <a href={confirmed.source_url} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--vl)', textDecoration: 'none' }}>
+                          {confirmed.source || confirmed.source_url} ↗
+                        </a>
+                      ) : confirmed.source}
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div style={{ background: 'var(--vf)', border: '1px solid var(--bv)', borderRadius: 8, padding: '12px 14px', marginBottom: 12 }}>
@@ -371,6 +394,9 @@ export default function PathfinderCard({ jobId, initialData, companyName, jobTit
             <>
               {(hasManagerData || hasOverlap) && <Divider />}
               <SectionLabel index={String(outreachSectionIndex)}>Outreach Drafts</SectionLabel>
+              <div style={{ display: 'inline-flex', alignItems: 'center', fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', padding: '4px 10px', borderRadius: 100, background: 'rgba(139,92,246,0.08)', color: 'var(--vl)', border: '1px solid var(--bv)', marginBottom: 14 }}>
+                AI DRAFT — review and edit before sending
+              </div>
               {outreach?.personalization_hooks && outreach.personalization_hooks.length > 0 && (
                 <div style={{ marginBottom: 14 }}>
                   <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--t3)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>Personalization Hooks</div>
@@ -392,7 +418,7 @@ export default function PathfinderCard({ jobId, initialData, companyName, jobTit
                     </div>
                     <CopyButton text={outreach.linkedin_note} />
                   </div>
-                  <div style={{ background: 'var(--sf)', border: '1px solid var(--b)', borderRadius: 6, padding: 12, fontSize: 13, fontFamily: 'var(--font-body)', color: 'var(--t2)', lineHeight: 1.65, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                  <div style={{ background: 'var(--bg)', border: '1px solid var(--b)', borderRadius: 6, padding: 12, fontSize: 13, fontFamily: 'var(--font-body)', color: 'var(--t2)', lineHeight: 1.65, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
                     {outreach.linkedin_note}
                   </div>
                 </div>
@@ -405,7 +431,7 @@ export default function PathfinderCard({ jobId, initialData, companyName, jobTit
                     </div>
                     <CopyButton text={outreach.email_body} />
                   </div>
-                  <div style={{ background: 'var(--sf)', border: '1px solid var(--b)', borderRadius: 6, padding: 12, fontSize: 13, fontFamily: 'var(--font-body)', color: 'var(--t2)', lineHeight: 1.65, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                  <div style={{ background: 'var(--bg)', border: '1px solid var(--b)', borderRadius: 6, padding: 12, fontSize: 13, fontFamily: 'var(--font-body)', color: 'var(--t2)', lineHeight: 1.65, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
                     {outreach.email_body}
                   </div>
                 </div>
@@ -417,9 +443,9 @@ export default function PathfinderCard({ jobId, initialData, companyName, jobTit
             <div style={{ marginTop: 18, paddingTop: 14, borderTop: '1px solid var(--b)' }}>
               <button
                 onClick={runAnalysis}
-                style={{ fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 500, letterSpacing: '0.06em', textTransform: 'uppercase', padding: '4px 10px', borderRadius: 4, cursor: 'pointer', border: '1px solid var(--b)', background: 'transparent', color: 'var(--t3)', transition: 'all 0.2s', minHeight: 26 }}
+                style={{ fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 500, letterSpacing: '0.06em', textTransform: 'uppercase', padding: '4px 10px', borderRadius: 4, cursor: 'pointer', border: '1px solid var(--b)', background: 'transparent', color: 'var(--t2)', transition: 'all 0.2s', minHeight: 26 }}
                 onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--bv)'; e.currentTarget.style.color = 'var(--vl)'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--b)'; e.currentTarget.style.color = 'var(--t3)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--b)'; e.currentTarget.style.color = 'var(--t2)'; }}
               >
                 Re-run Analysis
               </button>
