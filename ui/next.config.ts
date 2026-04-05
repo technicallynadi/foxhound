@@ -2,6 +2,16 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: false,
+  webpack: (config, { dev }) => {
+    if (dev) {
+      config.optimization = {
+        ...config.optimization,
+        moduleIds: "deterministic",
+        chunkIds: "deterministic",
+      };
+    }
+    return config;
+  },
   async headers() {
     return [
       {
