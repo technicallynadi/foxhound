@@ -67,6 +67,65 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 _db_initialized = False
 
 
+async def _sqlite_table_columns(conn, table: str) -> set[str]:
+    """Return lowercase column names for SQLite `table` (empty if table missing)."""
+    res = await conn.execute(text(f'PRAGMA table_info("{table}")'))
+    rows = res.fetchall()
+    return {str(r[1]).lower() for r in rows} if rows else set()
+
+
+async def _sqlite_add_column_if_missing(conn, table: str, column: str, ddl_type: str) -> None:
+    """SQLite before 3.35 rejects `ADD COLUMN IF NOT EXISTS`; use PRAGMA + ALTER instead."""
+    cols = await _sqlite_table_columns(conn, table)
+    if not cols or column.lower() in cols:
+        return
+    await conn.execute(text(f'ALTER TABLE "{table}" ADD COLUMN {column} {ddl_type}'))
+
+
+async def _apply_inline_ownership_migrations(conn) -> None:
+    """Add user_id ownership columns that may postdate an existing on-disk schema."""
+    if _is_sqlite:
+        await _sqlite_add_column_if_missing(conn, "notification_deliveries", "user_id", "VARCHAR")
+        await conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_notification_deliveries_user_id ON notification_deliveries (user_id)"
+            )
+        )
+        await _sqlite_add_column_if_missing(conn, "notification_destinations", "user_id", "VARCHAR")
+        await conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_notification_destinations_user_id"
+                " ON notification_destinations (user_id)"
+            )
+        )
+        await _sqlite_add_column_if_missing(conn, "recon_dossiers", "user_id", "VARCHAR")
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_recon_dossiers_user_id ON recon_dossiers (user_id)"))
+        await _sqlite_add_column_if_missing(conn, "tinyfish_brief_cache", "user_id", "VARCHAR")
+        await conn.execute(
+            text("CREATE INDEX IF NOT EXISTS ix_tinyfish_brief_cache_user_id ON tinyfish_brief_cache (user_id)")
+        )
+        return
+
+    await conn.execute(text("ALTER TABLE notification_deliveries ADD COLUMN IF NOT EXISTS user_id VARCHAR"))
+    await conn.execute(
+        text("CREATE INDEX IF NOT EXISTS ix_notification_deliveries_user_id ON notification_deliveries (user_id)")
+    )
+    await conn.execute(text("ALTER TABLE notification_destinations ADD COLUMN IF NOT EXISTS user_id VARCHAR"))
+    await conn.execute(
+        text(
+            "CREATE INDEX IF NOT EXISTS ix_notification_destinations_user_id"
+            " ON notification_destinations (user_id)"
+        )
+    )
+
+    await conn.execute(text("ALTER TABLE recon_dossiers ADD COLUMN IF NOT EXISTS user_id VARCHAR"))
+    await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_recon_dossiers_user_id ON recon_dossiers (user_id)"))
+    await conn.execute(text("ALTER TABLE tinyfish_brief_cache ADD COLUMN IF NOT EXISTS user_id VARCHAR"))
+    await conn.execute(
+        text("CREATE INDEX IF NOT EXISTS ix_tinyfish_brief_cache_user_id ON tinyfish_brief_cache (user_id)")
+    )
+
+
 async def init_db() -> None:
     global _db_initialized
     if _db_initialized:
@@ -75,35 +134,9 @@ async def init_db() -> None:
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await _apply_inline_ownership_migrations(conn)
+
         if not _is_sqlite:
-            # Inline migrations: add ownership columns that postdate initial schema.
-            await conn.execute(text("ALTER TABLE notification_deliveries ADD COLUMN IF NOT EXISTS user_id VARCHAR"))
-            await conn.execute(
-                text(
-                    "CREATE INDEX IF NOT EXISTS ix_notification_deliveries_user_id ON notification_deliveries (user_id)"
-                )
-            )
-            await conn.execute(text("ALTER TABLE notification_destinations ADD COLUMN IF NOT EXISTS user_id VARCHAR"))
-            await conn.execute(
-                text(
-                    "CREATE INDEX IF NOT EXISTS ix_notification_destinations_user_id"
-                    " ON notification_destinations (user_id)"
-                )
-            )
-
-            await conn.execute(text("ALTER TABLE recon_dossiers ADD COLUMN IF NOT EXISTS user_id VARCHAR"))
-            await conn.execute(
-                text(
-                    "CREATE INDEX IF NOT EXISTS ix_recon_dossiers_user_id ON recon_dossiers (user_id)"
-                )
-            )
-            await conn.execute(text("ALTER TABLE tinyfish_brief_cache ADD COLUMN IF NOT EXISTS user_id VARCHAR"))
-            await conn.execute(
-                text(
-                    "CREATE INDEX IF NOT EXISTS ix_tinyfish_brief_cache_user_id ON tinyfish_brief_cache (user_id)"
-                )
-            )
-
             # Inline RLS migration (FOX-106): protect newly added user-facing tables.
             await conn.execute(text("ALTER TABLE dossiers ENABLE ROW LEVEL SECURITY"))
             await conn.execute(text("ALTER TABLE foxhound_briefs ENABLE ROW LEVEL SECURITY"))
