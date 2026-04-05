@@ -264,8 +264,7 @@ async def agentql_fill_and_submit(
                         label=form_field.label, status="filled", value_used=value,
                     ))
                     filled += 1
-                    logger.info("Filled: '%s' = '%s'", form_field.label,
-                               value[:50] if len(value) > 50 else value)
+                    logger.info("Filled: '%s'", form_field.label)
 
                 except Exception as e:
                     logger.warning("Failed to fill '%s': %s", form_field.label, e)
