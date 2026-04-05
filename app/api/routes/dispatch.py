@@ -281,7 +281,7 @@ def _job_belongs_to_user(job: FoxhoundJob, user_id: str) -> bool:
     import json as _json
     try:
         payload = _json.loads(job.payload_json or "{}")
-        return payload.get("user_id") == user_id or payload.get("run_id", "").startswith(user_id)
+        return payload.get("user_id") == user_id or payload.get("run_id", "").startswith(user_id + "_")
     except Exception:
         return False
 
