@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
-import re
+from datetime import UTC
 from uuid import uuid4
 
 from sqlalchemy import select
@@ -268,15 +268,14 @@ class MatchScorer:
 
     def _recency_score(self, job: JobListing) -> float:
         """Fresher jobs score higher."""
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         if not job.posted_at:
             return 0.5
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         if job.posted_at.tzinfo is None:
-            from datetime import timezone as tz
-            posted = job.posted_at.replace(tzinfo=tz.utc)
+            posted = job.posted_at.replace(tzinfo=UTC)
         else:
             posted = job.posted_at
 

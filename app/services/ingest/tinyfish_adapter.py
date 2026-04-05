@@ -1,9 +1,9 @@
+import asyncio
+import json
 import logging
 import time
 import uuid
-import asyncio
-import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from hashlib import md5
 
 from tinyfish import AsyncTinyFish
@@ -879,7 +879,7 @@ async def discover_and_extract(
 
             return {"pages": pages, "signals": all_signals}
 
-    except asyncio.TimeoutError:
+    except TimeoutError:
         logger.warning("discover_and_extract timed out after %.0fs for '%s'",
                         timeout_seconds, search_query[:50])
         return {"pages": [], "signals": []}
@@ -898,21 +898,21 @@ def _persist_discovery_results(
     without re-crawling.
     """
     import json as _json
-    from pathlib import Path
     from hashlib import md5
+    from pathlib import Path
 
     try:
         out_dir = Path("data/discoveries")
         out_dir.mkdir(parents=True, exist_ok=True)
 
         query_hash = md5(search_query.encode()).hexdigest()[:10]
-        ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        ts = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
         path = out_dir / f"{ts}_{query_hash}.jsonl"
 
         with open(path, "w") as f:
             record = {
                 "search_query": search_query,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
                 "pages_count": len(pages),
                 "signals_count": len(signals),
                 "pages": pages,
@@ -1227,8 +1227,8 @@ async def _run_extraction(
 ) -> list[dict]:
     """Run a TinyFish extraction using SSE streaming (fast) instead of blocking run()."""
     import json as _json
-    from tinyfish.agent.types import CompleteEvent, ProgressEvent
-    from app.services.ingest.extraction_cache import get_cached_extraction, cache_extraction
+
+    from app.services.ingest.extraction_cache import cache_extraction, get_cached_extraction
 
     # Check extraction cache first — avoids re-crawling already-seen URLs
     cached = get_cached_extraction(url, extraction_type)
@@ -1311,8 +1311,8 @@ async def _run_extraction(
                         "items_extracted": 0, "duration_ms": duration_ms,
                         "result_summary_json": json.dumps(_summarize_result_payload(result_data), default=str),
                         "topic": topic, "retry_count": attempt,
-                        "created_at": datetime.now(timezone.utc),
-                        "completed_at": datetime.now(timezone.utc),
+                        "created_at": datetime.now(UTC),
+                        "completed_at": datetime.now(UTC),
                     })
                     if event_callback:
                         await event_callback("tinyfish.extraction.failed", {
@@ -1348,8 +1348,8 @@ async def _run_extraction(
                     "items_extracted": len(items), "duration_ms": duration_ms,
                     "result_summary_json": json.dumps(_summarize_result_payload(result_data), default=str),
                     "topic": topic, "retry_count": attempt,
-                    "created_at": datetime.now(timezone.utc),
-                    "completed_at": datetime.now(timezone.utc),
+                    "created_at": datetime.now(UTC),
+                    "completed_at": datetime.now(UTC),
                 })
                 if event_callback:
                     await event_callback("tinyfish.extraction.completed", {
@@ -1364,7 +1364,7 @@ async def _run_extraction(
                         "sample_titles": [item.get("title", "") for item in items[:3] if item.get("title")],
                     })
                 return items
-        except asyncio.TimeoutError:
+        except TimeoutError:
             last_error_type = TinyFishErrorType.timeout
             last_error_msg = f"TinyFish timed out after {settings.tinyfish_timeout_seconds:.0f}s"
             logger.warning("TinyFish %s timed out for %s (attempt %d)", extraction_type, url, attempt + 1)
@@ -1384,8 +1384,8 @@ async def _run_extraction(
                 "items_extracted": 0, "duration_ms": duration_ms,
                 "result_summary_json": json.dumps({}, default=str),
                 "topic": topic, "retry_count": attempt,
-                "created_at": datetime.now(timezone.utc),
-                "completed_at": datetime.now(timezone.utc),
+                "created_at": datetime.now(UTC),
+                "completed_at": datetime.now(UTC),
             })
             if event_callback:
                 await event_callback("tinyfish.extraction.failed", {
@@ -1421,8 +1421,8 @@ async def _run_extraction(
                 "items_extracted": 0, "duration_ms": duration_ms,
                 "result_summary_json": json.dumps({}, default=str),
                 "topic": topic, "retry_count": attempt,
-                "created_at": datetime.now(timezone.utc),
-                "completed_at": datetime.now(timezone.utc),
+                "created_at": datetime.now(UTC),
+                "completed_at": datetime.now(UTC),
             })
             if event_callback:
                 await event_callback("tinyfish.extraction.failed", {
@@ -1889,8 +1889,8 @@ async def run_focused_extraction(
 
     This is the new extraction path that uses short, focused prompts
     and returns results reliably (unlike the SSE streaming path)."""
-    from app.services.ingest.extraction_prompts import get_prompt
     from app.services.ingest.extraction_parser import parse_signal_result, parse_url_discovery_result
+    from app.services.ingest.extraction_prompts import get_prompt
 
     goal = get_prompt(prompt_name, topic)
 
@@ -1936,8 +1936,8 @@ async def run_focused_extraction(
                         "error_message": err_msg, "browser_profile": profile,
                         "items_extracted": 0, "duration_ms": duration_ms,
                         "topic": topic, "retry_count": attempt,
-                        "created_at": datetime.now(timezone.utc),
-                        "completed_at": datetime.now(timezone.utc),
+                        "created_at": datetime.now(UTC),
+                        "completed_at": datetime.now(UTC),
                     })
                     return []
 
@@ -1958,8 +1958,8 @@ async def run_focused_extraction(
                     "browser_profile": profile,
                     "items_extracted": len(items), "duration_ms": duration_ms,
                     "topic": topic, "retry_count": attempt,
-                    "created_at": datetime.now(timezone.utc),
-                    "completed_at": datetime.now(timezone.utc),
+                    "created_at": datetime.now(UTC),
+                    "completed_at": datetime.now(UTC),
                 })
 
                 if event_callback:
@@ -1991,8 +1991,8 @@ async def run_focused_extraction(
                 "error_message": last_error_msg, "browser_profile": profile,
                 "items_extracted": 0, "duration_ms": duration_ms,
                 "topic": topic, "retry_count": attempt,
-                "created_at": datetime.now(timezone.utc),
-                "completed_at": datetime.now(timezone.utc),
+                "created_at": datetime.now(UTC),
+                "completed_at": datetime.now(UTC),
             })
             return []
 

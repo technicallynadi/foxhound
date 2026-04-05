@@ -5,8 +5,8 @@ POST /api/v1/recon/{job_id} — SSE streaming company intelligence dossier.
 
 from __future__ import annotations
 
-import logging
 import json
+import logging
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse

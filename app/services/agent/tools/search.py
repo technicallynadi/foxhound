@@ -2,14 +2,11 @@
 
 from __future__ import annotations
 
-import json
-
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.job_listing import JobListing
 from app.db.models.job_match import JobMatch
-from app.db.models.user_profile import UserProfile
 from app.services.agent.registry import tool
 
 
@@ -135,7 +132,7 @@ async def get_matches(db: AsyncSession, user_id: str, params: dict) -> dict:
         .where(
             JobMatch.user_id == user_id,
             JobMatch.match_score >= min_score,
-            JobMatch.disqualified == False,
+            JobMatch.disqualified is False,
             JobMatch.user_action != "dismissed",
         )
         .order_by(JobMatch.match_score.desc())

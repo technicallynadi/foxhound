@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+from datetime import UTC
 from uuid import uuid4
 
 from app.db.models.foxhound_brief import FoxhoundBrief
@@ -64,8 +65,8 @@ async def assemble_brief(
             brief.watchdog_status = "active"
 
             # Always touch updated_at so the stale check in the brief route works
-            from datetime import datetime, timezone
-            brief.updated_at = datetime.now(timezone.utc)
+            from datetime import datetime
+            brief.updated_at = datetime.now(UTC)
 
             # Generate recommended next action
             brief.recommended_next_action = serialize_recommended_next_action(

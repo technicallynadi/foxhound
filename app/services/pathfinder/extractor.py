@@ -130,7 +130,7 @@ def _fallback_extraction(
         "lead": ("director", f"Director of {department}"),
         "manager": ("vp", f"VP of {department}"),
         "director": ("vp", f"VP of {department}"),
-        "vp": ("c_level", f"CTO" if department == "Engineering" else f"Chief {department} Officer"),
+        "vp": ("c_level", "CTO" if department == "Engineering" else f"Chief {department} Officer"),
     }
 
     seniority_key = (seniority or "mid").lower()

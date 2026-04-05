@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from app.services.apply.ats_url_parser import ATSUrlInfo
-from app.services.apply.form_scanner import FormField, ScanResult
+from app.services.apply.form_scanner import ScanResult
 
 
 class ApiSubmitFallbackError(Exception):

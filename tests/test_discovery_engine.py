@@ -1,16 +1,19 @@
 """Tests for job discovery engine and adapters."""
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from app.services.discovery.adapters.greenhouse import GreenhouseAdapter, _infer_remote as gh_infer_remote
-from app.services.discovery.adapters.lever import LeverAdapter, _infer_remote as lever_infer_remote
-from app.services.discovery.adapters.ashby import AshbyAdapter, _infer_remote as ashby_infer_remote
-from app.services.discovery.adapters.hn_hiring import HNHiringAdapter, _parse_hn_comment
-from app.services.discovery.deduplicator import compute_dedup_hash
-from app.services.discovery.ats_detector import detect_ats, is_auto_apply_supported
-from app.services.discovery.engine import JobDiscoveryEngine
+import pytest
 
+from app.services.discovery.adapters.ashby import AshbyAdapter
+from app.services.discovery.adapters.ashby import _infer_remote as ashby_infer_remote
+from app.services.discovery.adapters.greenhouse import GreenhouseAdapter
+from app.services.discovery.adapters.greenhouse import _infer_remote as gh_infer_remote
+from app.services.discovery.adapters.hn_hiring import HNHiringAdapter, _parse_hn_comment
+from app.services.discovery.adapters.lever import LeverAdapter
+from app.services.discovery.adapters.lever import _infer_remote as lever_infer_remote
+from app.services.discovery.ats_detector import detect_ats, is_auto_apply_supported
+from app.services.discovery.deduplicator import compute_dedup_hash
+from app.services.discovery.engine import JobDiscoveryEngine
 
 # ---------------------------------------------------------------------------
 # Deduplicator

@@ -52,7 +52,7 @@ async def resolve_user(
         select(ChannelIdentity).where(
             ChannelIdentity.channel == channel,
             ChannelIdentity.external_id == external_id,
-            ChannelIdentity.verified == True,
+            ChannelIdentity.verified is True,
         )
     )
     identity = result.scalar_one_or_none()

@@ -2,26 +2,24 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
-from datetime import datetime, timezone
-from uuid import uuid4
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.application import Application
 from app.db.models.application_question import ApplicationQuestion
-from app.db.models.job_match import JobMatch
 from app.db.models.job_listing import JobListing
+from app.db.models.job_match import JobMatch
 from app.db.models.user_profile import UserProfile
+from app.services.agent.registry import tool
+from app.services.agent.utils.profile_filler import update_answer_bank
 from app.services.application_guidance import (
     build_application_context,
     build_recommended_next_action,
 )
-from app.services.agent.registry import tool
-from app.services.agent.utils.profile_filler import update_answer_bank
 
 logger = logging.getLogger(__name__)
 
@@ -83,7 +81,7 @@ async def apply_to_job(db: AsyncSession, user_id: str, params: dict) -> dict:
         alt_result = await db.execute(
             select(JobMatch, JobListing)
             .join(JobListing, JobMatch.job_id == JobListing.id)
-            .where(JobMatch.user_id == user_id, JobMatch.match_score >= 70, JobMatch.disqualified == False)
+            .where(JobMatch.user_id == user_id, JobMatch.match_score >= 70, JobMatch.disqualified is False)
             .order_by(JobMatch.match_score.desc())
             .limit(3)
         )
@@ -237,7 +235,7 @@ async def answer_application_questions(db: AsyncSession, user_id: str, params: d
     profile_result = await db.execute(select(UserProfile).where(UserProfile.user_id == user_id))
     profile = profile_result.scalar_one_or_none()
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     for answer_data in answers:
         idx = answer_data.get("index")
         action = answer_data.get("action", "answer")
@@ -462,6 +460,7 @@ async def _resolve_job(db: AsyncSession, params: dict) -> JobListing | None:
 
         # Create a temporary job listing for this URL
         from uuid import uuid4
+
         from app.services.discovery.ats_detector import detect_ats
         ats = detect_ats(job_url) or "unknown"
         # Extract company name from URL

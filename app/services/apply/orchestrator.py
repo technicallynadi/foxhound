@@ -4,8 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
-import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import uuid4
 
 from sqlalchemy import select
@@ -48,7 +47,7 @@ _MANUAL_MESSAGES = {
 }
 
 
-def _build_manual_message(result: dict, job: "JobListing") -> str:
+def _build_manual_message(result: dict, job: JobListing) -> str:
     """Build a user-friendly message for needs_manual applications."""
     status = result.get("status", "unknown")
     base = _MANUAL_MESSAGES.get(status, "This application needs manual completion.")
@@ -130,9 +129,9 @@ class ApplicationOrchestrator:
             logger.warning("Research cascade start failed: %s", e)
 
         # 2.5: Try API submission path (Greenhouse, Lever, Ashby)
-        from app.services.apply.ats_url_parser import parse_ats_url
         from app.services.apply.api_submit import get_api_submitter
         from app.services.apply.api_submit.base import ApiSubmitFallbackError
+        from app.services.apply.ats_url_parser import parse_ats_url
 
         url_info = parse_ats_url(job.apply_url)
         api_submitter = get_api_submitter(url_info.ats_type) if url_info else None
@@ -152,7 +151,7 @@ class ApplicationOrchestrator:
                 # Continue to browser path below
 
         # 3. PHASE 1: Scan the form to discover fields
-        from app.services.apply.form_scanner import scan_form, analyze_scan
+        from app.services.apply.form_scanner import analyze_scan, scan_form
 
         logger.info("Phase 1: Scanning form at %s", job.apply_url)
         scan_result = await scan_form(job.apply_url)
@@ -346,7 +345,7 @@ class ApplicationOrchestrator:
 
             if fill_result.status == "submitted":
                 fresh_app.status = "submitted"
-                fresh_app.submitted_at = datetime.now(timezone.utc)
+                fresh_app.submitted_at = datetime.now(UTC)
             elif fill_result.status in ("captcha", "needs_manual", "needs_account"):
                 fresh_app.status = "needs_manual"
                 fresh_app.error_type = fill_result.status
@@ -364,7 +363,7 @@ class ApplicationOrchestrator:
                 fresh_app.pre_submit_screenshot_path = pre_submit_path
             if post_submit_path:
                 fresh_app.screenshot_storage_path = post_submit_path
-                fresh_app.screenshot_captured_at = datetime.now(timezone.utc)
+                fresh_app.screenshot_captured_at = datetime.now(UTC)
 
             # Increment monthly counter
             if fresh_app.status == "submitted":
@@ -423,7 +422,7 @@ class ApplicationOrchestrator:
 
         # Emit event for post-apply cascade
         if app.status == "submitted":
-            from app.services.events import emit, FoxhoundEvent
+            from app.services.events import FoxhoundEvent, emit
             await emit(FoxhoundEvent(
                 name="application.submitted",
                 data={
@@ -444,17 +443,16 @@ class ApplicationOrchestrator:
         db: AsyncSession,
         submitter,
         url_info,
-        profile: "UserProfile",
-        job: "JobListing",
+        profile: UserProfile,
+        job: JobListing,
         app: Application,
         user_id: str,
         trigger: str,
         match_score: int | None,
     ) -> Application | None:
         """Try the API submission path. Returns Application or None to fall back."""
-        from app.services.apply.form_scanner import analyze_scan
-        from app.services.apply.api_submit.base import ApiSubmitFallbackError
         from app.db.session import async_session
+        from app.services.apply.form_scanner import analyze_scan
 
         logger.info("API path: Fetching schema from %s for %s", url_info.ats_type, job.company)
 
@@ -599,7 +597,7 @@ class ApplicationOrchestrator:
 
             if submit_result.status == "submitted":
                 fresh_app.status = "submitted"
-                fresh_app.submitted_at = datetime.now(timezone.utc)
+                fresh_app.submitted_at = datetime.now(UTC)
                 fresh_app.tinyfish_status = "api_submitted"
             elif submit_result.status == "rate_limited":
                 fresh_app.status = "needs_manual"
@@ -671,7 +669,7 @@ class ApplicationOrchestrator:
 
         # Emit event for post-apply cascade
         if app.status == "submitted":
-            from app.services.events import emit, FoxhoundEvent
+            from app.services.events import FoxhoundEvent, emit
             await emit(FoxhoundEvent(
                 name="application.submitted",
                 data={
@@ -699,7 +697,7 @@ class ApplicationOrchestrator:
         custom_answers = json.loads(app.custom_answers_json or "[]")
 
         # Rebuild scan result from stored data (avoids re-scanning = saves ~2 min + TinyFish credit)
-        from app.services.apply.form_scanner import ScanResult, FormField
+        from app.services.apply.form_scanner import FormField, ScanResult
         stored_fields = json.loads(app.scan_result_json or "[]")
         if not stored_fields:
             # Fallback: re-scan if stored data is missing (old applications)
@@ -729,9 +727,9 @@ class ApplicationOrchestrator:
 
         # Try API path first if this application was scanned via API
         if getattr(app, "submission_method", None) == "api":
-            from app.services.apply.ats_url_parser import parse_ats_url
             from app.services.apply.api_submit import get_api_submitter
             from app.services.apply.api_submit.base import ApiSubmitFallbackError
+            from app.services.apply.ats_url_parser import parse_ats_url
             from app.services.apply.playwright_filler import _build_profile_data
 
             url_info = parse_ats_url(job.apply_url)
@@ -768,7 +766,7 @@ class ApplicationOrchestrator:
                         fresh_app = await fresh_db.get(Application, app.id)
                         if submit_result.status == "submitted":
                             fresh_app.status = "submitted"
-                            fresh_app.submitted_at = datetime.now(timezone.utc)
+                            fresh_app.submitted_at = datetime.now(UTC)
                             fresh_app.tinyfish_status = "api_submitted"
                         else:
                             fresh_app.status = "failed"
@@ -831,7 +829,7 @@ class ApplicationOrchestrator:
             fresh_app.fields_filled_json = json.dumps(fields_filled)
             if fill_result.status == "submitted":
                 fresh_app.status = "submitted"
-                fresh_app.submitted_at = datetime.now(timezone.utc)
+                fresh_app.submitted_at = datetime.now(UTC)
             elif fill_result.status in ("captcha", "needs_manual", "needs_account"):
                 fresh_app.status = "needs_manual"
                 fresh_app.error_type = fill_result.status
@@ -842,7 +840,7 @@ class ApplicationOrchestrator:
                 fresh_app.error_message = fill_result.error or ""
             if screenshot_path:
                 fresh_app.screenshot_storage_path = screenshot_path
-                fresh_app.screenshot_captured_at = datetime.now(timezone.utc)
+                fresh_app.screenshot_captured_at = datetime.now(UTC)
             if fresh_app.status == "submitted":
                 fresh_profile = await fresh_db.execute(
                     select(UserProfile).where(UserProfile.user_id == app.user_id)
@@ -864,7 +862,7 @@ class ApplicationOrchestrator:
 
         # Emit event for post-apply cascade
         if app.status == "submitted":
-            from app.services.events import emit, FoxhoundEvent
+            from app.services.events import FoxhoundEvent, emit
             await emit(FoxhoundEvent(
                 name="application.submitted",
                 data={

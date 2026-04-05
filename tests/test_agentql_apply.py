@@ -14,8 +14,8 @@ This test:
 """
 
 import asyncio
-import os
 import logging
+import os
 
 logging.basicConfig(level=logging.INFO, format="%(name)s: %(message)s")
 logger = logging.getLogger("agentql_test")

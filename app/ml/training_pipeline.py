@@ -1,8 +1,8 @@
 import logging
 from pathlib import Path
 
-from app.ml.setfit_relevance import train as train_relevance
 from app.ml.lightgbm_ranker import train as train_ranker
+from app.ml.setfit_relevance import train as train_relevance
 
 logger = logging.getLogger(__name__)
 

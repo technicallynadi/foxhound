@@ -320,6 +320,7 @@ async def opportunity_resource(opportunity_id: str) -> str:
     """Get a marketplace opportunity as a resource."""
     await _ensure_db()
     import json
+
     from app.services.marketplace_service import get_marketplace_opportunity
 
     opportunity = await get_marketplace_opportunity(opportunity_id)
@@ -333,6 +334,7 @@ async def artifact_resource(artifact_id: str) -> str:
     """Get an execution artifact as a resource."""
     await _ensure_db()
     import json
+
     from app.services.execution_artifact_service import get_artifact
 
     artifact = await get_artifact(artifact_id)
@@ -346,6 +348,7 @@ async def skill_resource(bundle_id: str) -> str:
     """Get a skill bundle as a resource."""
     await _ensure_db()
     import json
+
     from app.services.skill_bundle_service import get_skill_bundle
 
     bundle = await get_skill_bundle(bundle_id)

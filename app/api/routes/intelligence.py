@@ -10,11 +10,10 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-
-from app.api.rate_limit import rate_limit
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.rate_limit import rate_limit
 from app.db.models.application import Application
 from app.db.models.foxhound_brief import FoxhoundBrief
 from app.db.models.job_listing import JobListing
@@ -186,9 +185,9 @@ async def _run_people_research_background(
     """Run people research in background and notify when done."""
     try:
         from app.db.session import async_session
-        from app.services.agent.tools.pathfinder import find_hiring_manager
-        from app.services.agent.tools.network import network_map as run_network
         from app.services.activity.logger import log_activity
+        from app.services.agent.tools.network import network_map as run_network
+        from app.services.agent.tools.pathfinder import find_hiring_manager
 
         async with async_session() as db:
             manager_payload: dict = {"company_name": company_name}
@@ -278,8 +277,8 @@ async def _run_discovery_background(
     """Run job discovery in background and notify when done."""
     try:
         from app.db.session import async_session
-        from app.services.agent.tools.discover import discover_jobs as run_discover
         from app.services.activity.logger import log_activity
+        from app.services.agent.tools.discover import discover_jobs as run_discover
 
         async with async_session() as db:
             result = await run_discover(
@@ -302,7 +301,7 @@ async def _run_discovery_background(
                 user_id=user_id,
                 event_type="discovery_completed",
                 title=f"No jobs found for {query}",
-                description=f"Foxhound searched but couldn't find matching jobs. Try broadening your search.",
+                description="Foxhound searched but couldn't find matching jobs. Try broadening your search.",
                 metadata={"query": query, "count": 0},
                 dedup_minutes=0,
             )

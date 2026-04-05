@@ -14,11 +14,10 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.foxhound_job import FoxhoundJob
 from app.db.session import async_session
@@ -99,7 +98,7 @@ async def ensure_recurring_jobs() -> None:
                 continue
 
             # Create new recurring job
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             job = FoxhoundJob(
                 id=str(uuid4()),
                 run_id=str(uuid4()),
@@ -127,7 +126,7 @@ async def reschedule_completed_job(job: FoxhoundJob) -> FoxhoundJob | None:
     if not job.recurring or not job.recurrence_interval_seconds:
         return None
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     next_at = now + timedelta(seconds=job.recurrence_interval_seconds)
 
     async with async_session() as db:

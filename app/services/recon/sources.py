@@ -12,6 +12,7 @@ from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.services.ingest.tinyfish_adapter import _get_client
 
 logger = logging.getLogger(__name__)

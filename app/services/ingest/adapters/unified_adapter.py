@@ -31,11 +31,11 @@ async def fetch_all_signals(
     Returns a list of raw signal dicts compatible with the pipeline's
     _to_raw_document() conversion.
     """
-    from app.services.ingest.reddit_adapter import fetch_reddit_posts
-    from app.services.ingest.github_adapter import fetch_github_issues, fetch_github_discussions
+    from app.services.ingest.adapters.discourse_adapter import fetch_discourse_signals
     from app.services.ingest.adapters.hn_adapter import fetch_hn_signals
     from app.services.ingest.adapters.stackoverflow_adapter import fetch_so_signals
-    from app.services.ingest.adapters.discourse_adapter import fetch_discourse_signals
+    from app.services.ingest.github_adapter import fetch_github_discussions, fetch_github_issues
+    from app.services.ingest.reddit_adapter import fetch_reddit_posts
 
     # Step 1: Run all platform adapters in parallel
     tasks = {
@@ -119,7 +119,7 @@ async def _tinyfish_enrich_top_signals(
     if not settings.tinyfish_api_key:
         return []
 
-    from app.services.ingest.tinyfish_adapter import _run_extraction, GOAL_TEMPLATES_BY_PAGE_TYPE
+    from app.services.ingest.tinyfish_adapter import GOAL_TEMPLATES_BY_PAGE_TYPE, _run_extraction
 
     # Rank signals by engagement and pick the top N
     scored = sorted(signals, key=lambda s: s.get("score", 0) + s.get("num_comments", 0), reverse=True)

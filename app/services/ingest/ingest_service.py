@@ -2,7 +2,7 @@ import asyncio
 import logging
 import uuid
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from urllib.parse import urlparse
 
 from app.core.config import settings
@@ -129,7 +129,7 @@ async def ingest_topic(
     raw_docs: list[dict] = []
     has_tinyfish = bool(settings.tinyfish_api_key)
     is_quick = search_mode == "quick"
-    budget_limit = (discovery_config or {}).get("budget_limit", 4 if is_quick else 10)
+    (discovery_config or {}).get("budget_limit", 4 if is_quick else 10)
     use_api_fallback = not has_tinyfish or bool(sources)
 
     # --- API Fallback: explicit sources or no TinyFish key ---
@@ -143,7 +143,8 @@ async def ingest_topic(
 
         if "github" in fallback_sources:
             from app.services.ingest.github_adapter import (
-                fetch_github_issues, fetch_github_discussions,
+                fetch_github_discussions,
+                fetch_github_issues,
             )
             issues = await fetch_github_issues(topic)
             for issue in issues:
@@ -609,10 +610,13 @@ async def _run_worker(source_type: str, urls: list[dict], topic: str, event_call
     URLs within a worker are extracted concurrently (not sequentially) to
     maximize throughput.  A shared semaphore caps total TinyFish concurrency.
     """
-    from app.services.ingest.tinyfish_adapter import _run_extraction
     from app.services.ingest.tinyfish_adapter import (
-        FORUM_DEEP_HARVEST_GOAL, REVIEW_HARVEST_GOAL, COMPARISON_GOAL,
-        GITHUB_INTELLIGENCE_GOAL, WORKFLOW_DESCRIPTION_GOAL,
+        COMPARISON_GOAL,
+        FORUM_DEEP_HARVEST_GOAL,
+        GITHUB_INTELLIGENCE_GOAL,
+        REVIEW_HARVEST_GOAL,
+        WORKFLOW_DESCRIPTION_GOAL,
+        _run_extraction,
     )
 
     WORKER_GOALS = {
@@ -671,6 +675,7 @@ async def _get_cached_sources_by_type(
     """Get cached URLs for a specific source type and vertical."""
     try:
         from sqlalchemy import select
+
         from app.db.models.discovered_source import DiscoveredSource
         from app.db.session import async_session
 
@@ -708,12 +713,13 @@ async def _get_cached_sources_by_type(
 async def _get_cached_sources(topic: str, limit: int = 15) -> list[dict]:
     """Return known-good URLs from past runs, matched by vertical or keywords."""
     try:
-        from sqlalchemy import select, or_, func
+        from sqlalchemy import select
+
         from app.db.models.discovered_source import DiscoveredSource
         from app.db.session import async_session
 
         vertical, _, _, _ = resolve_vertical(topic)
-        keywords = set(topic.lower().split())
+        set(topic.lower().split())
 
         async with async_session() as session:
             # Layer 1: Vertical match with proven signal
@@ -781,6 +787,7 @@ async def get_learned_sources(
     """Return learned high-yield sources ordered by historical quality and topic fit."""
     try:
         from sqlalchemy import select
+
         from app.db.models.discovered_source import DiscoveredSource
         from app.db.session import async_session
 
@@ -858,6 +865,7 @@ async def _save_discovered_sources(
     """Save discovered URLs to DB for future reuse."""
     try:
         from sqlalchemy import select
+
         from app.db.models.discovered_source import DiscoveredSource
         from app.db.session import async_session
 
@@ -868,7 +876,7 @@ async def _save_discovered_sources(
                 url_signal_counts[url] = url_signal_counts.get(url, 0) + 1
 
         keywords = ",".join(sorted(set(topic.lower().split())))
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         inserted = 0
         updated = 0
 
@@ -1036,8 +1044,8 @@ def _to_raw_document(
     doc_id = f"{source}_{source_id}"
 
     created_at = item.get("created_at") or item.get("created_utc")
-    if isinstance(created_at, (int, float)):
-        created_at = datetime.fromtimestamp(created_at, tz=timezone.utc).isoformat()
+    if isinstance(created_at, int | float):
+        created_at = datetime.fromtimestamp(created_at, tz=UTC).isoformat()
 
     metadata = {
         k: v for k, v in item.items()

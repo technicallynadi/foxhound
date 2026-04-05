@@ -83,8 +83,8 @@ async def find_hiring_manager(db: AsyncSession, user_id: str, params: dict) -> d
 
     # Lazy imports
     from app.services.pathfinder.extractor import extract_manager_signals
-    from app.services.pathfinder.overlap import OverlapResult, find_overlap
     from app.services.pathfinder.outreach import draft_outreach
+    from app.services.pathfinder.overlap import OverlapResult, find_overlap
     from app.services.pathfinder.search_url import build_search_urls
 
     # 1. Extract manager signals

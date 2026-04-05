@@ -81,7 +81,7 @@ class LeverAdapter:
             ats_type = detect_ats(apply_url) or "lever"
 
             location = posting.get("categories", {}).get("location", "")
-            team = posting.get("categories", {}).get("team", "")
+            posting.get("categories", {}).get("team", "")
 
             description_parts = []
             if posting.get("descriptionPlain"):

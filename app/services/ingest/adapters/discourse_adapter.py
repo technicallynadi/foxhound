@@ -13,7 +13,7 @@ Known Discourse forums for dev tools:
 
 import asyncio
 import logging
-from datetime import datetime, timezone
+from datetime import datetime
 
 import httpx
 

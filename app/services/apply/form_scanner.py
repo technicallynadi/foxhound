@@ -13,14 +13,11 @@ This tells us:
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 import re
 import time
 from dataclasses import dataclass, field
-
-from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -91,6 +88,7 @@ def _pick_browser_profile(apply_url: str) -> tuple:
     - Unknown: STEALTH + proxy (safe default)
     """
     from tinyfish import BrowserProfile, ProxyConfig, ProxyCountryCode
+
     from app.services.discovery.ats_detector import detect_ats
 
     ats = detect_ats(apply_url)

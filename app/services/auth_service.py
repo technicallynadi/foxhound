@@ -11,7 +11,7 @@ from functools import lru_cache
 from typing import Annotated
 
 import httpx
-from fastapi import Depends, HTTPException, Request
+from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.core.config import settings

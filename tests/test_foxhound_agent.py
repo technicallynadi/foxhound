@@ -11,7 +11,6 @@ from app.services.agent.budget import RequestBudget
 from app.services.agent.utils.question_classifier import classify_question
 from app.services.agent.utils.url_validator import validate_apply_url
 
-
 # ---------------------------------------------------------------------------
 # Question classifier
 # ---------------------------------------------------------------------------
@@ -160,7 +159,7 @@ def test_profile_filler_null_field():
 # ---------------------------------------------------------------------------
 
 def test_answer_bank_update():
-    from app.services.agent.utils.profile_filler import update_answer_bank, check_answer_bank
+    from app.services.agent.utils.profile_filler import check_answer_bank, update_answer_bank
     p = FakeProfile()
     update_answer_bank(p, "Salary expectations", "180-210k")
     assert "salary" in p.answer_bank_json

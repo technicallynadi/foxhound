@@ -9,7 +9,6 @@ too heavy, not that the domain is hostile. Timeouts don't block the domain.
 """
 
 import logging
-import time
 from collections import defaultdict
 from urllib.parse import urlparse
 

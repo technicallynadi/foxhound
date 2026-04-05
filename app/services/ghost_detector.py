@@ -12,9 +12,8 @@ Returns a ghost risk score (0-100) and human-readable risk factors.
 
 from __future__ import annotations
 
-import json
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import func, select
@@ -45,7 +44,7 @@ def calculate_ghost_score(
     """
     score = 0
     factors: list[str] = []
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     # --- Factor 1: Posting age ---
     posted = job.posted_at or job.discovered_at
@@ -258,7 +257,7 @@ async def score_url(url: str) -> dict[str, Any]:
                     if updated_at:
                         try:
                             updated = datetime.fromisoformat(updated_at.replace("Z", "+00:00"))
-                            age = (datetime.now(timezone.utc) - updated).days
+                            age = (datetime.now(UTC) - updated).days
                             if age > 90:
                                 score += 25
                                 factors.append(f"Last updated {age} days ago")
@@ -320,7 +319,7 @@ async def score_url(url: str) -> dict[str, Any]:
                     score = 10
 
                     if created_at:
-                        age = (datetime.now(timezone.utc) - datetime.fromtimestamp(created_at / 1000, tz=timezone.utc)).days
+                        age = (datetime.now(UTC) - datetime.fromtimestamp(created_at / 1000, tz=UTC)).days
                         if age > 90:
                             score += 25
                             factors.append(f"Posted {age} days ago")
@@ -438,6 +437,7 @@ async def _check_url_via_browser(url: str) -> dict[str, Any]:
         async with TINYFISH_SEMAPHORE:
             try:
                 from tinyfish import BrowserProfile, RunStatus
+
                 from app.services.ingest.tinyfish_adapter import _get_client
 
                 client = _get_client()

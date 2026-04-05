@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from urllib.parse import quote_plus
 
 from sqlalchemy import func, select
@@ -22,7 +22,6 @@ from app.db.models.job_match import JobMatch
 from app.db.models.user_profile import UserProfile
 from app.services.notification_service import (
     _post_webhook,
-    _skipped_state,
     send_slack_blocks,
 )
 
@@ -558,7 +557,7 @@ async def send_daily_digest(
         return {"skipped": "no channels configured"}
 
     # Get today's applications
-    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    today_start = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
     app_result = await db.execute(
         select(Application, JobListing)
         .join(JobListing, Application.job_id == JobListing.id)
@@ -579,14 +578,14 @@ async def send_daily_digest(
             JobMatch.user_id == user_id,
             JobMatch.match_score >= threshold,
             JobMatch.user_action == "none",
-            JobMatch.disqualified == False,
+            JobMatch.disqualified is False,
             JobMatch.created_at >= today_start,
         )
     )
     new_match_count = new_matches_result.scalar() or 0
 
     # Build digest message
-    lines = [f"Foxhound Daily Digest — {datetime.now(timezone.utc).strftime('%b %d, %Y')}"]
+    lines = [f"Foxhound Daily Digest — {datetime.now(UTC).strftime('%b %d, %Y')}"]
     lines.append("")
 
     if todays_apps:
@@ -723,11 +722,11 @@ async def send_conversation_question(
             lines.append(f"   Suggested: {q['suggested_answer']}")
             lines.append(f"   Reply 'approve {i}' to accept, or send your answer")
         elif not options:
-            lines.append(f"   Please reply with your answer")
+            lines.append("   Please reply with your answer")
         lines.append("")
 
-    lines.append(f"Reply within 2 hours or this application will expire.")
-    lines.append(f"Reply 'cancel' to cancel this application.")
+    lines.append("Reply within 2 hours or this application will expire.")
+    lines.append("Reply 'cancel' to cancel this application.")
 
     message = "\n".join(lines)
 

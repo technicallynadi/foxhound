@@ -94,10 +94,11 @@ async def on_watchdog_change(event: FoxhoundEvent) -> None:
 @on_event("research.completed")
 async def on_research_completed(event: FoxhoundEvent) -> None:
     """Log research completion — only say 'ready' when brief is actually complete."""
-    from app.services.activity.logger import log_activity
+    from sqlalchemy import select
+
     from app.db.models.foxhound_brief import FoxhoundBrief
     from app.db.session import async_session
-    from sqlalchemy import select
+    from app.services.activity.logger import log_activity
 
     company = event.data.get("company", "Unknown")
     application_id = event.data.get("application_id")

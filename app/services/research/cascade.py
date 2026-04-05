@@ -9,9 +9,7 @@ Production version will use the full workflow DAG engine.
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
-from uuid import uuid4
 
 from app.db.session import async_session
 from app.services.activity.logger import log_activity
@@ -66,8 +64,9 @@ async def _run_cascade(
         # Load existing brief data to skip steps that are already done
         existing_brief = None
         try:
-            from app.db.models.foxhound_brief import FoxhoundBrief
             from sqlalchemy import select
+
+            from app.db.models.foxhound_brief import FoxhoundBrief
             async with async_session() as brief_db:
                 result = await brief_db.execute(
                     select(FoxhoundBrief).where(FoxhoundBrief.application_id == application_id)
@@ -136,8 +135,9 @@ async def _run_cascade(
             # Check TinyFishBriefCache for existing scrape data
             cached_tf = None
             try:
-                from app.db.models.tinyfish_cache import TinyFishBriefCache
                 from sqlalchemy import select as _select
+
+                from app.db.models.tinyfish_cache import TinyFishBriefCache
                 _normalized = company.lower().strip()
                 async with async_session() as cache_db:
                     result = await cache_db.execute(
@@ -181,8 +181,9 @@ async def _run_cascade(
 
                 # Cache raw TinyFish data to dedicated table
                 try:
-                    from app.db.models.tinyfish_cache import TinyFishBriefCache
                     from uuid import uuid4 as _uuid4
+
+                    from app.db.models.tinyfish_cache import TinyFishBriefCache
                     async with async_session() as cache_db:
                         cached = TinyFishBriefCache(
                             id=f"tfc_{_uuid4().hex[:12]}",
@@ -395,7 +396,7 @@ async def _run_cascade(
         brief = await assemble_brief(user_id, application_id, brief_data)
 
         # Step 4: Emit research.completed event
-        from app.services.events import emit, FoxhoundEvent
+        from app.services.events import FoxhoundEvent, emit
         await emit(FoxhoundEvent(
             name="research.completed",
             data={

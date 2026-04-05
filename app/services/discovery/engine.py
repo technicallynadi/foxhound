@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import logging
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import uuid4
 
-from sqlalchemy import select, text
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.discovery_run import DiscoveryRun
@@ -70,7 +70,7 @@ class JobDiscoveryEngine:
                 run.error_message = str(e)
 
             run.duration_ms = int((time.monotonic() - t0) * 1000)
-            run.completed_at = datetime.now(timezone.utc)
+            run.completed_at = datetime.now(UTC)
             runs.append(run)
 
         await db.commit()

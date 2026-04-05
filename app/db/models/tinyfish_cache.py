@@ -5,7 +5,7 @@ Separated from ReconDossier (LLM-only quick briefs) and FoxhoundBrief
 TinyFish returned, so we never re-scrape the same company.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import DateTime, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
@@ -33,10 +33,10 @@ class TinyFishBriefCache(Base):
     tinyfish_credits: Mapped[int] = mapped_column(Integer, default=0)
 
     created_at: Mapped[datetime] = mapped_column(
-        TZDateTime, default=lambda: datetime.now(timezone.utc)
+        TZDateTime, default=lambda: datetime.now(UTC)
     )
     updated_at: Mapped[datetime] = mapped_column(
         TZDateTime,
-        default=lambda: datetime.now(timezone.utc),
-        onupdate=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
     )

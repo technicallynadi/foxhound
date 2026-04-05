@@ -1,7 +1,7 @@
 """Tests for FoxhoundAgent tool handlers."""
 
-import json
 import pytest
+
 from app.services.agent.registry import discover_tools, execute_tool
 
 

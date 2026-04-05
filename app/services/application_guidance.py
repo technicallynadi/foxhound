@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, Literal, TypedDict
 
 ActionPriority = Literal["high", "normal", "low"]
@@ -40,7 +40,7 @@ def _days_since_applied(
     ref = submitted_at or created_at
     if not ref:
         return 0
-    return max(0, (datetime.now(timezone.utc) - ref).days)
+    return max(0, (datetime.now(UTC) - ref).days)
 
 
 def build_application_context(

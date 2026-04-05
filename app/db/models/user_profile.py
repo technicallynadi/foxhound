@@ -1,6 +1,6 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
-from sqlalchemy import Boolean, DateTime, Float, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.session import Base
@@ -90,10 +90,10 @@ class UserProfile(Base):
     onboarding_step: Mapped[str] = mapped_column(String, default="upload_resume")
 
     created_at: Mapped[datetime] = mapped_column(
-        TZDateTime, default=lambda: datetime.now(timezone.utc)
+        TZDateTime, default=lambda: datetime.now(UTC)
     )
     updated_at: Mapped[datetime] = mapped_column(
         TZDateTime,
-        default=lambda: datetime.now(timezone.utc),
-        onupdate=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
     )

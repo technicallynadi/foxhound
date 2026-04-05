@@ -508,7 +508,7 @@ def _build_message(event_type: str, query: str, payload: dict, top_titles: list[
 def _build_human_message(payload: dict) -> str:
     event_type = payload.get("event_type")
     query = payload.get("query", "")
-    status = payload.get("status")
+    payload.get("status")
     top_titles = payload.get("top_opportunities", [])
     event_payload = payload.get("payload", payload)
     if event_type == "run.started":

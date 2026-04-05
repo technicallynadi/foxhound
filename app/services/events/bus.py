@@ -8,9 +8,10 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Callable, Coroutine
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any, Callable, Coroutine
+from datetime import UTC, datetime
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +20,7 @@ logger = logging.getLogger(__name__)
 class FoxhoundEvent:
     name: str
     data: dict[str, Any]
-    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
 
 
 _handlers: dict[str, list[Callable[[FoxhoundEvent], Coroutine]]] = {}

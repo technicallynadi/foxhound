@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import DateTime, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
@@ -27,6 +27,6 @@ class TinyFishRun(Base):
     topic: Mapped[str | None] = mapped_column(String, nullable=True)
     retry_count: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(
-        TZDateTime, default=lambda: datetime.now(timezone.utc)
+        TZDateTime, default=lambda: datetime.now(UTC)
     )
     completed_at: Mapped[datetime | None] = mapped_column(TZDateTime, nullable=True)

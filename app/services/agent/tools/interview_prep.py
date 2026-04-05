@@ -17,7 +17,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.models.job_listing import JobListing
 from app.db.models.user_profile import UserProfile
 from app.services.agent.registry import tool
-
 from app.services.tinyfish_concurrency import TINYFISH_SEMAPHORE
 
 logger = logging.getLogger(__name__)
@@ -75,7 +74,6 @@ async def interview_prep_search(db: AsyncSession, user_id: str, params: dict) ->
             role = job.title or ""
 
     # Load user profile to tailor interview search
-    from app.db.models.user_profile import UserProfile
 
     profile_result = await db.execute(
         select(UserProfile).where(UserProfile.user_id == user_id)
@@ -93,7 +91,7 @@ async def interview_prep_search(db: AsyncSession, user_id: str, params: dict) ->
 
         role_lower = (role or "").lower()
         skills = json.loads(profile.skills_json or "[]")
-        skills_lower = [s.lower() for s in skills]
+        [s.lower() for s in skills]
 
         # Detect interview type from role + skills
         if any(kw in role_lower for kw in ["engineer", "developer", "swe", "backend", "frontend", "fullstack"]):
@@ -177,6 +175,7 @@ async def interview_prep_search(db: AsyncSession, user_id: str, params: dict) ->
         async with TINYFISH_SEMAPHORE:
             try:
                 from tinyfish import BrowserProfile, RunStatus
+
                 from app.services.ingest.tinyfish_adapter import _get_client
 
                 client = _get_client()

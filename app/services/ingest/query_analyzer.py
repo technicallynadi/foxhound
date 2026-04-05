@@ -1,9 +1,9 @@
-import re
 import logging
+import re
 
-from app.services.workflow.spacy_pipeline import _get_nlp
-from app.core.vertical_config import get_tool_terms, get_domain_terms, get_workflow_terms
+from app.core.vertical_config import get_domain_terms, get_tool_terms
 from app.services.evidence.taxonomy import evidence_class_queries
+from app.services.workflow.spacy_pipeline import _get_nlp
 
 logger = logging.getLogger(__name__)
 

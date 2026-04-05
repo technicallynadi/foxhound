@@ -1,14 +1,14 @@
 """Tests for FoxhoundAgent guards and budget."""
 
 import json
-import pytest
-from uuid import uuid4
-from app.services.agent.guards import ToolGuard, ToolBlocked
-from app.services.agent.budget import RequestBudget
-from app.services.agent.utils.url_validator import validate_apply_url
-from app.services.agent.utils.question_classifier import classify_question
-from app.services.agent.utils.profile_filler import extract_profile_value, update_answer_bank, check_answer_bank
 
+import pytest
+
+from app.services.agent.budget import RequestBudget
+from app.services.agent.guards import ToolBlocked, ToolGuard
+from app.services.agent.utils.profile_filler import check_answer_bank, extract_profile_value, update_answer_bank
+from app.services.agent.utils.question_classifier import classify_question
+from app.services.agent.utils.url_validator import validate_apply_url
 
 # ---------------------------------------------------------------------------
 # ToolGuard
@@ -17,6 +17,7 @@ from app.services.agent.utils.profile_filler import extract_profile_value, updat
 @pytest.mark.asyncio
 async def test_guard_blocks_free_tier(db, sample_profile):
     from sqlalchemy import select
+
     from app.db.models.user_profile import UserProfile
 
     # Set to free tier
@@ -41,6 +42,7 @@ async def test_guard_allows_pro_tier(db, sample_profile):
 @pytest.mark.asyncio
 async def test_guard_blocks_monthly_limit(db, sample_profile):
     from sqlalchemy import select
+
     from app.db.models.user_profile import UserProfile
 
     result = await db.execute(select(UserProfile).where(UserProfile.user_id == sample_profile.user_id))
@@ -57,6 +59,7 @@ async def test_guard_blocks_monthly_limit(db, sample_profile):
 @pytest.mark.asyncio
 async def test_guard_blocks_blacklisted_company(db, sample_profile, sample_jobs):
     from sqlalchemy import select
+
     from app.db.models.user_profile import UserProfile
 
     result = await db.execute(select(UserProfile).where(UserProfile.user_id == sample_profile.user_id))

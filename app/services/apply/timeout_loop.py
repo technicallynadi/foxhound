@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -43,7 +43,7 @@ async def application_timeout_loop() -> None:
 
 async def _check_expired_waiting(db: AsyncSession) -> None:
     """Expire applications waiting for user input > 2 hours."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     two_hours_ago = now - timedelta(hours=2)
 
     result = await db.execute(
@@ -66,7 +66,7 @@ async def _check_expired_waiting(db: AsyncSession) -> None:
 
 async def _check_stuck_applications(db: AsyncSession) -> None:
     """Fail applications stuck in transient states > 5 minutes."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     five_min_ago = now - timedelta(minutes=5)
 
     result = await db.execute(
@@ -117,7 +117,7 @@ async def _check_followups(db: AsyncSession) -> None:
         send_followup_day14,
     )
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     # Day 3
     day3_cutoff = now - timedelta(days=3)
@@ -127,7 +127,7 @@ async def _check_followups(db: AsyncSession) -> None:
         .join(UserProfile, Application.user_id == UserProfile.user_id)
         .where(
             Application.status == "submitted",
-            Application.followup_day3_sent == False,
+            Application.followup_day3_sent is False,
             Application.submitted_at <= day3_cutoff,
         )
         .limit(50)
@@ -148,7 +148,7 @@ async def _check_followups(db: AsyncSession) -> None:
         .join(UserProfile, Application.user_id == UserProfile.user_id)
         .where(
             Application.status == "submitted",
-            Application.followup_day7_sent == False,
+            Application.followup_day7_sent is False,
             Application.submitted_at <= day7_cutoff,
         )
         .limit(50)
@@ -169,7 +169,7 @@ async def _check_followups(db: AsyncSession) -> None:
         .join(UserProfile, Application.user_id == UserProfile.user_id)
         .where(
             Application.status == "submitted",
-            Application.followup_day14_sent == False,
+            Application.followup_day14_sent is False,
             Application.submitted_at <= day14_cutoff,
         )
         .limit(50)

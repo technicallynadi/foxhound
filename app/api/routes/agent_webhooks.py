@@ -171,7 +171,7 @@ async def discord_webhook(request: Request, db: AsyncSession = Depends(get_db)):
 @router.post("/sms")
 async def sms_webhook(request: Request, db: AsyncSession = Depends(get_db)):
     """Handle Twilio inbound SMS."""
-    body_bytes = await request.body()
+    await request.body()
 
     # Parse form data
     form = await request.form()
@@ -219,11 +219,11 @@ async def generate_link_code_endpoint(
     db: AsyncSession = Depends(get_db),
 ):
     """Generate a link code for the authenticated user."""
+    # Get auth from header
+    from fastapi.security import HTTPBearer
+
     from app.services.auth_service import get_current_user
     from app.services.channel.linking import generate_link_code
-
-    # Get auth from header
-    from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
     security = HTTPBearer(auto_error=False)
     credentials = await security(request)
     if not credentials:

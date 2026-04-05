@@ -122,6 +122,7 @@ async def discover_jobs(db: AsyncSession, user_id: str, params: dict) -> dict:
         async with TINYFISH_SEMAPHORE:
             try:
                 from tinyfish import BrowserProfile, RunStatus
+
                 from app.services.ingest.tinyfish_adapter import _get_client
 
                 client = _get_client()

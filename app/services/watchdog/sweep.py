@@ -13,7 +13,7 @@ import asyncio
 import json
 import logging
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from urllib.parse import urlparse
 
 from sqlalchemy import select
@@ -113,7 +113,7 @@ async def run_watchdog_sweep(
                                     ghost_job.ghost_score = ghost_result["score"]
                                     ghost_job.ghost_risk = ghost_result["risk"]
                                     ghost_job.ghost_factors_json = json.dumps(ghost_result["factors"])
-                                    ghost_job.ghost_checked_at = datetime.now(timezone.utc)
+                                    ghost_job.ghost_checked_at = datetime.now(UTC)
                                     if status == "reposted":
                                         ghost_job.repost_count = (ghost_job.repost_count or 0) + 1
                                     await ghost_db.commit()
@@ -168,8 +168,8 @@ async def _get_eligible_applications(
     - created within the last 30 days
     - not already checked in the last 20 hours (handles manual mid-day checks)
     """
-    cutoff = datetime.now(timezone.utc) - timedelta(days=MAX_APPLICATION_AGE_DAYS)
-    recheck_cutoff = datetime.now(timezone.utc) - timedelta(hours=20)
+    cutoff = datetime.now(UTC) - timedelta(days=MAX_APPLICATION_AGE_DAYS)
+    recheck_cutoff = datetime.now(UTC) - timedelta(hours=20)
 
     result = await db.execute(
         select(Application, JobListing)

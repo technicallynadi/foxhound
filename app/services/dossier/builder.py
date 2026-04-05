@@ -15,7 +15,7 @@ import asyncio
 import json
 import logging
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
@@ -237,7 +237,7 @@ class DossierBuilder:
             async with async_session() as db:
                 dossier = await db.get(Dossier, dossier_id)
                 dossier.status = "ready"
-                dossier.completed_at = datetime.now(timezone.utc)
+                dossier.completed_at = datetime.now(UTC)
                 await db.commit()
 
             logger.info(
@@ -346,7 +346,7 @@ class DossierBuilder:
             async with async_session() as db:
                 dossier = await db.get(Dossier, dossier_id)
                 dossier.status = "ready"
-                dossier.completed_at = datetime.now(timezone.utc)
+                dossier.completed_at = datetime.now(UTC)
                 await db.commit()
 
             logger.info("Dossier %s re-synthesized for %s", dossier_id[:8], company)
@@ -470,7 +470,7 @@ class DossierBuilder:
             if not dossier:
                 return
 
-            if isinstance(data, (dict, list)):
+            if isinstance(data, dict | list):
                 value = json.dumps(data, default=str)
             else:
                 value = str(data)
@@ -485,7 +485,7 @@ class DossierBuilder:
             if dossier:
                 dossier.status = "failed"
                 dossier.overall_assessment = reason
-                dossier.completed_at = datetime.now(timezone.utc)
+                dossier.completed_at = datetime.now(UTC)
                 await db.commit()
 
     async def _send_notification(
@@ -543,7 +543,6 @@ class DossierBuilder:
             else:
                 status_lines.append(f"* {label} — skipped")
 
-        dossier_url = f"{DASHBOARD_BASE}/dossier/{dossier_id}"
 
         # Build inline summary from dossier data
         async with async_session() as db:
@@ -598,7 +597,7 @@ class DossierBuilder:
             async with async_session() as db:
                 dossier = await db.get(Dossier, dossier_id)
                 if dossier:
-                    dossier.notified_at = datetime.now(timezone.utc)
+                    dossier.notified_at = datetime.now(UTC)
                     await db.commit()
 
         except Exception:
@@ -712,7 +711,7 @@ class DossierBuilder:
         async with async_session() as db:
             dossier = await db.get(Dossier, dossier_id)
             if dossier:
-                dossier.notified_at = datetime.now(timezone.utc)
+                dossier.notified_at = datetime.now(UTC)
                 await db.commit()
 
     def _extract_posting_data(self, job: Any) -> dict[str, Any]:

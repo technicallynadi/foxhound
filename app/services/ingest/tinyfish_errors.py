@@ -44,9 +44,9 @@ def classify_error(
     if exception is not None:
         if isinstance(exception, TimeoutError):
             return TinyFishErrorType.timeout
-        if isinstance(exception, (ConnectionError, OSError)):
+        if isinstance(exception, ConnectionError | OSError):
             return TinyFishErrorType.network
-        if isinstance(exception, (ValueError, KeyError)):
+        if isinstance(exception, ValueError | KeyError):
             return TinyFishErrorType.parse_failure
 
         msg = str(exception).lower()

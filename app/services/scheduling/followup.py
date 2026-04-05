@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -25,7 +25,7 @@ async def schedule_followups(
 
     Can be called with an existing db session or without (creates its own).
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     jobs = []
 
     async def _create(session: AsyncSession) -> None:

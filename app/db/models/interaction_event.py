@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import DateTime, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
@@ -26,5 +26,5 @@ class InteractionEvent(Base):
     payload_json: Mapped[str] = mapped_column(Text, default="{}")
     ranker_variant: Mapped[str] = mapped_column(String, default="heuristic")
     created_at: Mapped[datetime] = mapped_column(
-        TZDateTime, default=lambda: datetime.now(timezone.utc)
+        TZDateTime, default=lambda: datetime.now(UTC)
     )

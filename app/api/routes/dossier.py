@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select
@@ -89,7 +89,7 @@ async def start_dossier(
     user_id = user["user_id"]
 
     # Rate limit check
-    day_ago = datetime.now(timezone.utc) - timedelta(days=1)
+    day_ago = datetime.now(UTC) - timedelta(days=1)
     count_result = await db.execute(
         select(func.count())
         .select_from(Dossier)
@@ -266,7 +266,7 @@ async def dismiss_notification(
     if not dossier:
         raise HTTPException(status_code=404, detail="Dossier not found")
 
-    dossier.notified_at = datetime.now(timezone.utc)
+    dossier.notified_at = datetime.now(UTC)
     await db.commit()
 
     return {"ok": True}
