@@ -102,17 +102,19 @@ export default function AppNav() {
         Foxhound
       </Link>
 
-      <div className="nav-links-desktop" style={{
-        display: 'flex', gap: 32,
-        fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--t3)',
-        letterSpacing: '0.08em', textTransform: 'uppercase',
-      }}>
-        {links.map((l) => (
-          <Link key={l.href} href={l.href} style={{ color: path === l.href ? 'var(--t)' : 'inherit' }}>
-            {l.label}
-          </Link>
-        ))}
-      </div>
+      {isSignedIn && (
+        <div className="nav-links-desktop" style={{
+          display: 'flex', gap: 32,
+          fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--t3)',
+          letterSpacing: '0.08em', textTransform: 'uppercase',
+        }}>
+          {links.map((l) => (
+            <Link key={l.href} href={l.href} style={{ color: path === l.href ? 'var(--t)' : 'inherit' }}>
+              {l.label}
+            </Link>
+          ))}
+        </div>
+      )}
 
       {/* Right side: avatar when signed in, "Join Early Access" when not */}
       {isSignedIn ? (
@@ -177,7 +179,7 @@ export default function AppNav() {
           borderBottom: '1px solid var(--b)',
           padding: '16px 24px', display: 'flex', flexDirection: 'column', gap: 16,
         }}>
-          {links.map((l) => (
+          {isSignedIn && links.map((l) => (
             <Link key={l.href} href={l.href} onClick={() => setMenuOpen(false)} style={{
               fontFamily: 'var(--font-mono)', fontSize: 12,
               color: path === l.href ? 'var(--t)' : 'var(--t2)',
