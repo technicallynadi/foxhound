@@ -1,12 +1,21 @@
 from pathlib import Path
 
+import pytest
+
 
 def _repo_root() -> Path:
     return Path(__file__).resolve().parents[1]
 
 
-def test_rls_script_covers_fox106_tables() -> None:
-    sql = (_repo_root() / "scripts" / "supabase_rls_policies.sql").read_text()
+_RLS_SQL_PATHS = (
+    _repo_root() / "scripts" / "supabase_rls_policies.sql",
+    _repo_root() / "supabase" / "migrations" / "20260405180000_foxhound_rls_policies.sql",
+)
+
+
+@pytest.mark.parametrize("sql_path", _RLS_SQL_PATHS, ids=["scripts", "supabase_migration"])
+def test_rls_script_covers_fox106_tables(sql_path: Path) -> None:
+    sql = sql_path.read_text()
 
     for table in (
         "dossiers",
