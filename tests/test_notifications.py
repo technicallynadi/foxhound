@@ -1,20 +1,21 @@
 """Tests for notification service: receipts, digests, follow-ups, match alerts."""
 
-import json
+from unittest.mock import patch
+
 import pytest
-from unittest.mock import AsyncMock, patch
+
 from app.services.apply.notifications import (
     _get_user_channels,
-    send_new_match_alert,
     send_followup_day3,
     send_followup_day7,
     send_followup_day14,
+    send_new_match_alert,
 )
-
 
 # ---------------------------------------------------------------------------
 # Channel resolution
 # ---------------------------------------------------------------------------
+
 
 def test_get_user_channels_no_webhooks():
     """No webhook URLs configured → no channels."""
@@ -40,12 +41,17 @@ def test_get_user_channels_default():
 # New match alert
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_new_match_alert_no_channels():
-    profile = type("P", (), {
-        "notify_channels_json": '["email"]',
-        "autopilot_threshold": 80,
-    })()
+    profile = type(
+        "P",
+        (),
+        {
+            "notify_channels_json": '["email"]',
+            "autopilot_threshold": 80,
+        },
+    )()
     with patch("app.services.apply.notifications.settings") as mock_settings:
         mock_settings.slack_webhook_url = ""
         mock_settings.discord_webhook_url = ""
@@ -57,6 +63,7 @@ async def test_new_match_alert_no_channels():
 # ---------------------------------------------------------------------------
 # Follow-up messages
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_followup_day3_no_channels():

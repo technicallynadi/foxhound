@@ -42,6 +42,7 @@ async def get_brief(
     if not brief:
         # Brief doesn't exist — create it and start research
         from uuid import uuid4
+
         from app.db.models.foxhound_brief import FoxhoundBrief as BriefModel
 
         # Verify the application exists and belongs to this user
@@ -65,6 +66,7 @@ async def get_brief(
         # Start research cascade in background
         try:
             from app.services.research.cascade import start_research_cascade
+
             await start_research_cascade(user_id, application_id, app_obj.job_id, None)
         except Exception:
             pass  # Best effort — cascade logs its own errors
@@ -72,8 +74,9 @@ async def get_brief(
     elif brief.status not in ("ready", "failed"):
         # Brief exists but incomplete — only re-run if cascade isn't already running
         # and enough time has passed since last update (avoid re-triggering on every poll)
-        from datetime import datetime, timezone, timedelta
-        now = datetime.now(timezone.utc)
+        from datetime import datetime, timedelta
+
+        now = datetime.now(UTC)
         stale_threshold = now - timedelta(minutes=2)
         failure_ceiling = now - timedelta(minutes=15)
 
@@ -89,6 +92,7 @@ async def get_brief(
             if app_obj:
                 try:
                     from app.services.research.cascade import start_research_cascade
+
                     await start_research_cascade(user_id, application_id, app_obj.job_id, None)
                 except Exception:
                     pass
@@ -126,7 +130,6 @@ async def get_brief(
         "applied_at": app.submitted_at.isoformat() if app.submitted_at else None,
         "generated_at": brief.updated_at.isoformat() if brief.updated_at else None,
         "application_context": context,
-
         # Submission proof
         "submission": {
             "status": app.status,
@@ -136,26 +139,20 @@ async def get_brief(
             "pre_submit_screenshot": app.pre_submit_screenshot_path,
             "fields_filled": json.loads(app.fields_filled_json or "[]"),
         },
-
         # Posting status
         "posting_status": {
             "watchdog_status": brief.watchdog_status or "active",
             "ghost_score": job.ghost_score,
             "ghost_risk": job.ghost_risk,
         },
-
         # Company context
         "company_brief": json.loads(brief.company_brief_json) if brief.company_brief_json else None,
-
         # Best contact + outreach
         "pathfinder": json.loads(brief.pathfinder_json) if brief.pathfinder_json else None,
-
         # Network connections
         "network_map": json.loads(brief.network_map_json) if brief.network_map_json else None,
-
         # Full dossier
         "dossier": json.loads(brief.dossier_json) if brief.dossier_json else None,
-
         # Recommendation
         "recommended_next_action": recommended_action,
     }

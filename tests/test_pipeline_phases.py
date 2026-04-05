@@ -11,15 +11,16 @@ Each phase prints its results so you can inspect before spending credits on the 
 
 import asyncio
 import json
+import logging
 import os
 import sys
-import logging
 
 logging.basicConfig(level=logging.INFO, format="%(name)s: %(message)s")
 logger = logging.getLogger("pipeline_test")
 
 # Load env
 from dotenv import load_dotenv
+
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 os.environ.setdefault("AGENTQL_API_KEY", os.environ.get("AGENTQL_KEY", ""))
 
@@ -39,6 +40,7 @@ TEST_PROFILE = {
 # ═══════════════════════════════════════
 # PHASE 1: TinyFish Scan
 # ═══════════════════════════════════════
+
 
 async def phase1_scan(url: str):
     """Use TinyFish to scan the form and return field definitions."""
@@ -82,7 +84,7 @@ async def phase1_scan(url: str):
                 print()
                 for i, f in enumerate(fields):
                     req = "REQUIRED" if f.get("required") else "optional"
-                    print(f"  {i+1}. [{f.get('field_type', '?')}] {f.get('label', '?')} ({req})")
+                    print(f"  {i + 1}. [{f.get('field_type', '?')}] {f.get('label', '?')} ({req})")
                 print()
 
                 # Save for Phase 2
@@ -105,6 +107,7 @@ async def phase1_scan(url: str):
 # ═══════════════════════════════════════
 # PHASE 2: AgentQL Locate
 # ═══════════════════════════════════════
+
 
 async def phase2_locate(url: str):
     """Use AgentQL to find DOM locators for each field from Phase 1."""
@@ -153,20 +156,20 @@ async def phase2_locate(url: str):
                 continue
 
             try:
-                locator = await page.get_by_prompt(
-                    f"the form input field labeled '{label}'"
-                )
+                locator = await page.get_by_prompt(f"the form input field labeled '{label}'")
                 if locator:
                     # Verify it's actually visible
                     visible = await locator.is_visible(timeout=2000)
                     tag = await locator.evaluate("el => el.tagName") if visible else "?"
-                    results.append({
-                        "label": label,
-                        "type": ftype,
-                        "found": True,
-                        "visible": visible,
-                        "tag": tag,
-                    })
+                    results.append(
+                        {
+                            "label": label,
+                            "type": ftype,
+                            "found": True,
+                            "visible": visible,
+                            "tag": tag,
+                        }
+                    )
                     status = "FOUND" if visible else "FOUND (hidden)"
                     print(f"  {status}: [{ftype}] {label} <{tag}>")
                 else:
@@ -214,6 +217,7 @@ async def phase2_locate(url: str):
 # PHASE 3: Playwright Fill
 # ═══════════════════════════════════════
 
+
 async def phase3_fill(url: str):
     """Use AgentQL to locate (empty form) then Playwright to fill (PII local only)."""
     print("=" * 60)
@@ -258,9 +262,7 @@ async def phase3_fill(url: str):
             if ftype in ("file", "hidden"):
                 continue
             try:
-                locator = await page.get_by_prompt(
-                    f"the form input field labeled '{label}'"
-                )
+                locator = await page.get_by_prompt(f"the form input field labeled '{label}'")
                 if locator:
                     locator_map[label] = {"locator": locator, "type": ftype}
                     print(f"  Found: {label}")
@@ -281,7 +283,9 @@ async def phase3_fill(url: str):
         except Exception:
             pass
 
-        print(f"\nLocators cached: {len(locator_map)} fields + upload={upload_btn is not None} + submit={submit_btn is not None}")
+        print(
+            f"\nLocators cached: {len(locator_map)} fields + upload={upload_btn is not None} + submit={submit_btn is not None}"
+        )
 
         # ── PHASE B: Fill with Playwright only (no more AgentQL calls) ──
         print()
@@ -403,6 +407,7 @@ async def phase3_fill(url: str):
 # ═══════════════════════════════════════
 # CLI
 # ═══════════════════════════════════════
+
 
 def main():
     if len(sys.argv) < 2:

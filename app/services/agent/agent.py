@@ -14,7 +14,7 @@ import json
 import logging
 import time
 from collections.abc import AsyncGenerator
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import uuid4
 
 import anthropic
@@ -29,7 +29,6 @@ from app.services.agent.registry import (
     discover_tools,
     execute_tool,
     get_tool_definitions,
-    get_tool_spec,
 )
 from app.services.agent.system_prompt import build_system_prompt
 
@@ -82,11 +81,14 @@ class FoxhoundAgent:
 
         # 2. Persist user message
         user_msg = AgentMessage(
-            id=str(uuid4()), session_id=session.id,
-            role="user", content=message, channel=channel,
+            id=str(uuid4()),
+            session_id=session.id,
+            role="user",
+            content=message,
+            channel=channel,
         )
         db.add(user_msg)
-        session.last_message_at = datetime.now(timezone.utc)
+        session.last_message_at = datetime.now(UTC)
         await db.flush()
 
         # 3. Load history + build system prompt
@@ -99,13 +101,20 @@ class FoxhoundAgent:
         except ValueError:
             logger.warning("Corrupt message history — creating fresh session for sync request")
             session = AgentSession(
-                id=str(uuid4()), user_id=user_id, channel=channel,
+                id=str(uuid4()),
+                user_id=user_id,
+                channel=channel,
             )
             db.add(session)
-            db.add(AgentMessage(
-                id=str(uuid4()), session_id=session.id,
-                role="user", content=message, channel=channel,
-            ))
+            db.add(
+                AgentMessage(
+                    id=str(uuid4()),
+                    session_id=session.id,
+                    role="user",
+                    content=message,
+                    channel=channel,
+                )
+            )
             await db.flush()
             messages = [{"role": "user", "content": message}]
 
@@ -122,17 +131,20 @@ class FoxhoundAgent:
                 messages=messages,
             )
 
-            budget.record_api_call(
-                response.usage.input_tokens, response.usage.output_tokens
-            )
+            budget.record_api_call(response.usage.input_tokens, response.usage.output_tokens)
 
             if response.stop_reason != "tool_use":
                 # Text response — done
                 text = "".join(b.text for b in response.content if hasattr(b, "text"))
-                db.add(AgentMessage(
-                    id=str(uuid4()), session_id=session.id,
-                    role="assistant", content=text, channel=channel,
-                ))
+                db.add(
+                    AgentMessage(
+                        id=str(uuid4()),
+                        session_id=session.id,
+                        role="assistant",
+                        content=text,
+                        channel=channel,
+                    )
+                )
                 await db.commit()
                 logger.info("Agent respond: %s", budget.summary())
                 return {
@@ -160,12 +172,18 @@ class FoxhoundAgent:
                 tool_calls_log.append({"tool": tool_name, "input": tool_input})
 
                 # Persist tool_use message
-                db.add(AgentMessage(
-                    id=str(uuid4()), session_id=session.id,
-                    role="tool_use", content="", channel=channel,
-                    tool_use_id=block.id, tool_name=tool_name,
-                    tool_input_json=json.dumps(tool_input),
-                ))
+                db.add(
+                    AgentMessage(
+                        id=str(uuid4()),
+                        session_id=session.id,
+                        role="tool_use",
+                        content="",
+                        channel=channel,
+                        tool_use_id=block.id,
+                        tool_name=tool_name,
+                        tool_input_json=json.dumps(tool_input),
+                    )
+                )
 
                 # Pre-execution guard
                 try:
@@ -184,28 +202,41 @@ class FoxhoundAgent:
                 tool_results_log.append({"tool": tool_name, "result": result})
 
                 # Persist tool_result
-                db.add(AgentMessage(
-                    id=str(uuid4()), session_id=session.id,
-                    role="tool_result", content=result_json[:2000], channel=channel,
-                    tool_use_id=block.id, tool_name=tool_name,
-                    tool_result_json=result_json,
-                ))
+                db.add(
+                    AgentMessage(
+                        id=str(uuid4()),
+                        session_id=session.id,
+                        role="tool_result",
+                        content=result_json[:2000],
+                        channel=channel,
+                        tool_use_id=block.id,
+                        tool_name=tool_name,
+                        tool_result_json=result_json,
+                    )
+                )
 
-                tool_results_content.append({
-                    "type": "tool_result",
-                    "tool_use_id": block.id,
-                    "content": result_json,
-                })
+                tool_results_content.append(
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": block.id,
+                        "content": result_json,
+                    }
+                )
 
             messages.append({"role": "user", "content": tool_results_content})
             await db.flush()
 
         # Budget exhausted
         fallback = "I've done as much as I can on this. Let me know what you'd like to do next."
-        db.add(AgentMessage(
-            id=str(uuid4()), session_id=session.id,
-            role="assistant", content=fallback, channel=channel,
-        ))
+        db.add(
+            AgentMessage(
+                id=str(uuid4()),
+                session_id=session.id,
+                role="assistant",
+                content=fallback,
+                channel=channel,
+            )
+        )
         await db.commit()
         logger.warning("Agent budget exhausted: %s", budget.summary())
         return {
@@ -233,11 +264,16 @@ class FoxhoundAgent:
         budget = RequestBudget()
 
         session = await self._get_or_create_session(db, user_id, session_id, channel)
-        db.add(AgentMessage(
-            id=str(uuid4()), session_id=session.id,
-            role="user", content=message, channel=channel,
-        ))
-        session.last_message_at = datetime.now(timezone.utc)
+        db.add(
+            AgentMessage(
+                id=str(uuid4()),
+                session_id=session.id,
+                role="user",
+                content=message,
+                channel=channel,
+            )
+        )
+        session.last_message_at = datetime.now(UTC)
         await db.flush()
 
         history = await self._load_history(db, session.id)
@@ -251,13 +287,20 @@ class FoxhoundAgent:
         except ValueError:
             logger.warning("Corrupt message history — creating fresh session")
             session = AgentSession(
-                id=str(uuid4()), user_id=user_id, channel=channel,
+                id=str(uuid4()),
+                user_id=user_id,
+                channel=channel,
             )
             db.add(session)
-            db.add(AgentMessage(
-                id=str(uuid4()), session_id=session.id,
-                role="user", content=message, channel=channel,
-            ))
+            db.add(
+                AgentMessage(
+                    id=str(uuid4()),
+                    session_id=session.id,
+                    role="user",
+                    content=message,
+                    channel=channel,
+                )
+            )
             await db.flush()
             messages = [{"role": "user", "content": message}]
             yield f"event: session\ndata: {json.dumps({'session_id': session.id})}\n\n"
@@ -278,9 +321,7 @@ class FoxhoundAgent:
 
                 final_message = await stream.get_final_message()
 
-            budget.record_api_call(
-                final_message.usage.input_tokens, final_message.usage.output_tokens
-            )
+            budget.record_api_call(final_message.usage.input_tokens, final_message.usage.output_tokens)
 
             if final_message.stop_reason != "tool_use":
                 break
@@ -314,28 +355,43 @@ class FoxhoundAgent:
                 # (original session may have timed out during long TinyFish calls)
                 try:
                     from app.db.session import async_session
+
                     async with async_session() as fresh_db:
-                        fresh_db.add(AgentMessage(
-                            id=str(uuid4()), session_id=session.id,
-                            role="tool_use", content="", channel=channel,
-                            tool_use_id=block.id, tool_name=block.name,
-                            tool_input_json=json.dumps(block.input),
-                        ))
-                        fresh_db.add(AgentMessage(
-                            id=str(uuid4()), session_id=session.id,
-                            role="tool_result", content=result_json[:2000], channel=channel,
-                            tool_use_id=block.id, tool_name=block.name,
-                            tool_result_json=result_json,
-                        ))
+                        fresh_db.add(
+                            AgentMessage(
+                                id=str(uuid4()),
+                                session_id=session.id,
+                                role="tool_use",
+                                content="",
+                                channel=channel,
+                                tool_use_id=block.id,
+                                tool_name=block.name,
+                                tool_input_json=json.dumps(block.input),
+                            )
+                        )
+                        fresh_db.add(
+                            AgentMessage(
+                                id=str(uuid4()),
+                                session_id=session.id,
+                                role="tool_result",
+                                content=result_json[:2000],
+                                channel=channel,
+                                tool_use_id=block.id,
+                                tool_name=block.name,
+                                tool_result_json=result_json,
+                            )
+                        )
                         await fresh_db.commit()
                 except Exception as save_err:
                     logger.warning("Failed to save tool messages: %s", save_err)
 
-                tool_results_content.append({
-                    "type": "tool_result",
-                    "tool_use_id": block.id,
-                    "content": result_json,
-                })
+                tool_results_content.append(
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": block.id,
+                        "content": result_json,
+                    }
+                )
 
             messages.append({"role": "user", "content": tool_results_content})
             full_response = ""  # Reset for next Claude turn
@@ -344,11 +400,17 @@ class FoxhoundAgent:
         if full_response:
             try:
                 from app.db.session import async_session
+
                 async with async_session() as fresh_db:
-                    fresh_db.add(AgentMessage(
-                        id=str(uuid4()), session_id=session.id,
-                        role="assistant", content=full_response, channel=channel,
-                    ))
+                    fresh_db.add(
+                        AgentMessage(
+                            id=str(uuid4()),
+                            session_id=session.id,
+                            role="assistant",
+                            content=full_response,
+                            channel=channel,
+                        )
+                    )
                     await fresh_db.commit()
             except Exception as save_err:
                 logger.warning("Failed to save final response: %s", save_err)
@@ -359,8 +421,11 @@ class FoxhoundAgent:
     # ------------------------------------------------------------------
 
     async def _get_or_create_session(
-        self, db: AsyncSession, user_id: str,
-        session_id: str | None, channel: str,
+        self,
+        db: AsyncSession,
+        user_id: str,
+        session_id: str | None,
+        channel: str,
     ) -> AgentSession:
         """Get or create a session scoped to this user.
 
@@ -368,16 +433,14 @@ class FoxhoundAgent:
         """
         if session_id:
             try:
-                session = await asyncio.wait_for(
-                    db.get(AgentSession, session_id), timeout=3.0
-                )
+                session = await asyncio.wait_for(db.get(AgentSession, session_id), timeout=3.0)
                 if session and session.user_id == user_id:
                     # Quick check: can we load history for this session?
                     history = await self._load_history(db, session.id)
                     if history is not None:  # _load_history returns [] on timeout, not None
                         return session
                     logger.warning("Session %s has unloadable history — creating new", session_id)
-            except (asyncio.TimeoutError, Exception) as e:
+            except (TimeoutError, Exception) as e:
                 logger.warning("Session lookup timed out — creating new: %s", e)
 
         # Find most recent session (with timeout)
@@ -396,15 +459,17 @@ class FoxhoundAgent:
             if session:
                 last_msg = session.last_message_at
                 if last_msg.tzinfo is None:
-                    last_msg = last_msg.replace(tzinfo=timezone.utc)
-                age = (datetime.now(timezone.utc) - last_msg).total_seconds()
+                    last_msg = last_msg.replace(tzinfo=UTC)
+                age = (datetime.now(UTC) - last_msg).total_seconds()
                 if age < SESSION_REUSE_SECONDS:
                     return session
-        except (asyncio.TimeoutError, Exception) as e:
+        except (TimeoutError, Exception) as e:
             logger.warning("Session query timed out — creating new: %s", e)
 
         session = AgentSession(
-            id=str(uuid4()), user_id=user_id, channel=channel,
+            id=str(uuid4()),
+            user_id=user_id,
+            channel=channel,
         )
         db.add(session)
         await db.flush()
@@ -464,7 +529,7 @@ class FoxhoundAgent:
 
         # Check if there's a user message after with matching tool_results
         tool_result_ids = set()
-        for msg in messages[last_assistant_idx + 1:]:
+        for msg in messages[last_assistant_idx + 1 :]:
             if msg.get("role") == "user":
                 content = msg.get("content", [])
                 if isinstance(content, list):
@@ -479,7 +544,11 @@ class FoxhoundAgent:
         # Add synthetic tool_result for missing IDs
         logger.warning("Fixing %d orphaned tool_use blocks in history", len(missing))
         synthetic_results = [
-            {"type": "tool_result", "tool_use_id": tid, "content": "Error: previous request was interrupted. Please try again."}
+            {
+                "type": "tool_result",
+                "tool_use_id": tid,
+                "content": "Error: previous request was interrupted. Please try again.",
+            }
             for tid in missing
         ]
         messages.append({"role": "user", "content": synthetic_results})
@@ -500,7 +569,7 @@ class FoxhoundAgent:
             messages = list(result.scalars().all())
             messages.reverse()
             return messages
-        except (asyncio.TimeoutError, Exception) as e:
+        except (TimeoutError, Exception) as e:
             logger.warning("History load failed (starting fresh): %s", e)
             return []
 
@@ -522,21 +591,25 @@ class FoxhoundAgent:
 
                 while i < len(history) and history[i].role == "tool_use":
                     tu = history[i]
-                    tool_blocks.append({
-                        "type": "tool_use",
-                        "id": tu.tool_use_id,
-                        "name": tu.tool_name,
-                        "input": json.loads(tu.tool_input_json or "{}"),
-                    })
+                    tool_blocks.append(
+                        {
+                            "type": "tool_use",
+                            "id": tu.tool_use_id,
+                            "name": tu.tool_name,
+                            "input": json.loads(tu.tool_input_json or "{}"),
+                        }
+                    )
                     i += 1
 
                 while i < len(history) and history[i].role == "tool_result":
                     tr = history[i]
-                    tool_results.append({
-                        "type": "tool_result",
-                        "tool_use_id": tr.tool_use_id,
-                        "content": tr.tool_result_json or tr.content,
-                    })
+                    tool_results.append(
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": tr.tool_use_id,
+                            "content": tr.tool_result_json or tr.content,
+                        }
+                    )
                     i += 1
 
                 if tool_blocks:

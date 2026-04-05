@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
-import re
+from datetime import UTC
 from uuid import uuid4
 
 from sqlalchemy import select
@@ -41,14 +41,10 @@ SENIORITY_ORDER = ["intern", "junior", "mid", "senior", "staff", "principal", "d
 
 
 class MatchScorer:
-    async def score_jobs_for_user(
-        self, db: AsyncSession, user_id: str
-    ) -> list[JobMatch]:
+    async def score_jobs_for_user(self, db: AsyncSession, user_id: str) -> list[JobMatch]:
         """Score all unscored active jobs for a user."""
         # Get profile
-        result = await db.execute(
-            select(UserProfile).where(UserProfile.user_id == user_id)
-        )
+        result = await db.execute(select(UserProfile).where(UserProfile.user_id == user_id))
         profile = result.scalar_one_or_none()
         if not profile:
             logger.warning("No profile found for user %s", user_id)
@@ -58,9 +54,7 @@ class MatchScorer:
         result = await db.execute(
             select(JobListing).where(
                 JobListing.status == "active",
-                ~JobListing.id.in_(
-                    select(JobMatch.job_id).where(JobMatch.user_id == user_id)
-                ),
+                ~JobListing.id.in_(select(JobMatch.job_id).where(JobMatch.user_id == user_id)),
             )
         )
         unscored_jobs = result.scalars().all()
@@ -103,9 +97,7 @@ class MatchScorer:
         logger.info("Scored %d jobs for user %s", len(matches), user_id)
         return matches
 
-    def _check_disqualifiers(
-        self, profile: UserProfile, job: JobListing
-    ) -> str | None:
+    def _check_disqualifiers(self, profile: UserProfile, job: JobListing) -> str | None:
         if job.requires_clearance and not profile.has_clearance:
             return "clearance_required"
         if not self._location_compatible(profile, job):
@@ -145,18 +137,9 @@ class MatchScorer:
 
     def _skills_overlap(self, profile: UserProfile, job: JobListing) -> float:
         """Jaccard-like skill overlap with alias normalization."""
-        user_skills = {
-            _normalize_skill(s)
-            for s in json.loads(profile.skills_json or "[]")
-        }
-        required = {
-            _normalize_skill(s)
-            for s in json.loads(job.required_skills_json or "[]")
-        }
-        preferred = {
-            _normalize_skill(s)
-            for s in json.loads(job.preferred_skills_json or "[]")
-        }
+        user_skills = {_normalize_skill(s) for s in json.loads(profile.skills_json or "[]")}
+        required = {_normalize_skill(s) for s in json.loads(job.required_skills_json or "[]")}
+        preferred = {_normalize_skill(s) for s in json.loads(job.preferred_skills_json or "[]")}
 
         all_job_skills = required | preferred
         if not all_job_skills:
@@ -177,9 +160,7 @@ class MatchScorer:
 
         return min(base + req_bonus, 1.0)
 
-    def _skills_from_description(
-        self, user_skills: set[str], description: str
-    ) -> float:
+    def _skills_from_description(self, user_skills: set[str], description: str) -> float:
         """Fallback: match user skills against job description text."""
         if not description or not user_skills:
             return 0.3  # Neutral
@@ -268,15 +249,14 @@ class MatchScorer:
 
     def _recency_score(self, job: JobListing) -> float:
         """Fresher jobs score higher."""
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         if not job.posted_at:
             return 0.5
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         if job.posted_at.tzinfo is None:
-            from datetime import timezone as tz
-            posted = job.posted_at.replace(tzinfo=tz.utc)
+            posted = job.posted_at.replace(tzinfo=UTC)
         else:
             posted = job.posted_at
 

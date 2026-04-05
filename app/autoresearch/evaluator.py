@@ -1,5 +1,4 @@
 import logging
-from collections import Counter
 
 logger = logging.getLogger(__name__)
 
@@ -30,18 +29,18 @@ def evaluate_relevance(predictions: list[dict], labels: list[dict]) -> dict:
             "precision": round(precision, 4),
             "recall": round(recall, 4),
             "f1": round(f1, 4),
-            "tp": tp, "fp": fp, "fn": fn, "tn": tn,
+            "tp": tp,
+            "fp": fp,
+            "fn": fn,
+            "tn": tn,
         }
 
     # Hard negative precision
     hard_neg_correct = sum(
-        1 for p, l in zip(predictions, labels)
-        if l.get("is_hard_negative") and p.get("opportunity_relevant", 0) == 0
+        1 for p, l in zip(predictions, labels) if l.get("is_hard_negative") and p.get("opportunity_relevant", 0) == 0
     )
     hard_neg_total = sum(1 for l in labels if l.get("is_hard_negative"))
-    metrics["hard_negative_precision"] = round(
-        hard_neg_correct / hard_neg_total if hard_neg_total > 0 else 0.0, 4
-    )
+    metrics["hard_negative_precision"] = round(hard_neg_correct / hard_neg_total if hard_neg_total > 0 else 0.0, 4)
 
     return metrics
 
@@ -56,10 +55,7 @@ def evaluate_workflow_builder(results: list[dict]) -> dict:
     has_breakpoint = sum(1 for r in results if r.get("broken_step"))
 
     # Check for hallucination indicators
-    topic_only = sum(
-        1 for r in results
-        if r.get("workflow_detected") and r.get("specificity") == "low"
-    )
+    topic_only = sum(1 for r in results if r.get("workflow_detected") and r.get("specificity") == "low")
 
     return {
         "total": total,

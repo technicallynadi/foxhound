@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import logging
 import random
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 from sqlalchemy import func, select
@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 async def execute_job_discovery(job: FoxhoundJob) -> None:
     """Crawl all sources and score new jobs for all active users."""
     payload = json.loads(job.payload_json or "{}")
-    sources = payload.get("sources", ["greenhouse", "lever", "ashby", "remotive", "hn_hiring"])
+    payload.get("sources", ["greenhouse", "lever", "ashby", "remotive", "hn_hiring"])
 
     from app.services.discovery.engine import JobDiscoveryEngine
 
@@ -52,7 +52,7 @@ async def execute_job_discovery(job: FoxhoundJob) -> None:
             result = await db.execute(
                 select(UserProfile.user_id).where(
                     UserProfile.tier != "free",
-                    UserProfile.profile_complete == True,
+                    UserProfile.profile_complete.is_(True),
                 )
             )
             user_ids = [row[0] for row in result.all()]
@@ -76,9 +76,7 @@ async def _send_new_match_alerts(db: AsyncSession, user_ids: list[str]) -> None:
 
     for uid in user_ids:
         try:
-            profile_result = await db.execute(
-                select(UserProfile).where(UserProfile.user_id == uid)
-            )
+            profile_result = await db.execute(select(UserProfile).where(UserProfile.user_id == uid))
             profile = profile_result.scalar_one_or_none()
             if not profile:
                 continue
@@ -86,14 +84,14 @@ async def _send_new_match_alerts(db: AsyncSession, user_ids: list[str]) -> None:
             threshold = profile.autopilot_threshold or 70
 
             # Get new unviewed matches above threshold (created today)
-            today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+            today_start = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
             match_result = await db.execute(
                 select(JobMatch, JobListing)
                 .join(JobListing, JobMatch.job_id == JobListing.id)
                 .where(
                     JobMatch.user_id == uid,
                     JobMatch.match_score >= threshold,
-                    JobMatch.disqualified == False,
+                    JobMatch.disqualified.is_(False),
                     JobMatch.created_at >= today_start,
                 )
                 .order_by(JobMatch.match_score.desc())
@@ -119,7 +117,7 @@ async def execute_autopilot_apply(job: FoxhoundJob) -> None:
         # Get all autopilot users
         result = await db.execute(
             select(UserProfile).where(
-                UserProfile.autopilot_enabled == True,
+                UserProfile.autopilot_enabled.is_(True),
                 UserProfile.applications_this_month < UserProfile.monthly_apply_limit,
             )
         )
@@ -138,7 +136,7 @@ async def execute_autopilot_apply(job: FoxhoundJob) -> None:
 async def _autopilot_for_user(db: AsyncSession, profile: UserProfile) -> None:
     """Apply to top matches for a single autopilot user."""
     # Check daily limit
-    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    today_start = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
     today_count_result = await db.execute(
         select(func.count(Application.id)).where(
             Application.user_id == profile.user_id,
@@ -159,7 +157,7 @@ async def _autopilot_for_user(db: AsyncSession, profile: UserProfile) -> None:
         .where(
             JobMatch.user_id == profile.user_id,
             JobMatch.match_score >= threshold,
-            JobMatch.disqualified == False,
+            JobMatch.disqualified.is_(False),
             JobMatch.user_action == "none",
         )
         .order_by(JobMatch.match_score.desc())
@@ -210,7 +208,7 @@ async def _autopilot_for_user(db: AsyncSession, profile: UserProfile) -> None:
 
         # Create a delayed single_apply job
         delay = random.randint(60, 28800)  # 1 min to 8 hours spread
-        scheduled_at = datetime.now(timezone.utc) + timedelta(seconds=delay)
+        scheduled_at = datetime.now(UTC) + timedelta(seconds=delay)
 
         apply_job = FoxhoundJob(
             id=str(uuid4()),
@@ -218,11 +216,13 @@ async def _autopilot_for_user(db: AsyncSession, profile: UserProfile) -> None:
             job_type="single_apply",
             origin="autopilot",
             priority=50,
-            payload_json=json.dumps({
-                "user_id": profile.user_id,
-                "job_id": match.job_id,
-                "trigger": "autopilot",
-            }),
+            payload_json=json.dumps(
+                {
+                    "user_id": profile.user_id,
+                    "job_id": match.job_id,
+                    "trigger": "autopilot",
+                }
+            ),
             status="queued",
             next_scheduled_at=scheduled_at,
         )
@@ -252,11 +252,16 @@ async def execute_single_apply(job: FoxhoundJob) -> None:
     async with async_session() as db:
         try:
             application = await orchestrator.apply(
-                db=db, user_id=user_id, job_id=job_id, trigger=trigger,
+                db=db,
+                user_id=user_id,
+                job_id=job_id,
+                trigger=trigger,
             )
             logger.info(
                 "Autopilot apply: user=%s job=%s status=%s",
-                user_id, job_id, application.status,
+                user_id,
+                job_id,
+                application.status,
             )
         except ValueError as e:
             logger.warning("Autopilot apply failed: %s", e)
@@ -274,7 +279,7 @@ async def execute_daily_digest(job: FoxhoundJob) -> None:
     async with async_session() as db:
         result = await db.execute(
             select(UserProfile.user_id).where(
-                UserProfile.notify_daily_digest == True,
+                UserProfile.notify_daily_digest.is_(True),
             )
         )
         user_ids = [row[0] for row in result.all()]
@@ -313,9 +318,7 @@ async def execute_followup(job: FoxhoundJob) -> None:
 
     async with async_session() as db:
         # Get profile and job
-        profile_result = await db.execute(
-            select(UserProfile).where(UserProfile.user_id == user_id)
-        )
+        profile_result = await db.execute(select(UserProfile).where(UserProfile.user_id == user_id))
         profile = profile_result.scalar_one_or_none()
         if not profile:
             logger.warning("Follow-up: no profile for user %s", user_id)
@@ -393,7 +396,7 @@ async def execute_watchdog_sweep(job: FoxhoundJob) -> None:
 async def execute_stale_cleanup(job: FoxhoundJob) -> None:
     """Expire job listings older than 30 days and clean up matches."""
     async with async_session() as db:
-        cutoff = datetime.now(timezone.utc) - timedelta(days=30)
+        cutoff = datetime.now(UTC) - timedelta(days=30)
 
         # Find stale jobs
         result = await db.execute(
@@ -414,6 +417,7 @@ async def execute_stale_cleanup(job: FoxhoundJob) -> None:
         if stale_jobs:
             stale_ids = [j.id for j in stale_jobs]
             from sqlalchemy import update
+
             await db.execute(
                 update(JobMatch)
                 .where(JobMatch.job_id.in_(stale_ids))
@@ -440,7 +444,7 @@ async def execute_tinyfish_discovery(job: FoxhoundJob) -> None:
     async with async_session() as db:
         result = await db.execute(
             select(UserProfile).where(
-                UserProfile.profile_complete == True,
+                UserProfile.profile_complete.is_(True),
                 UserProfile.tier != "free",
             )
         )

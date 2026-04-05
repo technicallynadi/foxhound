@@ -10,9 +10,18 @@ router = APIRouter(prefix="/v1/feedback", tags=["feedback"])
 logger = logging.getLogger(__name__)
 
 VALID_EVENT_TYPES = {
-    "impression", "click", "detail_dwell", "detail_scroll",
-    "view_build_plans", "return_visit", "share", "export",
-    "sandbox_create", "github_publish", "dismiss", "bounce",
+    "impression",
+    "click",
+    "detail_dwell",
+    "detail_scroll",
+    "view_build_plans",
+    "return_visit",
+    "share",
+    "export",
+    "sandbox_create",
+    "github_publish",
+    "dismiss",
+    "bounce",
 }
 
 
@@ -37,8 +46,8 @@ async def record_events(batch: BatchEventRequest, user: dict = Depends(get_curre
     Frontend sends these in batches every 5 seconds or on page unload
     via navigator.sendBeacon.
     """
-    from app.db.session import async_session
     from app.db.models.interaction_event import InteractionEvent
+    from app.db.session import async_session
 
     valid_events = [e for e in batch.events if e.event_type in VALID_EVENT_TYPES]
     if not valid_events:

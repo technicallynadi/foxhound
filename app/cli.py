@@ -4,12 +4,10 @@
 import argparse
 import asyncio
 import json
+import logging
 import sys
 import time
-from datetime import datetime, timezone
 from pathlib import Path
-
-import logging
 
 from dotenv import load_dotenv
 
@@ -31,10 +29,10 @@ for _name in ("httpx", "httpcore", "sqlalchemy", "asyncio"):
 
 from app.core.config import settings
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _json_out(data, compact=False):
     """Print JSON to stdout."""
@@ -43,9 +41,9 @@ def _json_out(data, compact=False):
 
 
 def _print_header(title):
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"  {title}")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
 
 def _print_funnel(debug: dict):
@@ -77,7 +75,7 @@ def _print_funnel(debug: dict):
 
 def _print_opportunity(i, opp):
     """Print a single opportunity result."""
-    print(f"\n  [{i+1}] {opp.get('title', 'Untitled')}")
+    print(f"\n  [{i + 1}] {opp.get('title', 'Untitled')}")
     print(f"      Score: {opp.get('opportunity_score', 0):.2f}  |  Confidence: {opp.get('confidence', 'low')}")
     if opp.get("workflow"):
         print(f"      Workflow: {opp['workflow']}")
@@ -97,7 +95,9 @@ def _print_opportunity(i, opp):
     # Buildability
     ba = opp.get("buildability")
     if ba:
-        print(f"\n      Buildability: {ba.get('score', '?')}/1.0  |  Narrowness: {ba.get('scope_narrowness', '?')}/1.0  |  User clarity: {ba.get('clarity_of_user', '?')}/1.0")
+        print(
+            f"\n      Buildability: {ba.get('score', '?')}/1.0  |  Narrowness: {ba.get('scope_narrowness', '?')}/1.0  |  User clarity: {ba.get('clarity_of_user', '?')}/1.0"
+        )
         if ba.get("monetization_path"):
             print(f"      Monetization: {ba['monetization_path']}")
         if ba.get("why_now"):
@@ -106,7 +106,7 @@ def _print_opportunity(i, opp):
     # Wedge
     w = opp.get("wedge")
     if w:
-        print(f"\n      --- WEDGE (narrow entry point) ---")
+        print("\n      --- WEDGE (narrow entry point) ---")
         if w.get("what_it_does"):
             print(f"      {w['what_it_does']}")
         if w.get("broken_step"):
@@ -126,7 +126,7 @@ def _print_opportunity(i, opp):
     # System Design
     sd = opp.get("system_design")
     if sd:
-        print(f"\n      --- SYSTEM DESIGN (full product) ---")
+        print("\n      --- SYSTEM DESIGN (full product) ---")
         if sd.get("what_it_becomes"):
             print(f"      {sd['what_it_becomes']}")
         for entity in sd.get("data_model", [])[:6]:
@@ -141,7 +141,7 @@ def _print_opportunity(i, opp):
 
     # MVP Plan
     if opp.get("mvp_plan"):
-        print(f"\n      MVP plan:")
+        print("\n      MVP plan:")
         for step in opp["mvp_plan"][:6]:
             print(f"        - {step}")
 
@@ -150,9 +150,11 @@ def _print_opportunity(i, opp):
 # Commands
 # ---------------------------------------------------------------------------
 
+
 async def cmd_search(args):
     """Search for opportunities."""
     t0 = time.monotonic()
+
     def _ts():
         return f"[{time.monotonic() - t0:.1f}s]"
 
@@ -160,11 +162,13 @@ async def cmd_search(args):
 
     print(f"{_ts()} Importing pipeline...", flush=True)
     from app.services.pipeline import run_pipeline
+
     print(f"{_ts()} Pipeline imported", flush=True)
 
     print(f"{_ts()} DB init...", flush=True)
     try:
         from app.db.session import init_db
+
         await init_db()
     except Exception as e:
         print(f"{_ts()} DB init skipped: {e}", flush=True)
@@ -217,8 +221,9 @@ async def cmd_search(args):
 
 async def cmd_inspect(args):
     """Inspect the pipeline trace."""
-    from app.services.pipeline import run_pipeline
     from app.db.session import init_db
+    from app.services.pipeline import run_pipeline
+
     await init_db()
 
     sources = args.sources.split(",") if args.sources else ["reddit", "github"]
@@ -257,7 +262,7 @@ async def cmd_inspect(args):
 
 async def cmd_resolve(args):
     """Resolve a query to a vertical."""
-    from app.core.vertical_config import resolve_vertical, load_verticals
+    from app.core.vertical_config import load_verticals, resolve_vertical
 
     key, match_type, confidence, matched_terms = resolve_vertical(args.query)
 
@@ -273,7 +278,7 @@ async def cmd_resolve(args):
         config = verticals.get(key, {})
         communities = config.get("communities", {})
         if communities:
-            print(f"\n  Communities:")
+            print("\n  Communities:")
             for tier, subs in communities.items():
                 if subs:
                     if isinstance(subs, str):
@@ -298,7 +303,6 @@ async def cmd_verticals(args):
         print()
 
 
-
 async def cmd_analyze(args):
     """Analyze a query (NLP)."""
     from app.services.ingest.query_analyzer import analyze_query
@@ -309,7 +313,7 @@ async def cmd_analyze(args):
     print(f"  Intent: {profile.get('intent', 'unknown')}")
     print(f"  Tools mentioned: {profile.get('tools_mentioned', [])}")
     print(f"  Domains: {profile.get('domains', [])}")
-    print(f"  Search queries:")
+    print("  Search queries:")
     for q in profile.get("search_queries", []):
         print(f"    - {q}")
 
@@ -319,8 +323,9 @@ async def cmd_analyze(args):
 
 async def cmd_tinyfish_job(args):
     """Run a TinyFish job."""
-    from app.jobs.base import run_job
     from app.db.session import init_db
+    from app.jobs.base import run_job
+
     await init_db()
 
     _print_header(f"TinyFish Job: {args.job_type}")
@@ -342,7 +347,7 @@ async def cmd_tinyfish_job(args):
 
     for i, item in enumerate(items[:10]):
         title = item.get("title", item.get("workflow_name", ""))[:60]
-        print(f"    [{i+1}] {title}")
+        print(f"    [{i + 1}] {title}")
         if item.get("text"):
             print(f"         {item['text'][:100]}")
 
@@ -368,8 +373,10 @@ async def cmd_tinyfish_jobs(args):
 async def cmd_tinyfish_runs(args):
     """List TinyFish runs from DB."""
     from sqlalchemy import select
+
     from app.db.models.tinyfish_run import TinyFishRun
     from app.db.session import async_session, init_db
+
     await init_db()
 
     async with async_session() as session:
@@ -395,18 +402,29 @@ async def cmd_tinyfish_runs(args):
             print(f"         topic={run.topic}")
 
     if args.json:
-        _json_out([{
-            "id": r.id, "job_type": r.job_type, "status": r.status,
-            "items_extracted": r.items_extracted, "duration_ms": r.duration_ms,
-            "error_type": r.error_type, "url": r.url, "topic": r.topic,
-        } for r in runs])
+        _json_out(
+            [
+                {
+                    "id": r.id,
+                    "job_type": r.job_type,
+                    "status": r.status,
+                    "items_extracted": r.items_extracted,
+                    "duration_ms": r.duration_ms,
+                    "error_type": r.error_type,
+                    "url": r.url,
+                    "topic": r.topic,
+                }
+                for r in runs
+            ]
+        )
 
 
 async def cmd_preview(args):
     """Generate a preview for an opportunity."""
+    from app.db.session import init_db
     from app.services.pipeline import run_pipeline
     from app.services.preview.preview_service import generate_preview
-    from app.db.session import init_db
+
     await init_db()
 
     sources = args.sources.split(",") if args.sources else ["reddit", "github"]
@@ -460,8 +478,9 @@ async def cmd_ml_status(args):
 
 async def cmd_ml_train(args):
     """Train an ML model."""
-    from app.ml.training_pipeline import train_relevance_model
     from app.db.session import init_db
+    from app.ml.training_pipeline import train_relevance_model
+
     await init_db()
 
     _print_header(f"Training: {args.component}")
@@ -477,11 +496,11 @@ async def cmd_ml_train(args):
 
 async def cmd_dataset(args):
     """Generate a training dataset."""
-    from app.services.pipeline import run_pipeline
-    from app.services.dataset.dataset_generator import generate_dataset_from_docs
-    from app.services.normalize.normalize_service import normalize_documents
-    from app.services.ingest.ingest_service import ingest_topic
     from app.db.session import init_db
+    from app.services.dataset.dataset_generator import generate_dataset_from_docs
+    from app.services.ingest.ingest_service import ingest_topic
+    from app.services.normalize.normalize_service import normalize_documents
+
     await init_db()
 
     sources = args.sources.split(",") if args.sources else ["reddit"]
@@ -497,9 +516,9 @@ async def cmd_dataset(args):
         domain = sum(1 for d in labeled if d.get("domain_relevant"))
         workflow = sum(1 for d in labeled if d.get("workflow_relevant"))
         opp = sum(1 for d in labeled if d.get("opportunity_relevant"))
-        print(f"  Domain relevant: {domain}/{len(labeled)} ({100*domain/len(labeled):.0f}%)")
-        print(f"  Workflow relevant: {workflow}/{len(labeled)} ({100*workflow/len(labeled):.0f}%)")
-        print(f"  Opportunity relevant: {opp}/{len(labeled)} ({100*opp/len(labeled):.0f}%)")
+        print(f"  Domain relevant: {domain}/{len(labeled)} ({100 * domain / len(labeled):.0f}%)")
+        print(f"  Workflow relevant: {workflow}/{len(labeled)} ({100 * workflow / len(labeled):.0f}%)")
+        print(f"  Opportunity relevant: {opp}/{len(labeled)} ({100 * opp / len(labeled):.0f}%)")
 
     if args.json:
         _json_out(labeled[:5])
@@ -508,6 +527,7 @@ async def cmd_dataset(args):
 async def cmd_server(args):
     """Start the Foxhound API server."""
     import uvicorn
+
     print(f"Starting Foxhound on port {args.port}...")
     uvicorn.run("app.main:app", host=args.host, port=args.port, reload=args.reload)
 
@@ -515,8 +535,8 @@ async def cmd_server(args):
 async def cmd_reprocess(args):
     """Re-process persisted signals from a failed run through Pipeline V2."""
     from app.db.session import init_db
-    from app.services.run_service import load_persisted_signals
     from app.services.pipeline_v2 import run_pipeline_v2_from_documents
+    from app.services.run_service import load_persisted_signals
 
     await init_db()
     signals = load_persisted_signals(args.run_id)
@@ -528,13 +548,15 @@ async def cmd_reprocess(args):
     print(f"Found {len(signals)} persisted signals for {args.run_id}")
 
     # Extract topic from the saved data
-    import json, pathlib
+    import json
+    import pathlib
+
     signals_path = pathlib.Path(__file__).resolve().parents[1] / "data" / "signals" / f"{args.run_id}.json"
     data = json.loads(signals_path.read_text())
     topic = data.get("topic", "unknown")
 
     print(f"Topic: {topic}")
-    print(f"Re-processing through Pipeline V2...")
+    print("Re-processing through Pipeline V2...")
 
     report = await run_pipeline_v2_from_documents(
         topic=topic,
@@ -616,6 +638,7 @@ async def cmd_janitor(args):
 # Main
 # ---------------------------------------------------------------------------
 
+
 def main():
     parser = argparse.ArgumentParser(
         prog="foxhound",
@@ -627,7 +650,9 @@ def main():
     # --- search ---
     p = sub.add_parser("search", help="Search for opportunities")
     p.add_argument("query", help="Search query (e.g. 'property management')")
-    p.add_argument("--sources", default=None, help="API fallback sources (e.g. reddit,github). Omit for TinyFish search-first mode")
+    p.add_argument(
+        "--sources", default=None, help="API fallback sources (e.g. reddit,github). Omit for TinyFish search-first mode"
+    )
     p.add_argument("--limit", type=int, default=5, help="Max results")
     p.add_argument("--min-score", type=float, default=0.0, help="Min opportunity score")
     p.add_argument("--budget", type=int, default=10, help="TinyFish extraction budget")
@@ -751,6 +776,7 @@ def main():
 
     if args.command == "mcp":
         from app.mcp_server import main as mcp_main
+
         mcp_main()
         return
 

@@ -50,8 +50,14 @@ GREENHOUSE_PROFILE = ATSProfile(
     ],
     known_dropdowns={
         "how_did_you_hear": [
-            "LinkedIn", "Indeed", "Glassdoor", "Company Website",
-            "Friend/Referral", "Job Board", "Social Media", "Other",
+            "LinkedIn",
+            "Indeed",
+            "Glassdoor",
+            "Company Website",
+            "Friend/Referral",
+            "Job Board",
+            "Social Media",
+            "Other",
         ],
         "authorized_to_work": ["Yes", "No"],
         "sponsorship_needed": ["Yes", "No"],
@@ -83,7 +89,11 @@ LEVER_PROFILE = ATSProfile(
     ],
     known_dropdowns={
         "how_did_you_hear": [
-            "LinkedIn", "Glassdoor", "Company Website", "Referral", "Other",
+            "LinkedIn",
+            "Glassdoor",
+            "Company Website",
+            "Referral",
+            "Other",
         ],
     },
     notes=[
@@ -139,8 +149,13 @@ ASHBY_PROFILE = ATSProfile(
     ],
     known_dropdowns={
         "how_did_you_hear": [
-            "LinkedIn", "Twitter", "Company Blog", "Referral",
-            "Job Board", "Search Engine", "Other",
+            "LinkedIn",
+            "Twitter",
+            "Company Blog",
+            "Referral",
+            "Job Board",
+            "Search Engine",
+            "Other",
         ],
     },
     notes=[
@@ -311,7 +326,6 @@ def get_dropdown_selection(field_label: str, options: list[str], profile_data: d
                 for opt in options:
                     if "prefer not" in opt.lower() or "not to" in opt.lower():
                         return opt
-
 
     # Sponsorship — only auto-fill if visa_status is explicitly set
     if "sponsor" in label_lower:

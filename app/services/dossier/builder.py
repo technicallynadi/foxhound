@@ -15,7 +15,7 @@ import asyncio
 import json
 import logging
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
@@ -140,9 +140,7 @@ class DossierBuilder:
                 await self._update_section(dossier_id, "instant_analysis", instant)
 
             # --- Step 2: TinyFish sources in parallel ---
-            source_results = await self._run_all_sources(
-                company, company_url, posting_data, job_title
-            )
+            source_results = await self._run_all_sources(company, company_url, posting_data, job_title)
 
             # Save each source result
             sources_completed: list[str] = []
@@ -172,11 +170,7 @@ class DossierBuilder:
                 dossier = await db.get(Dossier, dossier_id)
 
                 # Load user profile for personalization
-                profile_result = await db.execute(
-                    select(UserProfile).where(
-                        UserProfile.user_id == dossier.user_id
-                    )
-                )
+                profile_result = await db.execute(select(UserProfile).where(UserProfile.user_id == dossier.user_id))
                 profile = profile_result.scalar_one_or_none()
                 user_summary = None
                 if profile:
@@ -237,7 +231,7 @@ class DossierBuilder:
             async with async_session() as db:
                 dossier = await db.get(Dossier, dossier_id)
                 dossier.status = "ready"
-                dossier.completed_at = datetime.now(timezone.utc)
+                dossier.completed_at = datetime.now(UTC)
                 await db.commit()
 
             logger.info(
@@ -250,9 +244,7 @@ class DossierBuilder:
             )
 
             # Send notification
-            await self._send_notification(
-                dossier_id, company, job_title, sources_completed, sources_failed
-            )
+            await self._send_notification(dossier_id, company, job_title, sources_completed, sources_failed)
 
         except Exception:
             logger.exception("Dossier background build failed: %s", dossier_id)
@@ -289,9 +281,7 @@ class DossierBuilder:
                 posting_data = self._extract_posting_data(job)
 
                 # Load user profile
-                profile_result = await db.execute(
-                    select(UserProfile).where(UserProfile.user_id == dossier.user_id)
-                )
+                profile_result = await db.execute(select(UserProfile).where(UserProfile.user_id == dossier.user_id))
                 profile = profile_result.scalar_one_or_none()
                 user_summary = None
                 if profile:
@@ -324,8 +314,12 @@ class DossierBuilder:
 
             # Save all synthesis fields
             synthesis_fields = [
-                "executive_summary", "outreach_draft", "interview_prep",
-                "overall_assessment", "interview_process", "culture_report",
+                "executive_summary",
+                "outreach_draft",
+                "interview_prep",
+                "overall_assessment",
+                "interview_process",
+                "culture_report",
                 "salary_estimate",
             ]
             synthesis_key_map = {
@@ -346,7 +340,7 @@ class DossierBuilder:
             async with async_session() as db:
                 dossier = await db.get(Dossier, dossier_id)
                 dossier.status = "ready"
-                dossier.completed_at = datetime.now(timezone.utc)
+                dossier.completed_at = datetime.now(UTC)
                 await db.commit()
 
             logger.info("Dossier %s re-synthesized for %s", dossier_id[:8], company)
@@ -354,17 +348,13 @@ class DossierBuilder:
             # Notify
             sources_completed = json.loads(dossier.sources_completed or "[]")
             sources_failed = json.loads(dossier.sources_failed or "[]")
-            await self._send_notification(
-                dossier_id, company, job_title, sources_completed, sources_failed
-            )
+            await self._send_notification(dossier_id, company, job_title, sources_completed, sources_failed)
 
         except Exception:
             logger.exception("Dossier re-synthesis failed: %s", dossier_id)
             await self._mark_failed(dossier_id, "Re-synthesis failed")
 
-    async def _run_instant_analysis(
-        self, company: str, posting_data: dict[str, Any] | None
-    ) -> dict[str, Any] | None:
+    async def _run_instant_analysis(self, company: str, posting_data: dict[str, Any] | None) -> dict[str, Any] | None:
         """Run Claude instant analysis on the job posting (tech stack, insider tip)."""
         if not posting_data:
             return None
@@ -410,7 +400,9 @@ class DossierBuilder:
         department = None
         if posting_data:
             title = (posting_data.get("title") or "").lower()
-            if any(kw in title for kw in ["engineer", "developer", "sre", "devops", "backend", "frontend", "fullstack"]):
+            if any(
+                kw in title for kw in ["engineer", "developer", "sre", "devops", "backend", "frontend", "fullstack"]
+            ):
                 department = "engineering"
             elif any(kw in title for kw in ["design", "ux", "ui"]):
                 department = "design"
@@ -454,23 +446,19 @@ class DossierBuilder:
                     logger.warning("Dossier source '%s' failed for %s: %s", name, company, str(e)[:200])
                     return (name, field, None)
 
-        gathered = await asyncio.gather(
-            *[_run_source(name, field, coro) for name, (field, coro) in tasks.items()]
-        )
+        gathered = await asyncio.gather(*[_run_source(name, field, coro) for name, (field, coro) in tasks.items()])
         results.extend(gathered)
 
         return results
 
-    async def _update_section(
-        self, dossier_id: str, field_name: str, data: Any
-    ) -> None:
+    async def _update_section(self, dossier_id: str, field_name: str, data: Any) -> None:
         """Update a single dossier section in the DB with a fresh session."""
         async with async_session() as db:
             dossier = await db.get(Dossier, dossier_id)
             if not dossier:
                 return
 
-            if isinstance(data, (dict, list)):
+            if isinstance(data, dict | list):
                 value = json.dumps(data, default=str)
             else:
                 value = str(data)
@@ -485,7 +473,7 @@ class DossierBuilder:
             if dossier:
                 dossier.status = "failed"
                 dossier.overall_assessment = reason
-                dossier.completed_at = datetime.now(timezone.utc)
+                dossier.completed_at = datetime.now(UTC)
                 await db.commit()
 
     async def _send_notification(
@@ -503,9 +491,7 @@ class DossierBuilder:
         # Try Slack Bot first (sends to linked user's DM)
         if settings.slack_bot_token:
             try:
-                await self._send_bot_notification(
-                    dossier_id, company, job_title, sources_completed, sources_failed
-                )
+                await self._send_bot_notification(dossier_id, company, job_title, sources_completed, sources_failed)
                 return
             except Exception:
                 logger.warning("Slack bot notification failed, trying webhook", exc_info=True)
@@ -515,9 +501,9 @@ class DossierBuilder:
         webhook_url = settings.slack_webhook_url
         if not webhook_url:
             logger.info(
-                "No Slack webhook configured — report %s ready for %s "
-                "(in-app notification will be shown)",
-                dossier_id[:8], company,
+                "No Slack webhook configured — report %s ready for %s (in-app notification will be shown)",
+                dossier_id[:8],
+                company,
             )
             return
 
@@ -542,8 +528,6 @@ class DossierBuilder:
                 status_lines.append(f"* {label} — unavailable")
             else:
                 status_lines.append(f"* {label} — skipped")
-
-        dossier_url = f"{DASHBOARD_BASE}/dossier/{dossier_id}"
 
         # Build inline summary from dossier data
         async with async_session() as db:
@@ -584,10 +568,12 @@ class DossierBuilder:
         if inline_parts:
             blocks.append({"type": "divider"})
             for part in inline_parts:
-                blocks.append({
-                    "type": "section",
-                    "text": {"type": "mrkdwn", "text": part},
-                })
+                blocks.append(
+                    {
+                        "type": "section",
+                        "text": {"type": "mrkdwn", "text": part},
+                    }
+                )
 
         fallback = f"Intelligence Report ready: {company} — {job_title}"
 
@@ -598,7 +584,7 @@ class DossierBuilder:
             async with async_session() as db:
                 dossier = await db.get(Dossier, dossier_id)
                 if dossier:
-                    dossier.notified_at = datetime.now(timezone.utc)
+                    dossier.notified_at = datetime.now(UTC)
                     await db.commit()
 
         except Exception:
@@ -623,14 +609,12 @@ class DossierBuilder:
                 return
 
             from sqlalchemy import select
-            result = await db.execute(
-                select(UserProfile).where(UserProfile.user_id == dossier.user_id)
-            )
+
+            result = await db.execute(select(UserProfile).where(UserProfile.user_id == dossier.user_id))
             profile = result.scalar_one_or_none()
             if not profile or not getattr(profile, "slack_user_id", None):
                 logger.info(
-                    "No slack_user_id on profile for dossier %s — "
-                    "skipping Slack DM, in-app notification will show",
+                    "No slack_user_id on profile for dossier %s — skipping Slack DM, in-app notification will show",
                     dossier_id[:8],
                 )
                 return
@@ -712,7 +696,7 @@ class DossierBuilder:
         async with async_session() as db:
             dossier = await db.get(Dossier, dossier_id)
             if dossier:
-                dossier.notified_at = datetime.now(timezone.utc)
+                dossier.notified_at = datetime.now(UTC)
                 await db.commit()
 
     def _extract_posting_data(self, job: Any) -> dict[str, Any]:

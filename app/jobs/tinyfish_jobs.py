@@ -63,6 +63,7 @@ def get_job_registry() -> dict[str, TinyFishJob]:
             ),
         }
         from app.jobs.corpus_ingestion import get_corpus_ingestion_job
+
         corpus_job = get_corpus_ingestion_job()
         _JOB_REGISTRY[corpus_job.job_type] = corpus_job
 

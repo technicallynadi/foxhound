@@ -15,18 +15,15 @@ Architecture:
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import os
 import tempfile
 import time
-from dataclasses import dataclass, field
 
-from app.core.config import settings
-from app.services.apply.form_scanner import ScanResult, match_field_to_profile
+from app.services.apply.form_scanner import ScanResult
 from app.services.apply.playwright_filler import (
-    FillResult,
     FieldFillResult,
+    FillResult,
     _build_profile_data,
     _resolve_field_value,
 )
@@ -105,9 +102,7 @@ async def agentql_fill_and_submit(
             # 6. Navigate to application form if needed
             try:
                 # Some sites need you to click "Apply" first
-                apply_btn = await page.get_by_prompt(
-                    "the Apply or Apply Now button that opens the application form"
-                )
+                apply_btn = await page.get_by_prompt("the Apply or Apply Now button that opens the application form")
                 if apply_btn:
                     await apply_btn.click()
                     await page.wait_for_timeout(2000)
@@ -119,9 +114,7 @@ async def agentql_fill_and_submit(
             # 7. Check for blockers
             try:
                 body_text = (await page.inner_text("body")).lower()
-                if "captcha" in body_text and any(
-                    kw in body_text for kw in ["verify", "robot", "human"]
-                ):
+                if "captcha" in body_text and any(kw in body_text for kw in ["verify", "robot", "human"]):
                     return FillResult(
                         status="captcha",
                         error="CAPTCHA detected",
@@ -139,17 +132,25 @@ async def agentql_fill_and_submit(
             for form_field in scan_result.fields:
                 if form_field.field_type in ("file", "hidden"):
                     if form_field.field_type == "hidden":
-                        field_results.append(FieldFillResult(
-                            label=form_field.label, status="skipped", value_used="(hidden)",
-                        ))
+                        field_results.append(
+                            FieldFillResult(
+                                label=form_field.label,
+                                status="skipped",
+                                value_used="(hidden)",
+                            )
+                        )
                         skipped += 1
                     continue
 
                 value = _resolve_field_value(form_field, profile_data, answers_map)
                 if not value:
-                    field_results.append(FieldFillResult(
-                        label=form_field.label, status="skipped", value_used="(no value)",
-                    ))
+                    field_results.append(
+                        FieldFillResult(
+                            label=form_field.label,
+                            status="skipped",
+                            value_used="(no value)",
+                        )
+                    )
                     skipped += 1
                     logger.info("Skipped: '%s' (no value)", form_field.label)
                     continue
@@ -163,9 +164,7 @@ async def agentql_fill_and_submit(
 
             for form_field, _ in fields_to_fill:
                 try:
-                    locator = await page.get_by_prompt(
-                        f"the form input field labeled '{form_field.label}'"
-                    )
+                    locator = await page.get_by_prompt(f"the form input field labeled '{form_field.label}'")
                     if locator:
                         locator_map[form_field.label] = locator
                         logger.info("Found: '%s'", form_field.label)
@@ -176,9 +175,7 @@ async def agentql_fill_and_submit(
 
             # Also find upload and submit buttons while the form is still empty
             try:
-                upload_btn_locator = await page.get_by_prompt(
-                    "the button or link to attach or upload a resume file"
-                )
+                upload_btn_locator = await page.get_by_prompt("the button or link to attach or upload a resume file")
                 if upload_btn_locator:
                     logger.info("Found: resume upload button")
             except Exception:
@@ -193,8 +190,7 @@ async def agentql_fill_and_submit(
             except Exception:
                 pass
 
-            logger.info("Phase A complete: found %d/%d field locators",
-                        len(locator_map), len(fields_to_fill))
+            logger.info("Phase A complete: found %d/%d field locators", len(locator_map), len(fields_to_fill))
 
             # ── PHASE B: Playwright fills using cached locators (local only) ──
             # AgentQL is NOT called again. All PII stays local.
@@ -203,10 +199,13 @@ async def agentql_fill_and_submit(
             for form_field, value in fields_to_fill:
                 locator = locator_map.get(form_field.label)
                 if not locator:
-                    field_results.append(FieldFillResult(
-                        label=form_field.label, status="not_found",
-                        error="AgentQL could not find field",
-                    ))
+                    field_results.append(
+                        FieldFillResult(
+                            label=form_field.label,
+                            status="not_found",
+                            error="AgentQL could not find field",
+                        )
+                    )
                     errored += 1
                     continue
 
@@ -260,32 +259,47 @@ async def agentql_fill_and_submit(
                     else:
                         await locator.fill(value)
 
-                    field_results.append(FieldFillResult(
-                        label=form_field.label, status="filled", value_used=value,
-                    ))
+                    field_results.append(
+                        FieldFillResult(
+                            label=form_field.label,
+                            status="filled",
+                            value_used=value,
+                        )
+                    )
                     filled += 1
                     logger.info("Filled: '%s'", form_field.label)
 
                 except Exception as e:
-                    logger.warning("Failed to fill '%s': %s", form_field.label, e)
-                    field_results.append(FieldFillResult(
-                        label=form_field.label, status="error",
-                        value_used=value, error=str(e),
-                    ))
+                    logger.warning(
+                        "Failed to fill '%s' (error_type=%s)",
+                        form_field.label,
+                        type(e).__name__,
+                    )
+                    field_results.append(
+                        FieldFillResult(
+                            label=form_field.label,
+                            status="error",
+                            value_used=value,
+                            error=str(e),
+                        )
+                    )
                     errored += 1
 
                 await page.wait_for_timeout(100)
 
-            logger.info("Fill summary: %d filled, %d skipped, %d errors out of %d",
-                        filled, skipped, errored, len(scan_result.fields))
+            logger.info(
+                "Fill summary: %d filled, %d skipped, %d errors out of %d",
+                filled,
+                skipped,
+                errored,
+                len(scan_result.fields),
+            )
 
             # 9. Upload resume (using pre-cached locator)
             if resume_bytes and scan_result.has_file_upload:
                 try:
                     # Write resume to temp file
-                    with tempfile.NamedTemporaryFile(
-                        suffix=f"_{resume_filename}", delete=False
-                    ) as tmp:
+                    with tempfile.NamedTemporaryFile(suffix=f"_{resume_filename}", delete=False) as tmp:
                         tmp.write(resume_bytes)
                         tmp_path = tmp.name
 
@@ -296,16 +310,23 @@ async def agentql_fill_and_submit(
                         await file_chooser.set_files(tmp_path)
                         await page.wait_for_timeout(2000)
                         logger.info("Resume uploaded: %s", resume_filename)
-                        field_results.append(FieldFillResult(
-                            label="Resume", status="filled", value_used=resume_filename,
-                        ))
+                        field_results.append(
+                            FieldFillResult(
+                                label="Resume",
+                                status="filled",
+                                value_used=resume_filename,
+                            )
+                        )
                         filled += 1
                     else:
                         logger.warning("Could not find resume upload button")
-                        field_results.append(FieldFillResult(
-                            label="Resume", status="not_found",
-                            error="Upload button not found",
-                        ))
+                        field_results.append(
+                            FieldFillResult(
+                                label="Resume",
+                                status="not_found",
+                                error="Upload button not found",
+                            )
+                        )
 
                     # Cleanup temp file
                     try:
@@ -315,9 +336,13 @@ async def agentql_fill_and_submit(
 
                 except Exception as e:
                     logger.warning("Resume upload failed: %s", e)
-                    field_results.append(FieldFillResult(
-                        label="Resume", status="error", error=str(e),
-                    ))
+                    field_results.append(
+                        FieldFillResult(
+                            label="Resume",
+                            status="error",
+                            error=str(e),
+                        )
+                    )
 
             # 10. Pre-submit screenshot
             pre_submit_screenshot = await _safe_screenshot(page)

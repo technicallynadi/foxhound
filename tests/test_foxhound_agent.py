@@ -11,38 +11,47 @@ from app.services.agent.budget import RequestBudget
 from app.services.agent.utils.question_classifier import classify_question
 from app.services.agent.utils.url_validator import validate_apply_url
 
-
 # ---------------------------------------------------------------------------
 # Question classifier
 # ---------------------------------------------------------------------------
 
-@pytest.mark.parametrize("label,expected", [
-    ("First Name", "auto"),
-    ("Email", "auto"),
-    ("Phone number", "auto"),
-    ("LinkedIn URL", "auto"),
-    ("Years of experience", "auto"),
-    ("Work authorization", "auto"),
-])
+
+@pytest.mark.parametrize(
+    "label,expected",
+    [
+        ("First Name", "auto"),
+        ("Email", "auto"),
+        ("Phone number", "auto"),
+        ("LinkedIn URL", "auto"),
+        ("Years of experience", "auto"),
+        ("Work authorization", "auto"),
+    ],
+)
 def test_classify_auto(label, expected):
     assert classify_question(label) == expected
 
 
-@pytest.mark.parametrize("label,expected", [
-    ("Why do you want to work here?", "draft_and_approve"),
-    ("Describe your experience", "draft_and_approve"),
-    ("Cover letter", "draft_and_approve"),
-])
+@pytest.mark.parametrize(
+    "label,expected",
+    [
+        ("Why do you want to work here?", "draft_and_approve"),
+        ("Describe your experience", "draft_and_approve"),
+        ("Cover letter", "draft_and_approve"),
+    ],
+)
 def test_classify_draft(label, expected):
     assert classify_question(label) == expected
 
 
-@pytest.mark.parametrize("label,expected", [
-    ("Salary expectations", "ask_directly"),
-    ("Start date", "ask_directly"),
-    ("Criminal background", "ask_directly"),
-    ("Gender", "ask_directly"),
-])
+@pytest.mark.parametrize(
+    "label,expected",
+    [
+        ("Salary expectations", "ask_directly"),
+        ("Start date", "ask_directly"),
+        ("Criminal background", "ask_directly"),
+        ("Gender", "ask_directly"),
+    ],
+)
 def test_classify_ask(label, expected):
     assert classify_question(label) == expected
 
@@ -56,17 +65,21 @@ def test_classify_unknown():
 # URL validator
 # ---------------------------------------------------------------------------
 
-@pytest.mark.parametrize("url,expected", [
-    ("https://boards.greenhouse.io/anthropic/jobs/123", True),
-    ("https://jobs.lever.co/stripe/abc", True),
-    ("https://jobs.ashbyhq.com/openai/xyz", True),
-    ("https://abc.myworkdayjobs.com/en-US/jobs", True),
-    ("http://boards.greenhouse.io/test", False),  # no HTTPS
-    ("https://evil.com/phishing", False),
-    ("https://169.254.169.254/metadata", False),  # private IP
-    ("https://localhost/admin", False),
-    ("", False),
-])
+
+@pytest.mark.parametrize(
+    "url,expected",
+    [
+        ("https://boards.greenhouse.io/anthropic/jobs/123", True),
+        ("https://jobs.lever.co/stripe/abc", True),
+        ("https://jobs.ashbyhq.com/openai/xyz", True),
+        ("https://abc.myworkdayjobs.com/en-US/jobs", True),
+        ("http://boards.greenhouse.io/test", False),  # no HTTPS
+        ("https://evil.com/phishing", False),
+        ("https://169.254.169.254/metadata", False),  # private IP
+        ("https://localhost/admin", False),
+        ("", False),
+    ],
+)
 def test_validate_apply_url(url, expected):
     assert validate_apply_url(url) == expected
 
@@ -74,6 +87,7 @@ def test_validate_apply_url(url, expected):
 # ---------------------------------------------------------------------------
 # Budget tracking
 # ---------------------------------------------------------------------------
+
 
 def test_budget_tracks_usage():
     b = RequestBudget()
@@ -111,6 +125,7 @@ def test_budget_summary():
 # Profile filler
 # ---------------------------------------------------------------------------
 
+
 class FakeProfile:
     first_name = "Test"
     last_name = "User"
@@ -127,6 +142,7 @@ class FakeProfile:
 
 def test_profile_filler_basic():
     from app.services.agent.utils.profile_filler import extract_profile_value
+
     p = FakeProfile()
     assert extract_profile_value(p, "Email") == "test@test.com"
     assert extract_profile_value(p, "Full Name") == "Test User"
@@ -136,6 +152,7 @@ def test_profile_filler_basic():
 
 def test_profile_filler_education():
     from app.services.agent.utils.profile_filler import extract_profile_value
+
     p = FakeProfile()
     v = extract_profile_value(p, "Highest degree")
     assert "BS CS" in v
@@ -144,12 +161,14 @@ def test_profile_filler_education():
 
 def test_profile_filler_missing():
     from app.services.agent.utils.profile_filler import extract_profile_value
+
     p = FakeProfile()
     assert extract_profile_value(p, "Favorite color") is None
 
 
 def test_profile_filler_null_field():
     from app.services.agent.utils.profile_filler import extract_profile_value
+
     p = FakeProfile()
     p.phone = None
     assert extract_profile_value(p, "Phone") is None
@@ -159,8 +178,10 @@ def test_profile_filler_null_field():
 # Answer bank
 # ---------------------------------------------------------------------------
 
+
 def test_answer_bank_update():
-    from app.services.agent.utils.profile_filler import update_answer_bank, check_answer_bank
+    from app.services.agent.utils.profile_filler import check_answer_bank, update_answer_bank
+
     p = FakeProfile()
     update_answer_bank(p, "Salary expectations", "180-210k")
     assert "salary" in p.answer_bank_json
@@ -169,5 +190,6 @@ def test_answer_bank_update():
 
 def test_answer_bank_no_match():
     from app.services.agent.utils.profile_filler import check_answer_bank
+
     p = FakeProfile()
     assert check_answer_bank(p, "Favorite color") is None

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import uuid4
 
@@ -29,14 +29,16 @@ async def log_activity(
         async with async_session() as db:
             # Dedup: skip if same user + event_type + title within the window
             if dedup_minutes > 0:
-                cutoff = datetime.now(timezone.utc) - timedelta(minutes=dedup_minutes)
+                cutoff = datetime.now(UTC) - timedelta(minutes=dedup_minutes)
                 existing = await db.execute(
-                    select(AgentActivity.id).where(
+                    select(AgentActivity.id)
+                    .where(
                         AgentActivity.user_id == user_id,
                         AgentActivity.event_type == event_type,
                         AgentActivity.title == title,
                         AgentActivity.created_at >= cutoff,
-                    ).limit(1)
+                    )
+                    .limit(1)
                 )
                 if existing.scalar_one_or_none():
                     return None  # Duplicate, skip

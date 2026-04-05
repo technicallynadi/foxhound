@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+from datetime import UTC
 from uuid import uuid4
 
 from app.db.models.foxhound_brief import FoxhoundBrief
@@ -25,11 +26,8 @@ async def assemble_brief(
     try:
         async with async_session() as db:
             from sqlalchemy import select
-            result = await db.execute(
-                select(FoxhoundBrief).where(
-                    FoxhoundBrief.application_id == application_id
-                )
-            )
+
+            result = await db.execute(select(FoxhoundBrief).where(FoxhoundBrief.application_id == application_id))
             brief = result.scalar_one_or_none()
 
             if not brief:
@@ -64,13 +62,12 @@ async def assemble_brief(
             brief.watchdog_status = "active"
 
             # Always touch updated_at so the stale check in the brief route works
-            from datetime import datetime, timezone
-            brief.updated_at = datetime.now(timezone.utc)
+            from datetime import datetime
+
+            brief.updated_at = datetime.now(UTC)
 
             # Generate recommended next action
-            brief.recommended_next_action = serialize_recommended_next_action(
-                _generate_recommendation(data)
-            )
+            brief.recommended_next_action = serialize_recommended_next_action(_generate_recommendation(data))
 
             # Determine completeness — company_brief + pathfinder are core,
             # network_map is a bonus (LinkedIn search often fails)
@@ -84,7 +81,8 @@ async def assemble_brief(
             await db.commit()
             logger.info(
                 "Brief assembled for application %s: status=%s",
-                application_id, brief.status,
+                application_id,
+                brief.status,
             )
             return brief
 
@@ -101,8 +99,7 @@ def _generate_recommendation(data: dict) -> dict:
     if isinstance(pathfinder, dict) and pathfinder.get("search_urls"):
         manager_title = pathfinder.get("manager_signals", {}).get("likely_title", "the hiring manager")
         parts.append(
-            f"Send a LinkedIn connection request to {manager_title}. "
-            "Best window: within 24 hours of application."
+            f"Send a LinkedIn connection request to {manager_title}. Best window: within 24 hours of application."
         )
 
     company_brief = data.get("company_brief", {})

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -44,7 +44,8 @@ async def get_profile(db: AsyncSession, user_id: str, params: dict) -> dict:
         "years_experience": profile.years_experience,
         "experience": [
             {"title": e.get("title"), "company": e.get("company"), "years": e.get("years")}
-            for e in experience[:5] if isinstance(e, dict)
+            for e in experience[:5]
+            if isinstance(e, dict)
         ],
         "preferences": {
             "target_titles": target_titles,
@@ -112,7 +113,7 @@ async def update_preferences(db: AsyncSession, user_id: str, params: dict) -> di
     if not updated:
         return {"message": "No changes specified. What would you like to update?"}
 
-    profile.updated_at = datetime.now(timezone.utc)
+    profile.updated_at = datetime.now(UTC)
     await db.commit()
 
     return {"changes": updated, "message": f"Updated: {', '.join(updated)}."}

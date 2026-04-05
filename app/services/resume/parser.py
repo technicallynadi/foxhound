@@ -6,7 +6,6 @@ import json
 import logging
 import re
 from dataclasses import dataclass, field
-from uuid import uuid4
 
 import anthropic
 
@@ -73,6 +72,7 @@ class ResumeParser:
     async def _extract_text(self, pdf_bytes: bytes) -> str:
         """Extract text from PDF using pdfplumber (MIT license)."""
         import io
+
         import pdfplumber
 
         pages = []

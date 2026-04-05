@@ -59,6 +59,7 @@ smoke_tests/
 # All markdown files
 *.md
 !README.md
+!marketing-strategy/*.md
 
 # Other generated docs
 *.html
@@ -71,6 +72,11 @@ old-foxhound/
 # Scripts — local dev/test only
 scripts/
 
+# Allow tracked GitHub QA gate automation assets
+!.github/pull_request_template.md
+!.github/scripts/
+!.github/scripts/*.py
+
 # Screenshots
 Screenshot*
 
@@ -78,3 +84,5 @@ Screenshot*
 demo/
 *.pdf
 *.resume
+
+marketing-strategy/

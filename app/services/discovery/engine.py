@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import logging
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import uuid4
 
-from sqlalchemy import select, text
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.discovery_run import DiscoveryRun
@@ -70,15 +70,13 @@ class JobDiscoveryEngine:
                 run.error_message = str(e)
 
             run.duration_ms = int((time.monotonic() - t0) * 1000)
-            run.completed_at = datetime.now(timezone.utc)
+            run.completed_at = datetime.now(UTC)
             runs.append(run)
 
         await db.commit()
         return runs
 
-    async def _store_listings(
-        self, db: AsyncSession, listings: list[dict]
-    ) -> dict:
+    async def _store_listings(self, db: AsyncSession, listings: list[dict]) -> dict:
         """Batch upsert listings into job_listings table. Returns counts."""
         if not listings:
             return {"new": 0, "updated": 0, "deduplicated": 0}
@@ -92,10 +90,8 @@ class JobDiscoveryEngine:
         if dedup_hashes:
             # Query in chunks of 500 to avoid parameter limits
             for i in range(0, len(dedup_hashes), 500):
-                chunk = dedup_hashes[i:i+500]
-                result = await db.execute(
-                    select(JobListing.dedup_hash).where(JobListing.dedup_hash.in_(chunk))
-                )
+                chunk = dedup_hashes[i : i + 500]
+                result = await db.execute(select(JobListing.dedup_hash).where(JobListing.dedup_hash.in_(chunk)))
                 existing_by_hash.update(row[0] for row in result.all())
 
         # Batch query existing by external_id + source
@@ -104,10 +100,9 @@ class JobDiscoveryEngine:
             ext_id_list = [eid for eid, _ in ext_ids if eid]
             if ext_id_list:
                 for i in range(0, len(ext_id_list), 500):
-                    chunk = ext_id_list[i:i+500]
+                    chunk = ext_id_list[i : i + 500]
                     result = await db.execute(
-                        select(JobListing.external_id, JobListing.source)
-                        .where(JobListing.external_id.in_(chunk))
+                        select(JobListing.external_id, JobListing.source).where(JobListing.external_id.in_(chunk))
                     )
                     existing_by_ext.update((row[0], row[1]) for row in result.all())
 
@@ -134,7 +129,7 @@ class JobDiscoveryEngine:
         BATCH_SIZE = 200
 
         for i in range(0, len(new_listings), BATCH_SIZE):
-            batch = new_listings[i:i+BATCH_SIZE]
+            batch = new_listings[i : i + BATCH_SIZE]
             objects = []
             for listing_data in batch:
                 posted_at = listing_data.get("posted_at")
@@ -144,25 +139,27 @@ class JobDiscoveryEngine:
                     except (ValueError, TypeError):
                         posted_at = None
 
-                objects.append(JobListing(
-                    id=str(uuid4()),
-                    external_id=listing_data.get("external_id"),
-                    title=listing_data.get("title", ""),
-                    company=listing_data.get("company", ""),
-                    company_url=listing_data.get("company_url"),
-                    description=listing_data.get("description", ""),
-                    description_html=listing_data.get("description_html"),
-                    location=listing_data.get("location"),
-                    remote_type=listing_data.get("remote_type"),
-                    apply_url=listing_data.get("apply_url", ""),
-                    ats_type=listing_data.get("ats_type"),
-                    auto_apply_supported=listing_data.get("auto_apply_supported", False),
-                    source=listing_data.get("source", ""),
-                    source_url=listing_data.get("source_url", ""),
-                    posted_at=posted_at,
-                    status="active",
-                    dedup_hash=listing_data.get("dedup_hash"),
-                ))
+                objects.append(
+                    JobListing(
+                        id=str(uuid4()),
+                        external_id=listing_data.get("external_id"),
+                        title=listing_data.get("title", ""),
+                        company=listing_data.get("company", ""),
+                        company_url=listing_data.get("company_url"),
+                        description=listing_data.get("description", ""),
+                        description_html=listing_data.get("description_html"),
+                        location=listing_data.get("location"),
+                        remote_type=listing_data.get("remote_type"),
+                        apply_url=listing_data.get("apply_url", ""),
+                        ats_type=listing_data.get("ats_type"),
+                        auto_apply_supported=listing_data.get("auto_apply_supported", False),
+                        source=listing_data.get("source", ""),
+                        source_url=listing_data.get("source_url", ""),
+                        posted_at=posted_at,
+                        status="active",
+                        dedup_hash=listing_data.get("dedup_hash"),
+                    )
+                )
 
             db.add_all(objects)
             await db.flush()

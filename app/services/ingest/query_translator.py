@@ -11,7 +11,6 @@ user intent into the kind of queries that produce strong evidence."""
 import asyncio
 import json
 import logging
-import os
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +68,7 @@ async def translate_query(user_input: str) -> dict:
 async def _llm_translate(user_input: str) -> dict:
     """Use Claude to translate the query."""
     import anthropic
+
     from app.core.config import settings
 
     api_key = settings.anthropic_api_key
@@ -82,10 +82,12 @@ async def _llm_translate(user_input: str) -> dict:
         client.messages.create(
             model=model,
             max_tokens=800,
-            messages=[{
-                "role": "user",
-                "content": TRANSLATION_PROMPT.format(user_input=user_input),
-            }],
+            messages=[
+                {
+                    "role": "user",
+                    "content": TRANSLATION_PROMPT.format(user_input=user_input),
+                }
+            ],
         ),
         timeout=settings.translator_timeout_seconds,
     )
@@ -111,9 +113,32 @@ def _fallback_translate(user_input: str) -> dict:
     """Basic keyword extraction when LLM is unavailable."""
     words = user_input.lower().split()
     # extract nouns-ish (words > 3 chars, not common filler)
-    filler = {"want", "build", "project", "that", "will", "would", "could", "make",
-              "something", "tool", "thing", "like", "think", "need", "help", "with",
-              "about", "this", "there", "have", "been", "also", "just", "really"}
+    filler = {
+        "want",
+        "build",
+        "project",
+        "that",
+        "will",
+        "would",
+        "could",
+        "make",
+        "something",
+        "tool",
+        "thing",
+        "like",
+        "think",
+        "need",
+        "help",
+        "with",
+        "about",
+        "this",
+        "there",
+        "have",
+        "been",
+        "also",
+        "just",
+        "really",
+    }
     keywords = [w for w in words if len(w) > 3 and w not in filler]
     topic = " ".join(keywords[:5])
 
@@ -129,8 +154,8 @@ def _fallback_translate(user_input: str) -> dict:
             f"developers frustrated with {topic}",
             f"worst part of {topic}",
             f"{topic} workarounds and complaints",
-            f'wish there was a tool for {topic}',
-            f'we built an internal tool for {topic}',
+            f"wish there was a tool for {topic}",
+            f"we built an internal tool for {topic}",
         ],
         "translated": False,
     }

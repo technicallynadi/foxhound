@@ -4,8 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
-import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import uuid4
 
 from sqlalchemy import select
@@ -16,6 +15,7 @@ from app.db.models.application import Application
 from app.db.models.job_listing import JobListing
 from app.db.models.job_match import JobMatch
 from app.db.models.user_profile import UserProfile
+from app.services.agent.utils.url_validator import validate_apply_url
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +37,7 @@ async def _log_application_activity(
         metadata=metadata,
     )
 
+
 # Status messages for applications that need manual completion
 _MANUAL_MESSAGES = {
     "captcha_detected": "This form has a CAPTCHA that requires human verification.",
@@ -48,7 +49,7 @@ _MANUAL_MESSAGES = {
 }
 
 
-def _build_manual_message(result: dict, job: "JobListing") -> str:
+def _build_manual_message(result: dict, job: JobListing) -> str:
     """Build a user-friendly message for needs_manual applications."""
     status = result.get("status", "unknown")
     base = _MANUAL_MESSAGES.get(status, "This application needs manual completion.")
@@ -78,6 +79,7 @@ class ApplicationOrchestrator:
         # 1. Pre-flight checks
         profile = await self._get_profile(db, user_id)
         job = await self._get_job(db, job_id)
+        self._assert_safe_apply_url(job.apply_url)
         self._check_limits(profile)
         match_score = await self._get_match_score(db, user_id, job_id)
 
@@ -109,6 +111,7 @@ class ApplicationOrchestrator:
         try:
             from app.db.models.foxhound_brief import FoxhoundBrief
             from app.db.session import async_session as _async_session
+
             async with _async_session() as brief_db:
                 brief = FoxhoundBrief(
                     id=str(uuid4()),
@@ -125,14 +128,15 @@ class ApplicationOrchestrator:
         # 2.2: Start research cascade in background (doesn't need submission to complete)
         try:
             from app.services.research.cascade import start_research_cascade
+
             await start_research_cascade(user_id, app.id, job_id, match_score)
         except Exception as e:
             logger.warning("Research cascade start failed: %s", e)
 
         # 2.5: Try API submission path (Greenhouse, Lever, Ashby)
-        from app.services.apply.ats_url_parser import parse_ats_url
         from app.services.apply.api_submit import get_api_submitter
         from app.services.apply.api_submit.base import ApiSubmitFallbackError
+        from app.services.apply.ats_url_parser import parse_ats_url
 
         url_info = parse_ats_url(job.apply_url)
         api_submitter = get_api_submitter(url_info.ats_type) if url_info else None
@@ -140,19 +144,28 @@ class ApplicationOrchestrator:
         if api_submitter and url_info:
             try:
                 result = await self._apply_via_api(
-                    db, api_submitter, url_info, profile, job, app, user_id, trigger, match_score,
+                    db,
+                    api_submitter,
+                    url_info,
+                    profile,
+                    job,
+                    app,
+                    user_id,
+                    trigger,
+                    match_score,
                 )
                 if result:
                     return result
             except ApiSubmitFallbackError as e:
                 logger.info(
                     "API submit fallback for %s: %s — falling through to browser",
-                    url_info.ats_type, e,
+                    url_info.ats_type,
+                    e,
                 )
                 # Continue to browser path below
 
         # 3. PHASE 1: Scan the form to discover fields
-        from app.services.apply.form_scanner import scan_form, analyze_scan
+        from app.services.apply.form_scanner import analyze_scan, scan_form
 
         logger.info("Phase 1: Scanning form at %s", job.apply_url)
         scan_result = await scan_form(job.apply_url)
@@ -188,11 +201,18 @@ class ApplicationOrchestrator:
             return app
 
         # Store scan result so resume_fill can reuse it (avoids re-scanning)
-        scan_json = json.dumps([
-            {"label": f.label, "field_type": f.field_type, "required": f.required,
-             "options": f.options, "field_name": f.field_name}
-            for f in scan_result.fields
-        ])
+        scan_json = json.dumps(
+            [
+                {
+                    "label": f.label,
+                    "field_type": f.field_type,
+                    "required": f.required,
+                    "options": f.options,
+                    "field_name": f.field_name,
+                }
+                for f in scan_result.fields
+            ]
+        )
 
         # 4. Classify fields and determine what we can auto-fill
         analysis = analyze_scan(scan_result)
@@ -216,12 +236,14 @@ class ApplicationOrchestrator:
         if analysis["needs_user_input"]:
             for field_info in analysis["narrative"]:
                 draft = await self._draft_answer(profile, job, field_info["label"])
-                custom_answers.append({
-                    "question": field_info["label"],
-                    "answer": draft,
-                    "confidence": 0.5,
-                    "needs_approval": True,
-                })
+                custom_answers.append(
+                    {
+                        "question": field_info["label"],
+                        "answer": draft,
+                        "confidence": 0.5,
+                        "needs_approval": True,
+                    }
+                )
 
             needs_input = analysis["sensitive"] + analysis["unknown"]
             if needs_input:
@@ -233,11 +255,13 @@ class ApplicationOrchestrator:
                 ]
                 for ans in custom_answers:
                     if ans["needs_approval"]:
-                        questions_for_user.append({
-                            "question": ans["question"],
-                            "suggested_answer": ans["answer"],
-                            "field_type": "textarea",
-                        })
+                        questions_for_user.append(
+                            {
+                                "question": ans["question"],
+                                "suggested_answer": ans["answer"],
+                                "field_type": "textarea",
+                            }
+                        )
 
                 # Save waiting state with fresh session
                 async with async_session() as fresh_db:
@@ -246,6 +270,7 @@ class ApplicationOrchestrator:
                     fresh_app.custom_answers_json = json.dumps(custom_answers)
 
                     from app.db.models.application_question import ApplicationQuestion
+
                     for idx, q in enumerate(questions_for_user):
                         aq = ApplicationQuestion(
                             id=str(uuid4()),
@@ -282,12 +307,14 @@ class ApplicationOrchestrator:
         for field_info in analysis["auto_fill"]:
             answer = self._auto_fill(profile, field_info["label"])
             if answer:
-                custom_answers.append({
-                    "question": field_info["label"],
-                    "answer": answer,
-                    "confidence": 0.95,
-                    "needs_approval": False,
-                })
+                custom_answers.append(
+                    {
+                        "question": field_info["label"],
+                        "answer": answer,
+                        "confidence": 0.95,
+                        "needs_approval": False,
+                    }
+                )
 
         # 6. PHASE 2: Fill + submit via AgentQL
         #    Uses TinyFish CDP browser with AgentQL for semantic field finding + file upload.
@@ -317,6 +344,7 @@ class ApplicationOrchestrator:
 
         # 7. Upload screenshots to Supabase Storage
         from app.services.storage.supabase_storage import upload_file
+
         pre_submit_path = None
         post_submit_path = None
         if fill_result.pre_submit_screenshot_bytes:
@@ -346,7 +374,7 @@ class ApplicationOrchestrator:
 
             if fill_result.status == "submitted":
                 fresh_app.status = "submitted"
-                fresh_app.submitted_at = datetime.now(timezone.utc)
+                fresh_app.submitted_at = datetime.now(UTC)
             elif fill_result.status in ("captcha", "needs_manual", "needs_account"):
                 fresh_app.status = "needs_manual"
                 fresh_app.error_type = fill_result.status
@@ -364,13 +392,11 @@ class ApplicationOrchestrator:
                 fresh_app.pre_submit_screenshot_path = pre_submit_path
             if post_submit_path:
                 fresh_app.screenshot_storage_path = post_submit_path
-                fresh_app.screenshot_captured_at = datetime.now(timezone.utc)
+                fresh_app.screenshot_captured_at = datetime.now(UTC)
 
             # Increment monthly counter
             if fresh_app.status == "submitted":
-                fresh_profile = await fresh_db.execute(
-                    select(UserProfile).where(UserProfile.user_id == user_id)
-                )
+                fresh_profile = await fresh_db.execute(select(UserProfile).where(UserProfile.user_id == user_id))
                 p = fresh_profile.scalar_one_or_none()
                 if p:
                     p.applications_this_month += 1
@@ -382,9 +408,12 @@ class ApplicationOrchestrator:
 
         # 9. Send notification (doesn't need DB)
         from app.services.apply.notifications import send_application_receipt
+
         try:
             await send_application_receipt(
-                profile=profile, application=app, job=job,
+                profile=profile,
+                application=app,
+                job=job,
                 screenshot_url=post_submit_path,
             )
         except Exception as e:
@@ -423,19 +452,22 @@ class ApplicationOrchestrator:
 
         # Emit event for post-apply cascade
         if app.status == "submitted":
-            from app.services.events import emit, FoxhoundEvent
-            await emit(FoxhoundEvent(
-                name="application.submitted",
-                data={
-                    "user_id": user_id,
-                    "application_id": app.id,
-                    "job_id": job_id,
-                    "company": job.company,
-                    "title": job.title,
-                    "match_score": match_score,
-                    "trigger": trigger,
-                },
-            ))
+            from app.services.events import FoxhoundEvent, emit
+
+            await emit(
+                FoxhoundEvent(
+                    name="application.submitted",
+                    data={
+                        "user_id": user_id,
+                        "application_id": app.id,
+                        "job_id": job_id,
+                        "company": job.company,
+                        "title": job.title,
+                        "match_score": match_score,
+                        "trigger": trigger,
+                    },
+                )
+            )
 
         return app
 
@@ -444,17 +476,16 @@ class ApplicationOrchestrator:
         db: AsyncSession,
         submitter,
         url_info,
-        profile: "UserProfile",
-        job: "JobListing",
+        profile: UserProfile,
+        job: JobListing,
         app: Application,
         user_id: str,
         trigger: str,
         match_score: int | None,
     ) -> Application | None:
         """Try the API submission path. Returns Application or None to fall back."""
-        from app.services.apply.form_scanner import analyze_scan
-        from app.services.apply.api_submit.base import ApiSubmitFallbackError
         from app.db.session import async_session
+        from app.services.apply.form_scanner import analyze_scan
 
         logger.info("API path: Fetching schema from %s for %s", url_info.ats_type, job.company)
 
@@ -466,11 +497,18 @@ class ApplicationOrchestrator:
         analysis = analyze_scan(scan_result)
 
         # Store scan data
-        scan_json = json.dumps([
-            {"label": f.label, "field_type": f.field_type, "required": f.required,
-             "options": f.options, "field_name": f.field_name}
-            for f in scan_result.fields
-        ])
+        scan_json = json.dumps(
+            [
+                {
+                    "label": f.label,
+                    "field_type": f.field_type,
+                    "required": f.required,
+                    "options": f.options,
+                    "field_name": f.field_name,
+                }
+                for f in scan_result.fields
+            ]
+        )
 
         async with async_session() as fresh_db:
             fresh_app = await fresh_db.get(Application, app.id)
@@ -491,13 +529,15 @@ class ApplicationOrchestrator:
         if analysis["needs_user_input"]:
             for field_info in analysis["narrative"]:
                 draft = await self._draft_answer(profile, job, field_info["label"])
-                custom_answers.append({
-                    "question": field_info["label"],
-                    "answer": draft,
-                    "field_name": field_info.get("field_name", ""),
-                    "confidence": 0.5,
-                    "needs_approval": True,
-                })
+                custom_answers.append(
+                    {
+                        "question": field_info["label"],
+                        "answer": draft,
+                        "field_name": field_info.get("field_name", ""),
+                        "confidence": 0.5,
+                        "needs_approval": True,
+                    }
+                )
 
             needs_input = analysis["sensitive"] + analysis["unknown"]
             if needs_input:
@@ -509,11 +549,13 @@ class ApplicationOrchestrator:
                 ]
                 for ans in custom_answers:
                     if ans["needs_approval"]:
-                        questions_for_user.append({
-                            "question": ans["question"],
-                            "suggested_answer": ans["answer"],
-                            "field_type": "textarea",
-                        })
+                        questions_for_user.append(
+                            {
+                                "question": ans["question"],
+                                "suggested_answer": ans["answer"],
+                                "field_type": "textarea",
+                            }
+                        )
 
                 async with async_session() as fresh_db:
                     fresh_app = await fresh_db.get(Application, app.id)
@@ -521,6 +563,7 @@ class ApplicationOrchestrator:
                     fresh_app.custom_answers_json = json.dumps(custom_answers)
 
                     from app.db.models.application_question import ApplicationQuestion
+
                     for idx, q in enumerate(questions_for_user):
                         aq = ApplicationQuestion(
                             id=str(uuid4()),
@@ -557,13 +600,15 @@ class ApplicationOrchestrator:
         for field_info in analysis["auto_fill"]:
             answer = self._auto_fill(profile, field_info["label"])
             if answer:
-                custom_answers.append({
-                    "question": field_info["label"],
-                    "answer": answer,
-                    "field_name": field_info.get("field_name", ""),
-                    "confidence": 0.95,
-                    "needs_approval": False,
-                })
+                custom_answers.append(
+                    {
+                        "question": field_info["label"],
+                        "answer": answer,
+                        "field_name": field_info.get("field_name", ""),
+                        "confidence": 0.95,
+                        "needs_approval": False,
+                    }
+                )
 
         # Step 5: Build profile data and submit via API
         from app.services.apply.playwright_filler import _build_profile_data
@@ -575,6 +620,7 @@ class ApplicationOrchestrator:
         resume_filename = "resume.pdf"
         if profile.resume_storage_path:
             from app.services.storage.supabase_storage import download_file
+
             try:
                 parts = profile.resume_storage_path.split("/", 1)
                 if len(parts) == 2:
@@ -599,7 +645,7 @@ class ApplicationOrchestrator:
 
             if submit_result.status == "submitted":
                 fresh_app.status = "submitted"
-                fresh_app.submitted_at = datetime.now(timezone.utc)
+                fresh_app.submitted_at = datetime.now(UTC)
                 fresh_app.tinyfish_status = "api_submitted"
             elif submit_result.status == "rate_limited":
                 fresh_app.status = "needs_manual"
@@ -614,9 +660,7 @@ class ApplicationOrchestrator:
             fresh_app.fields_filled_json = json.dumps(fields_filled)
 
             if fresh_app.status == "submitted":
-                fresh_profile = await fresh_db.execute(
-                    select(UserProfile).where(UserProfile.user_id == user_id)
-                )
+                fresh_profile = await fresh_db.execute(select(UserProfile).where(UserProfile.user_id == user_id))
                 p = fresh_profile.scalar_one_or_none()
                 if p:
                     p.applications_this_month += 1
@@ -626,9 +670,12 @@ class ApplicationOrchestrator:
 
         # Send notification
         from app.services.apply.notifications import send_application_receipt
+
         try:
             await send_application_receipt(
-                profile=profile, application=app, job=job,
+                profile=profile,
+                application=app,
+                job=job,
                 screenshot_url=None,
             )
         except Exception as e:
@@ -636,7 +683,10 @@ class ApplicationOrchestrator:
 
         logger.info(
             "API submit complete: %s — status=%s for %s at %s",
-            url_info.ats_type, submit_result.status, job.company, job.apply_url,
+            url_info.ats_type,
+            submit_result.status,
+            job.company,
+            job.apply_url,
         )
 
         if app.status == "needs_manual":
@@ -671,19 +721,22 @@ class ApplicationOrchestrator:
 
         # Emit event for post-apply cascade
         if app.status == "submitted":
-            from app.services.events import emit, FoxhoundEvent
-            await emit(FoxhoundEvent(
-                name="application.submitted",
-                data={
-                    "user_id": user_id,
-                    "application_id": app.id,
-                    "job_id": job.id,
-                    "company": job.company,
-                    "title": job.title,
-                    "match_score": match_score,
-                    "trigger": trigger,
-                },
-            ))
+            from app.services.events import FoxhoundEvent, emit
+
+            await emit(
+                FoxhoundEvent(
+                    name="application.submitted",
+                    data={
+                        "user_id": user_id,
+                        "application_id": app.id,
+                        "job_id": job.id,
+                        "company": job.company,
+                        "title": job.title,
+                        "match_score": match_score,
+                        "trigger": trigger,
+                    },
+                )
+            )
 
         return app
 
@@ -695,15 +748,18 @@ class ApplicationOrchestrator:
 
         profile = await self._get_profile(db, app.user_id)
         job = await self._get_job(db, app.job_id)
+        self._assert_safe_apply_url(job.apply_url)
 
         custom_answers = json.loads(app.custom_answers_json or "[]")
 
         # Rebuild scan result from stored data (avoids re-scanning = saves ~2 min + TinyFish credit)
-        from app.services.apply.form_scanner import ScanResult, FormField
+        from app.services.apply.form_scanner import FormField, ScanResult
+
         stored_fields = json.loads(app.scan_result_json or "[]")
         if not stored_fields:
             # Fallback: re-scan if stored data is missing (old applications)
             from app.services.apply.form_scanner import scan_form
+
             logger.info("No stored scan result — re-scanning form")
             scan_result = await scan_form(job.apply_url)
             if scan_result.status != "scannable":
@@ -729,9 +785,9 @@ class ApplicationOrchestrator:
 
         # Try API path first if this application was scanned via API
         if getattr(app, "submission_method", None) == "api":
-            from app.services.apply.ats_url_parser import parse_ats_url
             from app.services.apply.api_submit import get_api_submitter
             from app.services.apply.api_submit.base import ApiSubmitFallbackError
+            from app.services.apply.ats_url_parser import parse_ats_url
             from app.services.apply.playwright_filler import _build_profile_data
 
             url_info = parse_ats_url(job.apply_url)
@@ -746,6 +802,7 @@ class ApplicationOrchestrator:
                     resume_filename = "resume.pdf"
                     if profile.resume_storage_path:
                         from app.services.storage.supabase_storage import download_file
+
                         try:
                             parts = profile.resume_storage_path.split("/", 1)
                             if len(parts) == 2:
@@ -764,11 +821,12 @@ class ApplicationOrchestrator:
                     )
 
                     from app.db.session import async_session as _async_session
+
                     async with _async_session() as fresh_db:
                         fresh_app = await fresh_db.get(Application, app.id)
                         if submit_result.status == "submitted":
                             fresh_app.status = "submitted"
-                            fresh_app.submitted_at = datetime.now(timezone.utc)
+                            fresh_app.submitted_at = datetime.now(UTC)
                             fresh_app.tinyfish_status = "api_submitted"
                         else:
                             fresh_app.status = "failed"
@@ -780,7 +838,8 @@ class ApplicationOrchestrator:
                             user_id=app.user_id,
                             event_type="application_failed",
                             title=f"Application failed: {job.company} — {job.title}",
-                            description=submit_result.error or "Foxhound could not complete this application automatically.",
+                            description=submit_result.error
+                            or "Foxhound could not complete this application automatically.",
                             metadata={
                                 "application_id": app.id,
                                 "job_id": job.id,
@@ -806,6 +865,7 @@ class ApplicationOrchestrator:
 
         # Upload screenshots
         from app.services.storage.supabase_storage import upload_file
+
         screenshot_path = None
         if fill_result.pre_submit_screenshot_bytes:
             try:
@@ -823,6 +883,7 @@ class ApplicationOrchestrator:
 
         # Save results with fresh DB session
         from app.db.session import async_session
+
         fields_filled = [f.label for f in fill_result.fields if f.status == "filled"]
         async with async_session() as fresh_db:
             fresh_app = await fresh_db.get(Application, app.id)
@@ -831,7 +892,7 @@ class ApplicationOrchestrator:
             fresh_app.fields_filled_json = json.dumps(fields_filled)
             if fill_result.status == "submitted":
                 fresh_app.status = "submitted"
-                fresh_app.submitted_at = datetime.now(timezone.utc)
+                fresh_app.submitted_at = datetime.now(UTC)
             elif fill_result.status in ("captcha", "needs_manual", "needs_account"):
                 fresh_app.status = "needs_manual"
                 fresh_app.error_type = fill_result.status
@@ -842,11 +903,9 @@ class ApplicationOrchestrator:
                 fresh_app.error_message = fill_result.error or ""
             if screenshot_path:
                 fresh_app.screenshot_storage_path = screenshot_path
-                fresh_app.screenshot_captured_at = datetime.now(timezone.utc)
+                fresh_app.screenshot_captured_at = datetime.now(UTC)
             if fresh_app.status == "submitted":
-                fresh_profile = await fresh_db.execute(
-                    select(UserProfile).where(UserProfile.user_id == app.user_id)
-                )
+                fresh_profile = await fresh_db.execute(select(UserProfile).where(UserProfile.user_id == app.user_id))
                 p = fresh_profile.scalar_one_or_none()
                 if p:
                     p.applications_this_month += 1
@@ -854,9 +913,12 @@ class ApplicationOrchestrator:
             app.status = fresh_app.status
 
         from app.services.apply.notifications import send_application_receipt
+
         try:
             await send_application_receipt(
-                profile=profile, application=app, job=job,
+                profile=profile,
+                application=app,
+                job=job,
                 screenshot_url=screenshot_path,
             )
         except Exception as e:
@@ -864,19 +926,22 @@ class ApplicationOrchestrator:
 
         # Emit event for post-apply cascade
         if app.status == "submitted":
-            from app.services.events import emit, FoxhoundEvent
-            await emit(FoxhoundEvent(
-                name="application.submitted",
-                data={
-                    "user_id": app.user_id,
-                    "application_id": app.id,
-                    "job_id": app.job_id,
-                    "company": job.company,
-                    "title": job.title,
-                    "match_score": None,
-                    "trigger": "resume_fill",
-                },
-            ))
+            from app.services.events import FoxhoundEvent, emit
+
+            await emit(
+                FoxhoundEvent(
+                    name="application.submitted",
+                    data={
+                        "user_id": app.user_id,
+                        "application_id": app.id,
+                        "job_id": app.job_id,
+                        "company": job.company,
+                        "title": job.title,
+                        "match_score": None,
+                        "trigger": "resume_fill",
+                    },
+                )
+            )
         elif app.status == "needs_manual":
             await _log_application_activity(
                 user_id=app.user_id,
@@ -920,6 +985,9 @@ class ApplicationOrchestrator:
         from app.services.apply.form_scanner import _pick_browser_profile
         from app.services.ingest.tinyfish_adapter import _get_client
 
+        if not validate_apply_url(url):
+            return {"status": "failed", "error": "Blocked unsafe apply URL"}
+
         try:
             client = _get_client()
             browser_profile, proxy_config = _pick_browser_profile(url)
@@ -940,6 +1008,11 @@ class ApplicationOrchestrator:
                 return {"status": "no_credits", "error": "TinyFish credits exhausted"}
             return {"status": "failed", "error": error_str}
 
+    def _assert_safe_apply_url(self, apply_url: str) -> None:
+        """Fail fast before any browser automation on untrusted URLs."""
+        if not validate_apply_url(apply_url):
+            raise ValueError("Unsafe apply URL blocked by ATS allowlist policy")
+
     def _parse_tinyfish_result(self, result: object) -> dict:
         """Parse TinyFish AgentRunResponse into structured dict."""
         streaming_url = getattr(result, "streaming_url", None)
@@ -954,7 +1027,9 @@ class ApplicationOrchestrator:
             if data.get("confirmation_text") or data.get("form_submitted"):
                 return {**data, "status": "submitted"}
             result_text = str(data.get("result", "")).lower()
-            if any(w in result_text for w in ["submitted", "success", "confirmation", "thank you", "application received"]):
+            if any(
+                w in result_text for w in ["submitted", "success", "confirmation", "thank you", "application received"]
+            ):
                 return {**data, "status": "submitted"}
             if "captcha" in result_text:
                 return {**data, "status": "captcha_detected"}
@@ -966,7 +1041,9 @@ class ApplicationOrchestrator:
             parsed: dict = {"raw_output": text[:500]}
             if streaming_url:
                 parsed["streaming_url"] = streaming_url
-            if any(w in text.lower() for w in ["submitted", "success", "confirmation", "thank you", "application received"]):
+            if any(
+                w in text.lower() for w in ["submitted", "success", "confirmation", "thank you", "application received"]
+            ):
                 return {**parsed, "status": "submitted"}
             if "captcha" in text.lower():
                 return {**parsed, "status": "captcha_detected"}
@@ -974,6 +1051,7 @@ class ApplicationOrchestrator:
 
         if hasattr(result, "status"):
             from tinyfish import RunStatus
+
             if result.status == RunStatus.COMPLETED:
                 parsed = {"streaming_url": streaming_url} if streaming_url else {}
                 text = str(getattr(result, "result", ""))
@@ -991,18 +1069,14 @@ class ApplicationOrchestrator:
         return {"status": "unknown", "raw_output": text[:500]}
 
     async def _get_profile(self, db: AsyncSession, user_id: str) -> UserProfile:
-        result = await db.execute(
-            select(UserProfile).where(UserProfile.user_id == user_id)
-        )
+        result = await db.execute(select(UserProfile).where(UserProfile.user_id == user_id))
         profile = result.scalar_one_or_none()
         if not profile:
             raise ValueError(f"No profile found for user {user_id}")
         return profile
 
     async def _get_job(self, db: AsyncSession, job_id: str) -> JobListing:
-        result = await db.execute(
-            select(JobListing).where(JobListing.id == job_id)
-        )
+        result = await db.execute(select(JobListing).where(JobListing.id == job_id))
         job = result.scalar_one_or_none()
         if not job:
             raise ValueError(f"Job not found: {job_id}")
@@ -1024,19 +1098,13 @@ class ApplicationOrchestrator:
 
     def _check_limits(self, profile: UserProfile) -> None:
         if not profile.resume_storage_path:
-            raise ValueError(
-                "Foxhound can search without a resume, but it can't apply until you upload one."
-            )
+            raise ValueError("Foxhound can search without a resume, but it can't apply until you upload one.")
         if profile.tier == "free":
             raise ValueError("Browse tier cannot apply. Upgrade to Agent ($39/mo) to start applying.")
         if profile.applications_this_month >= profile.monthly_apply_limit:
-            raise ValueError(
-                f"Monthly application limit reached ({profile.monthly_apply_limit})"
-            )
+            raise ValueError(f"Monthly application limit reached ({profile.monthly_apply_limit})")
 
-    async def _generate_answers(
-        self, profile: UserProfile, job: JobListing, questions: list[dict]
-    ) -> list[dict]:
+    async def _generate_answers(self, profile: UserProfile, job: JobListing, questions: list[dict]) -> list[dict]:
         """Generate answers for custom application questions."""
         # For V1, auto-fill factual questions, leave narrative for later
         answers = []
@@ -1063,9 +1131,7 @@ class ApplicationOrchestrator:
             return profile.location
         return None
 
-    async def _draft_answer(
-        self, profile: UserProfile, job: JobListing, question: str
-    ) -> str:
+    async def _draft_answer(self, profile: UserProfile, job: JobListing, question: str) -> str:
         """Use LLM to draft a contextual answer for a narrative question."""
         import anthropic
 
@@ -1101,9 +1167,7 @@ class ApplicationOrchestrator:
             logger.warning("Failed to draft answer for '%s': %s", question, e)
             return ""
 
-    async def _send_needs_manual_notification(
-        self, profile: UserProfile, app: Application, job: JobListing
-    ) -> None:
+    async def _send_needs_manual_notification(self, profile: UserProfile, app: Application, job: JobListing) -> None:
         """Notify user when an application needs manual completion."""
         from app.services.apply.notifications import send_status_update
 

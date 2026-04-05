@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import DateTime, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
@@ -14,6 +14,7 @@ class InteractionEvent(Base):
     Events are sent in batches from the frontend via POST /v1/feedback/events.
     Aggregated into relevance labels for LambdaRank training.
     """
+
     __tablename__ = "interaction_events"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -25,6 +26,4 @@ class InteractionEvent(Base):
     display_position: Mapped[int | None] = mapped_column(Integer, nullable=True)
     payload_json: Mapped[str] = mapped_column(Text, default="{}")
     ranker_variant: Mapped[str] = mapped_column(String, default="heuristic")
-    created_at: Mapped[datetime] = mapped_column(
-        TZDateTime, default=lambda: datetime.now(timezone.utc)
-    )
+    created_at: Mapped[datetime] = mapped_column(TZDateTime, default=lambda: datetime.now(UTC))

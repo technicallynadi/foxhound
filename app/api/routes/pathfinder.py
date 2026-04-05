@@ -5,7 +5,6 @@ POST /api/v1/pathfinder/{job_id} — hiring manager discovery + outreach draftin
 
 from __future__ import annotations
 
-import json
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -36,25 +35,21 @@ async def pathfinder_discover(
     user_id = user["user_id"]
 
     # Load job listing
-    job_result = await db.execute(
-        select(JobListing).where(JobListing.id == job_id)
-    )
+    job_result = await db.execute(select(JobListing).where(JobListing.id == job_id))
     job = job_result.scalar_one_or_none()
     if not job:
         raise HTTPException(status_code=404, detail="Job listing not found.")
 
     # Load user profile
-    profile_result = await db.execute(
-        select(UserProfile).where(UserProfile.user_id == user_id)
-    )
+    profile_result = await db.execute(select(UserProfile).where(UserProfile.user_id == user_id))
     profile = profile_result.scalar_one_or_none()
     if not profile:
         raise HTTPException(status_code=404, detail="User profile not found. Complete onboarding first.")
 
     # Lazy imports to keep startup fast
     from app.services.pathfinder.extractor import extract_manager_signals
-    from app.services.pathfinder.overlap import find_overlap
     from app.services.pathfinder.outreach import draft_outreach
+    from app.services.pathfinder.overlap import find_overlap
     from app.services.pathfinder.search_url import build_search_urls
 
     # 1. Extract hiring manager signals from job description
@@ -71,8 +66,10 @@ async def pathfinder_discover(
     search_urls = build_search_urls(company=job.company, title=likely_title)
 
     # 2b. TinyFish background enrichment — search company team page for actual name
-    from app.services.pathfinder.team_lookup import lookup_team_page
     import asyncio
+
+    from app.services.pathfinder.team_lookup import lookup_team_page
+
     team_lookup_task = asyncio.create_task(
         lookup_team_page(
             company_name=job.company,
@@ -97,9 +94,7 @@ async def pathfinder_discover(
     )
 
     # 4. Draft outreach messages
-    user_name = " ".join(
-        p for p in [profile.first_name, profile.last_name] if p
-    ) or "there"
+    user_name = " ".join(p for p in [profile.first_name, profile.last_name] if p) or "there"
 
     outreach = await draft_outreach(
         job_title=job.title,
@@ -115,7 +110,7 @@ async def pathfinder_discover(
     team_result = None
     try:
         team_result = await asyncio.wait_for(team_lookup_task, timeout=2.0)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         # TinyFish still running — return without it, it'll be available on next call via cache
         logger.info("Pathfinder: TinyFish still running for %s, returning without enrichment", job.company)
     except Exception:

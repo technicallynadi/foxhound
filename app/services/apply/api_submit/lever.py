@@ -18,9 +18,9 @@ from typing import Any
 import httpx
 
 from app.services.apply.api_submit.base import (
-    ATSApiSubmitter,
     ApiSubmitFallbackError,
     ApiSubmitResult,
+    ATSApiSubmitter,
 )
 from app.services.apply.ats_url_parser import ATSUrlInfo
 from app.services.apply.form_scanner import FormField, ScanResult
@@ -42,9 +42,7 @@ class LeverSubmitter(ATSApiSubmitter):
                 resp = await client.get(url)
                 resp.raise_for_status()
             except httpx.HTTPStatusError as e:
-                raise ApiSubmitFallbackError(
-                    f"Lever API returned {e.response.status_code}"
-                ) from e
+                raise ApiSubmitFallbackError(f"Lever API returned {e.response.status_code}") from e
             except httpx.RequestError as e:
                 raise ApiSubmitFallbackError(f"Lever API request failed: {e}") from e
 
@@ -73,24 +71,31 @@ class LeverSubmitter(ATSApiSubmitter):
             options = lst.get("options") or []
             if options:
                 # Select/radio field
-                fields.append(FormField(
-                    label=label,
-                    field_type="select",
-                    required=required,
-                    options=options,
-                    field_name=f"cards[{label}]",
-                ))
+                fields.append(
+                    FormField(
+                        label=label,
+                        field_type="select",
+                        required=required,
+                        options=options,
+                        field_name=f"cards[{label}]",
+                    )
+                )
             else:
-                fields.append(FormField(
-                    label=label,
-                    field_type="textarea" if len(label) > 60 else "text",
-                    required=required,
-                    field_name=f"cards[{label}]",
-                ))
+                fields.append(
+                    FormField(
+                        label=label,
+                        field_type="textarea" if len(label) > 60 else "text",
+                        required=required,
+                        field_name=f"cards[{label}]",
+                    )
+                )
 
         logger.info(
             "Lever API schema: %s/%s — %d fields (%d custom questions)",
-            url_info.board_token, url_info.job_id, len(fields), len(lists),
+            url_info.board_token,
+            url_info.job_id,
+            len(fields),
+            len(lists),
         )
 
         return ScanResult(
@@ -158,9 +163,7 @@ class LeverSubmitter(ATSApiSubmitter):
             )
 
         if resp.status_code in (401, 403):
-            raise ApiSubmitFallbackError(
-                f"Lever API auth required ({resp.status_code}) — falling back to browser"
-            )
+            raise ApiSubmitFallbackError(f"Lever API auth required ({resp.status_code}) — falling back to browser")
 
         if resp.status_code == 429:
             return ApiSubmitResult(status="rate_limited", error="Rate limited by Lever")

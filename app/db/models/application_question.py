@@ -5,7 +5,7 @@ Child of Application (not a separate conversation). Each question tracks
 classification, draft answer, final answer, and resolution status.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import DateTime, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
@@ -40,6 +40,4 @@ class ApplicationQuestion(Base):
     final_answer: Mapped[str | None] = mapped_column(Text, nullable=True)
     answered_at: Mapped[datetime | None] = mapped_column(TZDateTime, nullable=True)
 
-    created_at: Mapped[datetime] = mapped_column(
-        TZDateTime, default=lambda: datetime.now(timezone.utc)
-    )
+    created_at: Mapped[datetime] = mapped_column(TZDateTime, default=lambda: datetime.now(UTC))

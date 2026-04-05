@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,14 +18,16 @@ FOLLOWUP_DAYS = [3, 7, 14]
 
 
 async def schedule_followups(
-    user_id: str, application_id: str, job_id: str,
+    user_id: str,
+    application_id: str,
+    job_id: str,
     db: AsyncSession | None = None,
 ) -> list[FoxhoundJob]:
     """Schedule follow-up check jobs at day 3, 7, and 14 after application submission.
 
     Can be called with an existing db session or without (creates its own).
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     jobs = []
 
     async def _create(session: AsyncSession) -> None:
@@ -36,12 +38,14 @@ async def schedule_followups(
                 job_type="followup_check",
                 origin="post_apply",
                 priority=20,
-                payload_json=json.dumps({
-                    "user_id": user_id,
-                    "application_id": application_id,
-                    "job_id": job_id,
-                    "day": day,
-                }),
+                payload_json=json.dumps(
+                    {
+                        "user_id": user_id,
+                        "application_id": application_id,
+                        "job_id": job_id,
+                        "day": day,
+                    }
+                ),
                 status="queued",
                 next_scheduled_at=now + timedelta(days=day),
             )
@@ -58,7 +62,9 @@ async def schedule_followups(
 
     logger.info(
         "Scheduled %d follow-up jobs for application %s (days %s)",
-        len(jobs), application_id, FOLLOWUP_DAYS,
+        len(jobs),
+        application_id,
+        FOLLOWUP_DAYS,
     )
     from app.services.activity.logger import log_activity
 

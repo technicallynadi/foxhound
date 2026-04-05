@@ -4,7 +4,7 @@ Each row is one event: application submitted, match discovered, ghost alert,
 follow-up sent, brief ready, etc. The frontend activity feed reads this table.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import DateTime, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
@@ -28,5 +28,7 @@ class AgentActivity(Base):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     metadata_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
-        TZDateTime, default=lambda: datetime.now(timezone.utc), index=True,
+        TZDateTime,
+        default=lambda: datetime.now(UTC),
+        index=True,
     )

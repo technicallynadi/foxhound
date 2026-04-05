@@ -2,28 +2,27 @@
 
 import hashlib
 import hmac
-import json
 import time
-import pytest
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
+import pytest
 from httpx import ASGITransport, AsyncClient
 
 from app.main import app
-from app.services.channel.verification import verify_slack, verify_twilio
 from app.services.channel.linking import (
     generate_link_code,
-    redeem_link_code,
-    resolve_user,
-    resolve_by_phone,
     link_identity,
+    redeem_link_code,
+    resolve_by_phone,
+    resolve_user,
 )
-
+from app.services.channel.verification import verify_slack, verify_twilio
 
 # ---------------------------------------------------------------------------
 # Slack signature verification
 # ---------------------------------------------------------------------------
+
 
 def test_slack_verify_valid():
     with patch("app.services.channel.verification.settings") as mock:
@@ -70,6 +69,7 @@ def test_slack_verify_no_secret():
 # Twilio signature verification
 # ---------------------------------------------------------------------------
 
+
 def test_twilio_verify_valid():
     import base64
 
@@ -80,9 +80,7 @@ def test_twilio_verify_valid():
         url = "https://foxhound.com/api/v1/webhooks/sms"
         params = {"Body": "hello", "From": "+1234"}
         data = url + "Body" + "hello" + "From" + "+1234"
-        sig = base64.b64encode(
-            hmac.new(b"test_token", data.encode(), hashlib.sha1).digest()
-        ).decode()
+        sig = base64.b64encode(hmac.new(b"test_token", data.encode(), hashlib.sha1).digest()).decode()
 
         assert verify_twilio(url, params, sig) is True
 
@@ -104,6 +102,7 @@ def test_twilio_verify_skip():
 # Link code generation and redemption
 # ---------------------------------------------------------------------------
 
+
 def test_link_code_generate_and_redeem():
     uid = str(uuid4())
     code = generate_link_code(uid)
@@ -124,6 +123,7 @@ def test_link_code_invalid():
 
 def test_link_code_expired():
     from app.services.channel import linking
+
     uid = str(uuid4())
     code = generate_link_code(uid)
     # Manually expire
@@ -134,6 +134,7 @@ def test_link_code_expired():
 # ---------------------------------------------------------------------------
 # Identity resolution (DB)
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_resolve_user_not_found(db):
@@ -153,10 +154,15 @@ async def test_link_and_resolve(db, user_id):
 async def test_resolve_by_phone(db, user_id):
     """Resolve user by a unique phone number."""
     from app.db.models.user_profile import UserProfile
+
     unique_phone = "+15559990001"
     profile = UserProfile(
-        id=str(uuid4()), user_id=user_id, email="phone_test@test.com",
-        phone=unique_phone, tier="pro", monthly_apply_limit=50,
+        id=str(uuid4()),
+        user_id=user_id,
+        email="phone_test@test.com",
+        phone=unique_phone,
+        tier="pro",
+        monthly_apply_limit=50,
     )
     db.add(profile)
     await db.commit()
@@ -185,6 +191,7 @@ async def test_link_identity_upsert(db, user_id):
 # ---------------------------------------------------------------------------
 # Slack webhook endpoint
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_slack_url_verification():
@@ -237,7 +244,9 @@ async def test_slack_known_user(db, sample_profile):
     mock_result = {"response": "I found 3 matching jobs!", "session_id": "s1"}
 
     with patch("app.api.routes.agent_webhooks.verify_slack", return_value=True):
-        with patch("app.api.routes.agent_webhooks.resolve_user", new_callable=AsyncMock, return_value=sample_profile.user_id):
+        with patch(
+            "app.api.routes.agent_webhooks.resolve_user", new_callable=AsyncMock, return_value=sample_profile.user_id
+        ):
             with patch("app.api.routes.agent_webhooks.agent.respond", new_callable=AsyncMock, return_value=mock_result):
                 transport = ASGITransport(app=app)
                 async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -252,6 +261,7 @@ async def test_slack_known_user(db, sample_profile):
 # ---------------------------------------------------------------------------
 # Discord webhook endpoint
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_discord_ping():
@@ -282,6 +292,7 @@ async def test_discord_invalid_signature():
 # ---------------------------------------------------------------------------
 # SMS webhook endpoint
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_sms_invalid_signature():

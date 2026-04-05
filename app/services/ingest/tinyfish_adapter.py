@@ -1,9 +1,9 @@
+import asyncio
+import json
 import logging
 import time
 import uuid
-import asyncio
-import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from hashlib import md5
 
 from tinyfish import AsyncTinyFish
@@ -716,7 +716,9 @@ async def batch_extract(urls_and_goals: list[tuple[str, str]]) -> list[dict]:
                     except _json.JSONDecodeError:
                         continue
                     if event.get("type") == "PROGRESS":
-                        print(f"  [TinyFish] batch | {url.split('/')[-1][:30]} | {event.get('purpose', '')}", flush=True)
+                        print(
+                            f"  [TinyFish] batch | {url.split('/')[-1][:30]} | {event.get('purpose', '')}", flush=True
+                        )
                     elif event.get("type") == "COMPLETE":
                         result_data = event.get("result")
                 if result_data:
@@ -799,6 +801,7 @@ GOAL_TEMPLATES_BY_PAGE_TYPE = {
 # Discover + Extract: single-call discovery and signal extraction
 # =============================================================================
 
+
 async def discover_and_extract(
     search_query: str,
     max_pages: int = 5,
@@ -871,17 +874,17 @@ async def discover_and_extract(
                     sig["source_platform"] = page.get("page_type", "")
                     all_signals.append(sig)
 
-            logger.info("discover_and_extract: %d pages, %d signals for '%s'",
-                        len(pages), len(all_signals), search_query[:50])
+            logger.info(
+                "discover_and_extract: %d pages, %d signals for '%s'", len(pages), len(all_signals), search_query[:50]
+            )
 
             # Persist raw results to disk for debugging + future reprocessing
             _persist_discovery_results(search_query, pages, all_signals)
 
             return {"pages": pages, "signals": all_signals}
 
-    except asyncio.TimeoutError:
-        logger.warning("discover_and_extract timed out after %.0fs for '%s'",
-                        timeout_seconds, search_query[:50])
+    except TimeoutError:
+        logger.warning("discover_and_extract timed out after %.0fs for '%s'", timeout_seconds, search_query[:50])
         return {"pages": [], "signals": []}
     except Exception as e:
         logger.warning("discover_and_extract error for '%s': %s", search_query[:50], e)
@@ -889,7 +892,9 @@ async def discover_and_extract(
 
 
 def _persist_discovery_results(
-    search_query: str, pages: list[dict], signals: list[dict],
+    search_query: str,
+    pages: list[dict],
+    signals: list[dict],
 ) -> None:
     """Save raw discovery+extraction results to disk for debugging and reprocessing.
 
@@ -898,21 +903,21 @@ def _persist_discovery_results(
     without re-crawling.
     """
     import json as _json
-    from pathlib import Path
     from hashlib import md5
+    from pathlib import Path
 
     try:
         out_dir = Path("data/discoveries")
         out_dir.mkdir(parents=True, exist_ok=True)
 
         query_hash = md5(search_query.encode()).hexdigest()[:10]
-        ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        ts = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
         path = out_dir / f"{ts}_{query_hash}.jsonl"
 
         with open(path, "w") as f:
             record = {
                 "search_query": search_query,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
                 "pages_count": len(pages),
                 "signals_count": len(signals),
                 "pages": pages,
@@ -1005,6 +1010,7 @@ def generate_target_urls(topic: str, repos: list[dict] | None = None) -> dict[st
 # =============================================================================
 # Stealth mode routing
 # =============================================================================
+
 
 def _get_browser_profile() -> str:
     """Always use stealth — handles CAPTCHAs, anti-bot, rate limiting."""
@@ -1104,17 +1110,21 @@ async def search_for_sources(search_query: str, max_results: int = 8, evidence_c
             for r in results:
                 if not isinstance(r, dict) or not r.get("url"):
                     continue
-                parsed.append({
-                    "url": r["url"],
-                    "title": r.get("title", ""),
-                    "page_type": r.get("page_type", "review"),
-                    "recommended_extractor": r.get("recommended_extractor", ""),
-                    "content_signals": r.get("content_signals", {}) if isinstance(r.get("content_signals"), dict) else {},
-                    "reason": r.get("reason", ""),
-                    "source": "web_search",
-                    "search_query": search_query,
-                    "evidence_class": evidence_class,
-                })
+                parsed.append(
+                    {
+                        "url": r["url"],
+                        "title": r.get("title", ""),
+                        "page_type": r.get("page_type", "review"),
+                        "recommended_extractor": r.get("recommended_extractor", ""),
+                        "content_signals": r.get("content_signals", {})
+                        if isinstance(r.get("content_signals"), dict)
+                        else {},
+                        "reason": r.get("reason", ""),
+                        "source": "web_search",
+                        "search_query": search_query,
+                        "evidence_class": evidence_class,
+                    }
+                )
 
             logger.info("Web search found %d sources for '%s'", len(parsed), search_query)
             return parsed
@@ -1134,7 +1144,9 @@ async def search_multiple_queries(queries: list, max_results_per: int = 8) -> li
     tasks = []
     for item in queries[:4]:
         if isinstance(item, dict):
-            tasks.append(search_for_sources(item.get("query", ""), max_results_per, evidence_class=item.get("evidence_class")))
+            tasks.append(
+                search_for_sources(item.get("query", ""), max_results_per, evidence_class=item.get("evidence_class"))
+            )
         else:
             tasks.append(search_for_sources(str(item), max_results_per))
     results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -1149,14 +1161,14 @@ async def search_multiple_queries(queries: list, max_results_per: int = 8) -> li
                     seen_urls.add(url)
                     all_results.append(item)
 
-    logger.info("Multi-query search found %d unique sources from %d queries",
-                len(all_results), len(queries))
+    logger.info("Multi-query search found %d unique sources from %d queries", len(all_results), len(queries))
     return all_results
 
 
 # =============================================================================
 # Stream mode for debugging
 # =============================================================================
+
 
 async def stream_extraction(url: str, goal: str):
     """Run a TinyFish extraction in stream mode for debugging.
@@ -1193,6 +1205,7 @@ async def stream_extraction(url: str, goal: str):
 # List recent runs
 # =============================================================================
 
+
 async def list_recent_runs(limit: int = 20) -> list[dict]:
     """List recent TinyFish runs for monitoring."""
     client = _get_client()
@@ -1204,12 +1217,14 @@ async def list_recent_runs(limit: int = 20) -> list[dict]:
                 run_list = list(run_list) if hasattr(run_list, "__iter__") else []
             runs = []
             for run in run_list:
-                runs.append({
-                    "run_id": getattr(run, "id", ""),
-                    "status": getattr(run, "status", ""),
-                    "goal": (getattr(run, "goal", "") or "")[:100],
-                    "created_at": str(getattr(run, "created_at", "")),
-                })
+                runs.append(
+                    {
+                        "run_id": getattr(run, "id", ""),
+                        "status": getattr(run, "status", ""),
+                        "goal": (getattr(run, "goal", "") or "")[:100],
+                        "created_at": str(getattr(run, "created_at", "")),
+                    }
+                )
             return runs
     except Exception as e:
         logger.error("List runs error: %s", e)
@@ -1220,15 +1235,19 @@ async def list_recent_runs(limit: int = 20) -> list[dict]:
 # Internal extraction runner
 # =============================================================================
 
+
 async def _run_extraction(
-    url: str, goal: str, extraction_type: str, topic: str | None = None,
+    url: str,
+    goal: str,
+    extraction_type: str,
+    topic: str | None = None,
     max_retries: int = 2,
     event_callback=None,
 ) -> list[dict]:
     """Run a TinyFish extraction using SSE streaming (fast) instead of blocking run()."""
     import json as _json
-    from tinyfish.agent.types import CompleteEvent, ProgressEvent
-    from app.services.ingest.extraction_cache import get_cached_extraction, cache_extraction
+
+    from app.services.ingest.extraction_cache import cache_extraction, get_cached_extraction
 
     # Check extraction cache first — avoids re-crawling already-seen URLs
     cached = get_cached_extraction(url, extraction_type)
@@ -1247,6 +1266,7 @@ async def _run_extraction(
         client = _get_client()
         try:
             async with client:
+
                 async def _collect_stream() -> tuple[str | None, str | None, dict | None, str, object | None]:
                     tf_run_id = None
                     streaming_url = None
@@ -1294,43 +1314,68 @@ async def _run_extraction(
                 if final_status != "COMPLETED" or not result_data:
                     last_error_msg = error_obj.message if error_obj else "No result"
                     last_error_type = classify_error(exception=Exception(last_error_msg))
-                    logger.warning("TinyFish %s failed for %s (attempt %d, %dms): %s",
-                                   extraction_type, url, attempt + 1, duration_ms, last_error_msg)
+                    logger.warning(
+                        "TinyFish %s failed for %s (attempt %d, %dms): %s",
+                        extraction_type,
+                        url,
+                        attempt + 1,
+                        duration_ms,
+                        last_error_msg,
+                    )
 
                     if attempt < max_retries and is_retryable(last_error_type):
                         backoff = 5.0 if last_error_type == TinyFishErrorType.rate_limit else 2.0
-                        await asyncio.sleep(backoff * (2 ** attempt))
+                        await asyncio.sleep(backoff * (2**attempt))
                         continue
 
-                    await _save_run({
-                        "id": run_id, "tinyfish_run_id": tf_run_id,
-                        "job_type": extraction_type, "url": url, "goal_hash": goal_hash,
-                        "status": "failed", "error_type": last_error_type.value,
-                        "error_message": last_error_msg, "browser_profile": browser_profile,
-                        "streaming_url": streaming_url,
-                        "items_extracted": 0, "duration_ms": duration_ms,
-                        "result_summary_json": json.dumps(_summarize_result_payload(result_data), default=str),
-                        "topic": topic, "retry_count": attempt,
-                        "created_at": datetime.now(timezone.utc),
-                        "completed_at": datetime.now(timezone.utc),
-                    })
-                    if event_callback:
-                        await event_callback("tinyfish.extraction.failed", {
-                            "url": url,
-                            "extraction_type": extraction_type,
+                    await _save_run(
+                        {
+                            "id": run_id,
                             "tinyfish_run_id": tf_run_id,
-                            "streaming_url": streaming_url,
-                            "attempt": attempt + 1,
-                            "duration_ms": duration_ms,
+                            "job_type": extraction_type,
+                            "url": url,
+                            "goal_hash": goal_hash,
+                            "status": "failed",
                             "error_type": last_error_type.value,
                             "error_message": last_error_msg,
-                            "result_summary": _summarize_result_payload(result_data),
-                        })
+                            "browser_profile": browser_profile,
+                            "streaming_url": streaming_url,
+                            "items_extracted": 0,
+                            "duration_ms": duration_ms,
+                            "result_summary_json": json.dumps(_summarize_result_payload(result_data), default=str),
+                            "topic": topic,
+                            "retry_count": attempt,
+                            "created_at": datetime.now(UTC),
+                            "completed_at": datetime.now(UTC),
+                        }
+                    )
+                    if event_callback:
+                        await event_callback(
+                            "tinyfish.extraction.failed",
+                            {
+                                "url": url,
+                                "extraction_type": extraction_type,
+                                "tinyfish_run_id": tf_run_id,
+                                "streaming_url": streaming_url,
+                                "attempt": attempt + 1,
+                                "duration_ms": duration_ms,
+                                "error_type": last_error_type.value,
+                                "error_message": last_error_msg,
+                                "result_summary": _summarize_result_payload(result_data),
+                            },
+                        )
                     return []
 
                 items = _parse_result(result_data, extraction_type, url)
-                logger.info("TinyFish extracted %d %s items from %s (run=%s, %dms, attempt=%d)",
-                            len(items), extraction_type, url, tf_run_id, duration_ms, attempt + 1)
+                logger.info(
+                    "TinyFish extracted %d %s items from %s (run=%s, %dms, attempt=%d)",
+                    len(items),
+                    extraction_type,
+                    url,
+                    tf_run_id,
+                    duration_ms,
+                    attempt + 1,
+                )
 
                 # Cache successful extractions for future runs
                 if items:
@@ -1339,66 +1384,91 @@ async def _run_extraction(
                     except Exception as cache_err:
                         logger.debug("Failed to cache extraction for %s: %s", url, cache_err)
 
-                await _save_run({
-                    "id": run_id, "tinyfish_run_id": tf_run_id,
-                    "job_type": extraction_type, "url": url, "goal_hash": goal_hash,
-                    "status": "completed", "error_type": None, "error_message": None,
-                    "browser_profile": browser_profile,
-                    "streaming_url": streaming_url,
-                    "items_extracted": len(items), "duration_ms": duration_ms,
-                    "result_summary_json": json.dumps(_summarize_result_payload(result_data), default=str),
-                    "topic": topic, "retry_count": attempt,
-                    "created_at": datetime.now(timezone.utc),
-                    "completed_at": datetime.now(timezone.utc),
-                })
-                if event_callback:
-                    await event_callback("tinyfish.extraction.completed", {
-                        "url": url,
-                        "extraction_type": extraction_type,
+                await _save_run(
+                    {
+                        "id": run_id,
                         "tinyfish_run_id": tf_run_id,
+                        "job_type": extraction_type,
+                        "url": url,
+                        "goal_hash": goal_hash,
+                        "status": "completed",
+                        "error_type": None,
+                        "error_message": None,
+                        "browser_profile": browser_profile,
                         "streaming_url": streaming_url,
-                        "attempt": attempt + 1,
+                        "items_extracted": len(items),
                         "duration_ms": duration_ms,
-                        "raw_result_summary": _summarize_result_payload(result_data),
-                        "parsed_item_count": len(items),
-                        "sample_titles": [item.get("title", "") for item in items[:3] if item.get("title")],
-                    })
+                        "result_summary_json": json.dumps(_summarize_result_payload(result_data), default=str),
+                        "topic": topic,
+                        "retry_count": attempt,
+                        "created_at": datetime.now(UTC),
+                        "completed_at": datetime.now(UTC),
+                    }
+                )
+                if event_callback:
+                    await event_callback(
+                        "tinyfish.extraction.completed",
+                        {
+                            "url": url,
+                            "extraction_type": extraction_type,
+                            "tinyfish_run_id": tf_run_id,
+                            "streaming_url": streaming_url,
+                            "attempt": attempt + 1,
+                            "duration_ms": duration_ms,
+                            "raw_result_summary": _summarize_result_payload(result_data),
+                            "parsed_item_count": len(items),
+                            "sample_titles": [item.get("title", "") for item in items[:3] if item.get("title")],
+                        },
+                    )
                 return items
-        except asyncio.TimeoutError:
+        except TimeoutError:
             last_error_type = TinyFishErrorType.timeout
             last_error_msg = f"TinyFish timed out after {settings.tinyfish_timeout_seconds:.0f}s"
             logger.warning("TinyFish %s timed out for %s (attempt %d)", extraction_type, url, attempt + 1)
 
             if attempt < max_retries and is_retryable(last_error_type):
-                await asyncio.sleep(2.0 * (2 ** attempt))
+                await asyncio.sleep(2.0 * (2**attempt))
                 continue
 
             duration_ms = int((time.monotonic() - start) * 1000)
-            logger.error("TinyFish %s permanently timed out for %s after %d attempts",
-                         extraction_type, url, attempt + 1)
-            await _save_run({
-                "id": run_id, "tinyfish_run_id": None,
-                "job_type": extraction_type, "url": url, "goal_hash": goal_hash,
-                "status": "failed", "error_type": last_error_type.value,
-                "error_message": last_error_msg, "browser_profile": browser_profile,
-                "items_extracted": 0, "duration_ms": duration_ms,
-                "result_summary_json": json.dumps({}, default=str),
-                "topic": topic, "retry_count": attempt,
-                "created_at": datetime.now(timezone.utc),
-                "completed_at": datetime.now(timezone.utc),
-            })
-            if event_callback:
-                await event_callback("tinyfish.extraction.failed", {
-                    "url": url,
-                    "extraction_type": extraction_type,
+            logger.error(
+                "TinyFish %s permanently timed out for %s after %d attempts", extraction_type, url, attempt + 1
+            )
+            await _save_run(
+                {
+                    "id": run_id,
                     "tinyfish_run_id": None,
-                    "streaming_url": None,
-                    "attempt": attempt + 1,
-                    "duration_ms": duration_ms,
+                    "job_type": extraction_type,
+                    "url": url,
+                    "goal_hash": goal_hash,
+                    "status": "failed",
                     "error_type": last_error_type.value,
                     "error_message": last_error_msg,
-                    "result_summary": {},
-                })
+                    "browser_profile": browser_profile,
+                    "items_extracted": 0,
+                    "duration_ms": duration_ms,
+                    "result_summary_json": json.dumps({}, default=str),
+                    "topic": topic,
+                    "retry_count": attempt,
+                    "created_at": datetime.now(UTC),
+                    "completed_at": datetime.now(UTC),
+                }
+            )
+            if event_callback:
+                await event_callback(
+                    "tinyfish.extraction.failed",
+                    {
+                        "url": url,
+                        "extraction_type": extraction_type,
+                        "tinyfish_run_id": None,
+                        "streaming_url": None,
+                        "attempt": attempt + 1,
+                        "duration_ms": duration_ms,
+                        "error_type": last_error_type.value,
+                        "error_message": last_error_msg,
+                        "result_summary": {},
+                    },
+                )
             return []
         except Exception as e:
             last_error_type = classify_error(exception=e)
@@ -1407,35 +1477,48 @@ async def _run_extraction(
 
             if attempt < max_retries and is_retryable(last_error_type):
                 backoff = 5.0 if last_error_type == TinyFishErrorType.rate_limit else 2.0
-                await asyncio.sleep(backoff * (2 ** attempt))
+                await asyncio.sleep(backoff * (2**attempt))
                 continue
 
             duration_ms = int((time.monotonic() - start) * 1000)
-            logger.error("TinyFish %s permanently failed for %s after %d attempts: %s",
-                         extraction_type, url, attempt + 1, e)
-            await _save_run({
-                "id": run_id, "tinyfish_run_id": None,
-                "job_type": extraction_type, "url": url, "goal_hash": goal_hash,
-                "status": "failed", "error_type": last_error_type.value,
-                "error_message": last_error_msg, "browser_profile": browser_profile,
-                "items_extracted": 0, "duration_ms": duration_ms,
-                "result_summary_json": json.dumps({}, default=str),
-                "topic": topic, "retry_count": attempt,
-                "created_at": datetime.now(timezone.utc),
-                "completed_at": datetime.now(timezone.utc),
-            })
-            if event_callback:
-                await event_callback("tinyfish.extraction.failed", {
-                    "url": url,
-                    "extraction_type": extraction_type,
+            logger.error(
+                "TinyFish %s permanently failed for %s after %d attempts: %s", extraction_type, url, attempt + 1, e
+            )
+            await _save_run(
+                {
+                    "id": run_id,
                     "tinyfish_run_id": None,
-                    "streaming_url": None,
-                    "attempt": attempt + 1,
-                    "duration_ms": duration_ms,
+                    "job_type": extraction_type,
+                    "url": url,
+                    "goal_hash": goal_hash,
+                    "status": "failed",
                     "error_type": last_error_type.value,
                     "error_message": last_error_msg,
-                    "result_summary": {},
-                })
+                    "browser_profile": browser_profile,
+                    "items_extracted": 0,
+                    "duration_ms": duration_ms,
+                    "result_summary_json": json.dumps({}, default=str),
+                    "topic": topic,
+                    "retry_count": attempt,
+                    "created_at": datetime.now(UTC),
+                    "completed_at": datetime.now(UTC),
+                }
+            )
+            if event_callback:
+                await event_callback(
+                    "tinyfish.extraction.failed",
+                    {
+                        "url": url,
+                        "extraction_type": extraction_type,
+                        "tinyfish_run_id": None,
+                        "streaming_url": None,
+                        "attempt": attempt + 1,
+                        "duration_ms": duration_ms,
+                        "error_type": last_error_type.value,
+                        "error_message": last_error_msg,
+                        "result_summary": {},
+                    },
+                )
             return []
 
     return []  # should not reach here
@@ -1444,6 +1527,7 @@ async def _run_extraction(
 # =============================================================================
 # Parsers
 # =============================================================================
+
 
 def _parse_result(result: dict, extraction_type: str, url: str = "") -> list[dict]:
     parsers = {
@@ -1495,15 +1579,17 @@ def _parse_reviews(result: dict, url: str = "") -> list[dict]:
 
         text = "\n\n".join(parts)
 
-        parsed.append({
-            "source_id": _hash_id(body[:100], "review"),
-            "url": url,
-            "title": review.get("product_name", ""),
-            "text": text.strip(),
-            "product_name": review.get("product_name", ""),
-            "persona_clues": persona_clues,
-            "workflow_clues": workflow_clues,
-        })
+        parsed.append(
+            {
+                "source_id": _hash_id(body[:100], "review"),
+                "url": url,
+                "title": review.get("product_name", ""),
+                "text": text.strip(),
+                "product_name": review.get("product_name", ""),
+                "persona_clues": persona_clues,
+                "workflow_clues": workflow_clues,
+            }
+        )
     return parsed
 
 
@@ -1521,15 +1607,17 @@ def _parse_category_discovery(result: dict, url: str = "") -> list[dict]:
         title = page.get("title", "")
         if not page_url:
             continue
-        parsed.append({
-            "source_id": _hash_id(page_url, "cat"),
-            "url": page_url,
-            "title": title,
-            "text": f"[{page.get('page_type', 'page')}] {title}: {page.get('reason_relevant', '')}",
-            "page_type": page.get("page_type", ""),
-            "product_name": page.get("product_name", ""),
-            "category_name": page.get("category_name", ""),
-        })
+        parsed.append(
+            {
+                "source_id": _hash_id(page_url, "cat"),
+                "url": page_url,
+                "title": title,
+                "text": f"[{page.get('page_type', 'page')}] {title}: {page.get('reason_relevant', '')}",
+                "page_type": page.get("page_type", ""),
+                "product_name": page.get("product_name", ""),
+                "category_name": page.get("category_name", ""),
+            }
+        )
     return parsed
 
 
@@ -1563,16 +1651,18 @@ def _parse_incumbent_gaps(result: dict, url: str = "") -> list[dict]:
 
         text = "\n".join(parts)
 
-        parsed.append({
-            "source_id": _hash_id(f"{product}_{failure_text[:50]}", "gap"),
-            "url": url,
-            "title": f"{product} - {failure_type}" if product else failure_type,
-            "text": text,
-            "product_name": product,
-            "failure_type": failure_type,
-            "persona_clues": [persona_clue] if persona_clue else [],
-            "workflow_clues": [workflow_clue] if workflow_clue else [],
-        })
+        parsed.append(
+            {
+                "source_id": _hash_id(f"{product}_{failure_text[:50]}", "gap"),
+                "url": url,
+                "title": f"{product} - {failure_type}" if product else failure_type,
+                "text": text,
+                "product_name": product,
+                "failure_type": failure_type,
+                "persona_clues": [persona_clue] if persona_clue else [],
+                "workflow_clues": [workflow_clue] if workflow_clue else [],
+            }
+        )
     return parsed
 
 
@@ -1616,19 +1706,21 @@ def _parse_forum_signals(result: dict, url: str = "") -> list[dict]:
         if post_author:
             full_text += f"\nAuthor: {post_author}"
 
-        parsed.append({
-            "source_id": _hash_id(text[:80], "forum"),
-            "url": url,
-            "title": post_title or f"{signal_type}: {text[:60]}",
-            "text": full_text,
-            "signal_type": signal_type,
-            "evidence_quote": evidence_quote,
-            "tools_mentioned": tools_mentioned,
-            "post_body": post_body,
-            "comment_count": len(comments),
-            "persona_clues": [persona_clue] if persona_clue else [],
-            "workflow_clues": [workflow_clue] if workflow_clue else [],
-        })
+        parsed.append(
+            {
+                "source_id": _hash_id(text[:80], "forum"),
+                "url": url,
+                "title": post_title or f"{signal_type}: {text[:60]}",
+                "text": full_text,
+                "signal_type": signal_type,
+                "evidence_quote": evidence_quote,
+                "tools_mentioned": tools_mentioned,
+                "post_body": post_body,
+                "comment_count": len(comments),
+                "persona_clues": [persona_clue] if persona_clue else [],
+                "workflow_clues": [workflow_clue] if workflow_clue else [],
+            }
+        )
     return parsed
 
 
@@ -1662,15 +1754,17 @@ def _parse_comparison(result: dict, url: str = "") -> list[dict]:
 
         text = "\n".join(parts)
 
-        parsed.append({
-            "source_id": _hash_id(f"comp_{product[:30]}", "comp"),
-            "url": url,
-            "title": f"{product} - comparison",
-            "text": text,
-            "product_name": product,
-            "persona_clues": persona_clues,
-            "workflow_clues": workflow_clues,
-        })
+        parsed.append(
+            {
+                "source_id": _hash_id(f"comp_{product[:30]}", "comp"),
+                "url": url,
+                "title": f"{product} - comparison",
+                "text": text,
+                "product_name": product,
+                "persona_clues": persona_clues,
+                "workflow_clues": workflow_clues,
+            }
+        )
     return parsed
 
 
@@ -1690,14 +1784,16 @@ def _parse_discussions(result: dict, url: str = "") -> list[dict]:
         replies = post.get("replies", []) or []
         if replies:
             text += "\n\nReplies:\n" + "\n---\n".join(str(r) for r in replies[:5])
-        parsed.append({
-            "source_id": _hash_id(body[:100], "disc"),
-            "url": post.get("url", url),
-            "title": title,
-            "text": text.strip(),
-            "author": post.get("author", ""),
-            "date": post.get("date", ""),
-        })
+        parsed.append(
+            {
+                "source_id": _hash_id(body[:100], "disc"),
+                "url": post.get("url", url),
+                "title": title,
+                "text": text.strip(),
+                "author": post.get("author", ""),
+                "date": post.get("date", ""),
+            }
+        )
     return parsed
 
 
@@ -1705,8 +1801,10 @@ def _parse_readme(result: dict, url: str = "") -> list[dict]:
     parsed = []
     repo_name = result.get("repo_name", "")
     signal_fields = [
-        ("limitations", "limitation"), ("known_issues", "known_issue"),
-        ("missing_features", "missing_feature"), ("pain_signals_from_readme", "readme_pain"),
+        ("limitations", "limitation"),
+        ("known_issues", "known_issue"),
+        ("missing_features", "missing_feature"),
+        ("pain_signals_from_readme", "readme_pain"),
         ("workarounds_mentioned", "readme_workaround"),
     ]
     for field, signal_type in signal_fields:
@@ -1716,21 +1814,30 @@ def _parse_readme(result: dict, url: str = "") -> list[dict]:
         for item_text in items:
             if not item_text or not isinstance(item_text, str) or len(item_text.strip()) < 10:
                 continue
-            parsed.append({
-                "source_id": _hash_id(f"{repo_name}_{item_text[:50]}", "readme"),
-                "url": url,
-                "title": f"{repo_name} - {signal_type}",
-                "text": f"[{repo_name}] {signal_type}: {item_text}",
-                "repo": repo_name,
-                "signal_type": signal_type,
-            })
-    for alt in (result.get("alternatives_mentioned", []) if isinstance(result.get("alternatives_mentioned"), list) else []):
+            parsed.append(
+                {
+                    "source_id": _hash_id(f"{repo_name}_{item_text[:50]}", "readme"),
+                    "url": url,
+                    "title": f"{repo_name} - {signal_type}",
+                    "text": f"[{repo_name}] {signal_type}: {item_text}",
+                    "repo": repo_name,
+                    "signal_type": signal_type,
+                }
+            )
+    for alt in (
+        result.get("alternatives_mentioned", []) if isinstance(result.get("alternatives_mentioned"), list) else []
+    ):
         if alt and isinstance(alt, str) and len(alt.strip()) >= 5:
-            parsed.append({
-                "source_id": _hash_id(f"{repo_name}_alt_{alt[:30]}", "readme"),
-                "url": url, "title": f"{repo_name} - alternative",
-                "text": f"[{repo_name}] alternative: {alt}", "repo": repo_name, "signal_type": "alternative",
-            })
+            parsed.append(
+                {
+                    "source_id": _hash_id(f"{repo_name}_alt_{alt[:30]}", "readme"),
+                    "url": url,
+                    "title": f"{repo_name} - alternative",
+                    "text": f"[{repo_name}] alternative: {alt}",
+                    "repo": repo_name,
+                    "signal_type": "alternative",
+                }
+            )
     return parsed
 
 
@@ -1755,13 +1862,15 @@ def _parse_stackoverflow(result: dict, url: str = "") -> list[dict]:
         tags = q.get("tags", []) or []
         if tags:
             text += f"\n\nTags: {', '.join(tags)}"
-        parsed.append({
-            "source_id": _hash_id(f"so_{title[:50]}", "so"),
-            "url": q.get("url", url),
-            "title": title,
-            "text": text.strip(),
-            "votes": q.get("votes", 0),
-        })
+        parsed.append(
+            {
+                "source_id": _hash_id(f"so_{title[:50]}", "so"),
+                "url": q.get("url", url),
+                "title": title,
+                "text": text.strip(),
+                "votes": q.get("votes", 0),
+            }
+        )
     return parsed
 
 
@@ -1802,17 +1911,19 @@ def _parse_workflow_descriptions(result: dict, url: str = "") -> list[dict]:
 
         text = "\n".join(parts)
 
-        parsed.append({
-            "source_id": _hash_id(f"wf_{name[:40]}_{description[:30]}", "wf"),
-            "url": url,
-            "title": name or description[:60],
-            "text": text,
-            "workflow_name": name,
-            "tools_used": tools_used,
-            "pain_points": pain_points,
-            "persona_clues": [persona_clue] if persona_clue else [],
-            "workflow_clues": [name] if name else [],
-        })
+        parsed.append(
+            {
+                "source_id": _hash_id(f"wf_{name[:40]}_{description[:30]}", "wf"),
+                "url": url,
+                "title": name or description[:60],
+                "text": text,
+                "workflow_name": name,
+                "tools_used": tools_used,
+                "pain_points": pain_points,
+                "persona_clues": [persona_clue] if persona_clue else [],
+                "workflow_clues": [name] if name else [],
+            }
+        )
     return parsed
 
 
@@ -1861,16 +1972,18 @@ def _parse_github(result: dict, url: str = "") -> list[dict]:
         if len(text.strip()) < 15:
             continue
 
-        parsed.append({
-            "source_id": _hash_id(f"gh_{title[:50]}_{item_type}", "gh"),
-            "url": item_url,
-            "title": title,
-            "text": text,
-            "item_type": item_type,
-            "signal_type": signal_type,
-            "persona_clues": [],
-            "workflow_clues": [],
-        })
+        parsed.append(
+            {
+                "source_id": _hash_id(f"gh_{title[:50]}_{item_type}", "gh"),
+                "url": item_url,
+                "title": title,
+                "text": text,
+                "item_type": item_type,
+                "signal_type": signal_type,
+                "persona_clues": [],
+                "workflow_clues": [],
+            }
+        )
     return parsed
 
 
@@ -1889,8 +2002,8 @@ async def run_focused_extraction(
 
     This is the new extraction path that uses short, focused prompts
     and returns results reliably (unlike the SSE streaming path)."""
-    from app.services.ingest.extraction_prompts import get_prompt
     from app.services.ingest.extraction_parser import parse_signal_result, parse_url_discovery_result
+    from app.services.ingest.extraction_prompts import get_prompt
 
     goal = get_prompt(prompt_name, topic)
 
@@ -1922,23 +2035,38 @@ async def run_focused_extraction(
                 if response.status.value != "COMPLETED" or not response.result:
                     err_msg = str(response.error) if response.error else "No result"
                     last_error_msg = err_msg
-                    logger.warning("TinyFish focused %s failed for %s (attempt %d, %dms): %s",
-                                   prompt_name, url, attempt + 1, duration_ms, err_msg)
+                    logger.warning(
+                        "TinyFish focused %s failed for %s (attempt %d, %dms): %s",
+                        prompt_name,
+                        url,
+                        attempt + 1,
+                        duration_ms,
+                        err_msg,
+                    )
 
                     if attempt < max_retries:
-                        await asyncio.sleep(3.0 * (2 ** attempt))
+                        await asyncio.sleep(3.0 * (2**attempt))
                         continue
 
-                    await _save_run({
-                        "id": run_id, "tinyfish_run_id": response.run_id,
-                        "job_type": f"focused_{prompt_name}", "url": url, "goal_hash": goal_hash,
-                        "status": "failed", "error_type": "extraction_failed",
-                        "error_message": err_msg, "browser_profile": profile,
-                        "items_extracted": 0, "duration_ms": duration_ms,
-                        "topic": topic, "retry_count": attempt,
-                        "created_at": datetime.now(timezone.utc),
-                        "completed_at": datetime.now(timezone.utc),
-                    })
+                    await _save_run(
+                        {
+                            "id": run_id,
+                            "tinyfish_run_id": response.run_id,
+                            "job_type": f"focused_{prompt_name}",
+                            "url": url,
+                            "goal_hash": goal_hash,
+                            "status": "failed",
+                            "error_type": "extraction_failed",
+                            "error_message": err_msg,
+                            "browser_profile": profile,
+                            "items_extracted": 0,
+                            "duration_ms": duration_ms,
+                            "topic": topic,
+                            "retry_count": attempt,
+                            "created_at": datetime.now(UTC),
+                            "completed_at": datetime.now(UTC),
+                        }
+                    )
                     return []
 
                 # parse result
@@ -1948,25 +2076,45 @@ async def run_focused_extraction(
                 else:
                     items = parse_signal_result(result_data, url)
 
-                logger.info("TinyFish focused %s extracted %d items from %s (run=%s, %dms)",
-                            prompt_name, len(items), url, response.run_id, duration_ms)
+                logger.info(
+                    "TinyFish focused %s extracted %d items from %s (run=%s, %dms)",
+                    prompt_name,
+                    len(items),
+                    url,
+                    response.run_id,
+                    duration_ms,
+                )
 
-                await _save_run({
-                    "id": run_id, "tinyfish_run_id": response.run_id,
-                    "job_type": f"focused_{prompt_name}", "url": url, "goal_hash": goal_hash,
-                    "status": "completed", "error_type": None, "error_message": None,
-                    "browser_profile": profile,
-                    "items_extracted": len(items), "duration_ms": duration_ms,
-                    "topic": topic, "retry_count": attempt,
-                    "created_at": datetime.now(timezone.utc),
-                    "completed_at": datetime.now(timezone.utc),
-                })
+                await _save_run(
+                    {
+                        "id": run_id,
+                        "tinyfish_run_id": response.run_id,
+                        "job_type": f"focused_{prompt_name}",
+                        "url": url,
+                        "goal_hash": goal_hash,
+                        "status": "completed",
+                        "error_type": None,
+                        "error_message": None,
+                        "browser_profile": profile,
+                        "items_extracted": len(items),
+                        "duration_ms": duration_ms,
+                        "topic": topic,
+                        "retry_count": attempt,
+                        "created_at": datetime.now(UTC),
+                        "completed_at": datetime.now(UTC),
+                    }
+                )
 
                 if event_callback:
-                    await event_callback("tinyfish.focused.completed", {
-                        "url": url, "prompt": prompt_name,
-                        "item_count": len(items), "duration_ms": duration_ms,
-                    })
+                    await event_callback(
+                        "tinyfish.focused.completed",
+                        {
+                            "url": url,
+                            "prompt": prompt_name,
+                            "item_count": len(items),
+                            "duration_ms": duration_ms,
+                        },
+                    )
 
                 # cache successful extraction for pipeline retries
                 if items:
@@ -1977,23 +2125,38 @@ async def run_focused_extraction(
         except Exception as exc:
             duration_ms = int((time.monotonic() - start) * 1000)
             last_error_msg = str(exc)
-            logger.warning("TinyFish focused %s error for %s (attempt %d, %dms): %s",
-                           prompt_name, url, attempt + 1, duration_ms, exc)
+            logger.warning(
+                "TinyFish focused %s error for %s (attempt %d, %dms): %s",
+                prompt_name,
+                url,
+                attempt + 1,
+                duration_ms,
+                exc,
+            )
 
             if attempt < max_retries:
-                await asyncio.sleep(3.0 * (2 ** attempt))
+                await asyncio.sleep(3.0 * (2**attempt))
                 continue
 
-            await _save_run({
-                "id": run_id, "tinyfish_run_id": None,
-                "job_type": f"focused_{prompt_name}", "url": url, "goal_hash": goal_hash,
-                "status": "failed", "error_type": "exception",
-                "error_message": last_error_msg, "browser_profile": profile,
-                "items_extracted": 0, "duration_ms": duration_ms,
-                "topic": topic, "retry_count": attempt,
-                "created_at": datetime.now(timezone.utc),
-                "completed_at": datetime.now(timezone.utc),
-            })
+            await _save_run(
+                {
+                    "id": run_id,
+                    "tinyfish_run_id": None,
+                    "job_type": f"focused_{prompt_name}",
+                    "url": url,
+                    "goal_hash": goal_hash,
+                    "status": "failed",
+                    "error_type": "exception",
+                    "error_message": last_error_msg,
+                    "browser_profile": profile,
+                    "items_extracted": 0,
+                    "duration_ms": duration_ms,
+                    "topic": topic,
+                    "retry_count": attempt,
+                    "created_at": datetime.now(UTC),
+                    "completed_at": datetime.now(UTC),
+                }
+            )
             return []
 
     return []

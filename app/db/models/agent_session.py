@@ -3,7 +3,7 @@
 Each user has their own sessions. No shared state between users.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import DateTime, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
@@ -20,12 +20,8 @@ class AgentSession(Base):
     user_id: Mapped[str] = mapped_column(String, index=True)
     channel: Mapped[str] = mapped_column(String, default="web")
 
-    created_at: Mapped[datetime] = mapped_column(
-        TZDateTime, default=lambda: datetime.now(timezone.utc)
-    )
-    last_message_at: Mapped[datetime] = mapped_column(
-        TZDateTime, default=lambda: datetime.now(timezone.utc)
-    )
+    created_at: Mapped[datetime] = mapped_column(TZDateTime, default=lambda: datetime.now(UTC))
+    last_message_at: Mapped[datetime] = mapped_column(TZDateTime, default=lambda: datetime.now(UTC))
 
 
 class AgentMessage(Base):
@@ -48,6 +44,4 @@ class AgentMessage(Base):
     # Which channel originated this message
     channel: Mapped[str] = mapped_column(String, default="web")
 
-    created_at: Mapped[datetime] = mapped_column(
-        TZDateTime, default=lambda: datetime.now(timezone.utc)
-    )
+    created_at: Mapped[datetime] = mapped_column(TZDateTime, default=lambda: datetime.now(UTC))

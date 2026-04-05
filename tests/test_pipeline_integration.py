@@ -1,20 +1,21 @@
 """Tests for pipeline integration: follow-up scheduling, executor dispatch, stale cleanup."""
 
 import json
-import pytest
-from datetime import datetime, timedelta, timezone
-from unittest.mock import AsyncMock, MagicMock, patch
+from datetime import UTC, datetime, timedelta
+from unittest.mock import AsyncMock, patch
 from uuid import uuid4
+
+import pytest
 
 from app.db.models.application import Application
 from app.db.models.foxhound_job import FoxhoundJob
 from app.db.models.job_listing import JobListing
-from app.services.scheduling.followup import schedule_followups, FOLLOWUP_DAYS
-
+from app.services.scheduling.followup import schedule_followups
 
 # ---------------------------------------------------------------------------
 # Follow-up scheduling
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_schedule_followups_creates_three_jobs(db, user_id):
@@ -39,7 +40,7 @@ async def test_schedule_followups_creates_three_jobs(db, user_id):
 
 @pytest.mark.asyncio
 async def test_schedule_followups_correct_timing(db, user_id):
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     jobs = await schedule_followups(user_id, str(uuid4()), str(uuid4()), db=db)
     await db.commit()
 
@@ -53,6 +54,7 @@ async def test_schedule_followups_correct_timing(db, user_id):
 # ---------------------------------------------------------------------------
 # Follow-up executor
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_followup_executor_day3(db, sample_profile, sample_jobs):
@@ -73,18 +75,21 @@ async def test_followup_executor_day3(db, sample_profile, sample_jobs):
         job_type="followup_check",
         origin="post_apply",
         priority=20,
-        payload_json=json.dumps({
-            "user_id": sample_profile.user_id,
-            "application_id": application.id,
-            "job_id": sample_jobs[0].id,
-            "day": 3,
-        }),
+        payload_json=json.dumps(
+            {
+                "user_id": sample_profile.user_id,
+                "application_id": application.id,
+                "job_id": sample_jobs[0].id,
+                "day": 3,
+            }
+        ),
         status="running",
     )
 
     with patch("app.services.apply.notifications.send_followup_day3", new_callable=AsyncMock) as mock_send:
         mock_send.return_value = {"skipped": "no channels"}
         from app.services.scheduling.executors import execute_followup
+
         await execute_followup(job)
 
     mock_send.assert_called_once()
@@ -107,20 +112,26 @@ async def test_followup_executor_day7(db, sample_profile, sample_jobs):
     await db.commit()
 
     job = FoxhoundJob(
-        id=str(uuid4()), run_id=str(uuid4()), job_type="followup_check",
-        origin="post_apply", priority=20,
-        payload_json=json.dumps({
-            "user_id": sample_profile.user_id,
-            "application_id": application.id,
-            "job_id": sample_jobs[0].id,
-            "day": 7,
-        }),
+        id=str(uuid4()),
+        run_id=str(uuid4()),
+        job_type="followup_check",
+        origin="post_apply",
+        priority=20,
+        payload_json=json.dumps(
+            {
+                "user_id": sample_profile.user_id,
+                "application_id": application.id,
+                "job_id": sample_jobs[0].id,
+                "day": 7,
+            }
+        ),
         status="running",
     )
 
     with patch("app.services.apply.notifications.send_followup_day7", new_callable=AsyncMock) as mock_send:
         mock_send.return_value = {}
         from app.services.scheduling.executors import execute_followup
+
         await execute_followup(job)
 
     mock_send.assert_called_once()
@@ -141,20 +152,26 @@ async def test_followup_executor_day14(db, sample_profile, sample_jobs):
     await db.commit()
 
     job = FoxhoundJob(
-        id=str(uuid4()), run_id=str(uuid4()), job_type="followup_check",
-        origin="post_apply", priority=20,
-        payload_json=json.dumps({
-            "user_id": sample_profile.user_id,
-            "application_id": application.id,
-            "job_id": sample_jobs[0].id,
-            "day": 14,
-        }),
+        id=str(uuid4()),
+        run_id=str(uuid4()),
+        job_type="followup_check",
+        origin="post_apply",
+        priority=20,
+        payload_json=json.dumps(
+            {
+                "user_id": sample_profile.user_id,
+                "application_id": application.id,
+                "job_id": sample_jobs[0].id,
+                "day": 14,
+            }
+        ),
         status="running",
     )
 
     with patch("app.services.apply.notifications.send_followup_day14", new_callable=AsyncMock) as mock_send:
         mock_send.return_value = {}
         from app.services.scheduling.executors import execute_followup
+
         await execute_followup(job)
 
     mock_send.assert_called_once()
@@ -176,19 +193,25 @@ async def test_followup_executor_skips_failed_application(db, sample_profile, sa
     await db.commit()
 
     job = FoxhoundJob(
-        id=str(uuid4()), run_id=str(uuid4()), job_type="followup_check",
-        origin="post_apply", priority=20,
-        payload_json=json.dumps({
-            "user_id": sample_profile.user_id,
-            "application_id": application.id,
-            "job_id": sample_jobs[0].id,
-            "day": 3,
-        }),
+        id=str(uuid4()),
+        run_id=str(uuid4()),
+        job_type="followup_check",
+        origin="post_apply",
+        priority=20,
+        payload_json=json.dumps(
+            {
+                "user_id": sample_profile.user_id,
+                "application_id": application.id,
+                "job_id": sample_jobs[0].id,
+                "day": 3,
+            }
+        ),
         status="running",
     )
 
     with patch("app.services.apply.notifications.send_followup_day3", new_callable=AsyncMock) as mock_send:
         from app.services.scheduling.executors import execute_followup
+
         await execute_followup(job)
 
     mock_send.assert_not_called()
@@ -209,19 +232,25 @@ async def test_followup_executor_skips_already_sent(db, sample_profile, sample_j
     await db.commit()
 
     job = FoxhoundJob(
-        id=str(uuid4()), run_id=str(uuid4()), job_type="followup_check",
-        origin="post_apply", priority=20,
-        payload_json=json.dumps({
-            "user_id": sample_profile.user_id,
-            "application_id": application.id,
-            "job_id": sample_jobs[0].id,
-            "day": 3,
-        }),
+        id=str(uuid4()),
+        run_id=str(uuid4()),
+        job_type="followup_check",
+        origin="post_apply",
+        priority=20,
+        payload_json=json.dumps(
+            {
+                "user_id": sample_profile.user_id,
+                "application_id": application.id,
+                "job_id": sample_jobs[0].id,
+                "day": 3,
+            }
+        ),
         status="running",
     )
 
     with patch("app.services.apply.notifications.send_followup_day3", new_callable=AsyncMock) as mock_send:
         from app.services.scheduling.executors import execute_followup
+
         await execute_followup(job)
 
     mock_send.assert_not_called()
@@ -230,6 +259,7 @@ async def test_followup_executor_skips_already_sent(db, sample_profile, sample_j
 # ---------------------------------------------------------------------------
 # Stale cleanup
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_stale_cleanup_expires_old_jobs(db):
@@ -242,18 +272,23 @@ async def test_stale_cleanup_expires_old_jobs(db):
         source="test",
         source_url="https://old.com",
         status="active",
-        posted_at=datetime.now(timezone.utc) - timedelta(days=45),
+        posted_at=datetime.now(UTC) - timedelta(days=45),
     )
     db.add(old_job)
     await db.commit()
 
     job = FoxhoundJob(
-        id=str(uuid4()), run_id=str(uuid4()),
-        job_type="stale_cleanup", origin="scheduled", priority=10,
-        payload_json="{}", status="running",
+        id=str(uuid4()),
+        run_id=str(uuid4()),
+        job_type="stale_cleanup",
+        origin="scheduled",
+        priority=10,
+        payload_json="{}",
+        status="running",
     )
 
     from app.services.scheduling.executors import execute_stale_cleanup
+
     await execute_stale_cleanup(job)
 
     await db.refresh(old_job)
@@ -271,18 +306,23 @@ async def test_stale_cleanup_keeps_recent_jobs(db):
         source="test",
         source_url="https://new.com",
         status="active",
-        posted_at=datetime.now(timezone.utc) - timedelta(days=5),
+        posted_at=datetime.now(UTC) - timedelta(days=5),
     )
     db.add(recent_job)
     await db.commit()
 
     job = FoxhoundJob(
-        id=str(uuid4()), run_id=str(uuid4()),
-        job_type="stale_cleanup", origin="scheduled", priority=10,
-        payload_json="{}", status="running",
+        id=str(uuid4()),
+        run_id=str(uuid4()),
+        job_type="stale_cleanup",
+        origin="scheduled",
+        priority=10,
+        payload_json="{}",
+        status="running",
     )
 
     from app.services.scheduling.executors import execute_stale_cleanup
+
     await execute_stale_cleanup(job)
 
     await db.refresh(recent_job)
@@ -293,15 +333,27 @@ async def test_stale_cleanup_keeps_recent_jobs(db):
 # Executor dispatch map
 # ---------------------------------------------------------------------------
 
+
 def test_executor_map_includes_followup():
     """The executor map in run_service.py should include followup_check."""
-    expected = {"job_discovery", "autopilot_apply", "single_apply", "daily_digest", "stale_cleanup", "followup_check"}
     # Read from the source
     from app.services.scheduling.executors import (
-        execute_job_discovery, execute_autopilot_apply, execute_single_apply,
-        execute_daily_digest, execute_stale_cleanup, execute_followup,
+        execute_autopilot_apply,
+        execute_daily_digest,
+        execute_followup,
+        execute_job_discovery,
+        execute_single_apply,
+        execute_stale_cleanup,
     )
-    assert all(callable(f) for f in [
-        execute_job_discovery, execute_autopilot_apply, execute_single_apply,
-        execute_daily_digest, execute_stale_cleanup, execute_followup,
-    ])
+
+    assert all(
+        callable(f)
+        for f in [
+            execute_job_discovery,
+            execute_autopilot_apply,
+            execute_single_apply,
+            execute_daily_digest,
+            execute_stale_cleanup,
+            execute_followup,
+        ]
+    )

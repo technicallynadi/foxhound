@@ -1,9 +1,9 @@
-import re
 import logging
+import re
 
-from app.services.workflow.spacy_pipeline import _get_nlp
-from app.core.vertical_config import get_tool_terms, get_domain_terms, get_workflow_terms
+from app.core.vertical_config import get_domain_terms, get_tool_terms
 from app.services.evidence.taxonomy import evidence_class_queries
+from app.services.workflow.spacy_pipeline import _get_nlp
 
 logger = logging.getLogger(__name__)
 
@@ -27,11 +27,33 @@ INTENT_PATTERNS = {
 }
 
 WORKFLOW_VERBS = {
-    "track", "manage", "schedule", "coordinate", "assign", "monitor",
-    "review", "approve", "deploy", "onboard", "notify", "debug",
-    "test", "build", "ship", "verify", "automate", "sync",
-    "migrate", "configure", "maintain", "troubleshoot", "audit",
-    "invoice", "bill", "report", "prioritize",
+    "track",
+    "manage",
+    "schedule",
+    "coordinate",
+    "assign",
+    "monitor",
+    "review",
+    "approve",
+    "deploy",
+    "onboard",
+    "notify",
+    "debug",
+    "test",
+    "build",
+    "ship",
+    "verify",
+    "automate",
+    "sync",
+    "migrate",
+    "configure",
+    "maintain",
+    "troubleshoot",
+    "audit",
+    "invoice",
+    "bill",
+    "report",
+    "prioritize",
 }
 
 
@@ -48,21 +70,19 @@ def analyze_query(query: str) -> dict:
         return _fallback_analyze_query(query)
 
     # Lemmatized terms
-    lemmas = list(dict.fromkeys(
-        token.lemma_ for token in doc
-        if token.pos_ in ("NOUN", "VERB", "PROPN", "ADJ")
-        and len(token.lemma_) > 2
-        and not token.is_stop
-    ))
+    lemmas = list(
+        dict.fromkeys(
+            token.lemma_
+            for token in doc
+            if token.pos_ in ("NOUN", "VERB", "PROPN", "ADJ") and len(token.lemma_) > 2 and not token.is_stop
+        )
+    )
 
     # Key nouns
     nouns = [chunk.text.strip() for chunk in doc.noun_chunks if len(chunk.text.strip()) > 2]
 
     # Action verbs (workflow intent)
-    verbs = [
-        token.lemma_ for token in doc
-        if token.pos_ == "VERB" and token.lemma_ in WORKFLOW_VERBS
-    ]
+    verbs = [token.lemma_ for token in doc if token.pos_ == "VERB" and token.lemma_ in WORKFLOW_VERBS]
 
     # Detect tool names from query (match against YAML tool_terms)
     tool_terms = get_tool_terms(query)
@@ -97,7 +117,10 @@ def analyze_query(query: str) -> dict:
 
     logger.info(
         "Query analyzed: intent=%s tools=%s verbs=%s searches=%d",
-        intent, tools_mentioned, verbs, len(search_queries),
+        intent,
+        tools_mentioned,
+        verbs,
+        len(search_queries),
     )
     return profile
 

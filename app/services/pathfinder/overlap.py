@@ -105,11 +105,21 @@ def _normalize_location(loc: str | None) -> str:
 
 
 _SENIORITY_RANK = {
-    "intern": 0, "junior": 1, "entry": 1,
-    "mid": 2, "mid-level": 2, "intermediate": 2,
-    "senior": 3, "lead": 4, "staff": 4,
-    "principal": 5, "manager": 5, "director": 6,
-    "vp": 7, "c_level": 8, "executive": 8,
+    "intern": 0,
+    "junior": 1,
+    "entry": 1,
+    "mid": 2,
+    "mid-level": 2,
+    "intermediate": 2,
+    "senior": 3,
+    "lead": 4,
+    "staff": 4,
+    "principal": 5,
+    "manager": 5,
+    "director": 6,
+    "vp": 7,
+    "c_level": 8,
+    "executive": 8,
 }
 
 

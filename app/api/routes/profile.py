@@ -96,6 +96,7 @@ async def upload_resume(
 
     # Store PDF in Supabase Storage (sanitize filename to prevent path traversal)
     import os
+
     safe_filename = os.path.basename(file.filename or "resume.pdf")
     if not safe_filename.lower().endswith(".pdf"):
         safe_filename = "resume.pdf"
@@ -109,9 +110,7 @@ async def upload_resume(
         raise HTTPException(422, f"Failed to parse resume: {e}")
 
     # Create or update profile
-    result = await db.execute(
-        select(UserProfile).where(UserProfile.user_id == user_id)
-    )
+    result = await db.execute(select(UserProfile).where(UserProfile.user_id == user_id))
     profile = result.scalar_one_or_none()
 
     if profile:
@@ -166,6 +165,7 @@ async def upload_resume(
     # Trigger initial job matching for this user against existing listings
     try:
         from app.services.matching.scorer import MatchScorer
+
         scorer = MatchScorer()
         matches = await scorer.score_jobs_for_user(db, profile.user_id)
         match_count = len([m for m in matches if not m.disqualified and m.match_score > 0])
@@ -175,12 +175,15 @@ async def upload_resume(
         decent = len([m for m in matches if not m.disqualified and m.match_score >= 55])
         if strong > 0 or decent > 0:
             from app.services.activity.logger import log_activity
+
             if strong > 0:
                 title_text = f"Found {strong} strong match{'es' if strong != 1 else ''} for your profile"
                 desc_text = f"{strong} role{'s' if strong != 1 else ''} above 70% fit. Browse your matches or let Foxhound apply automatically."
             else:
                 title_text = f"Found {decent} possible match{'es' if decent != 1 else ''} for your profile"
-                desc_text = "No strong fits yet — these are stretch roles. Foxhound will keep searching for better ones."
+                desc_text = (
+                    "No strong fits yet — these are stretch roles. Foxhound will keep searching for better ones."
+                )
             await log_activity(
                 user_id=profile.user_id,
                 event_type="matches_discovered",
@@ -213,9 +216,7 @@ async def get_profile(
 ):
     """Get the full profile for the authenticated user."""
     user_id = user["user_id"]
-    result = await db.execute(
-        select(UserProfile).where(UserProfile.user_id == user_id)
-    )
+    result = await db.execute(select(UserProfile).where(UserProfile.user_id == user_id))
     profile = result.scalar_one_or_none()
     if not profile:
         raise HTTPException(404, "Profile not found. Upload a resume first.")
@@ -231,9 +232,7 @@ async def bootstrap_profile(
 ):
     """Create a lightweight profile from onboarding intent before a resume exists."""
     user_id = user["user_id"]
-    result = await db.execute(
-        select(UserProfile).where(UserProfile.user_id == user_id)
-    )
+    result = await db.execute(select(UserProfile).where(UserProfile.user_id == user_id))
     profile = result.scalar_one_or_none()
 
     if not profile:
@@ -288,9 +287,7 @@ async def update_profile(
 ):
     """Update profile fields (user corrects LLM parsing errors)."""
     user_id = user["user_id"]
-    result = await db.execute(
-        select(UserProfile).where(UserProfile.user_id == user_id)
-    )
+    result = await db.execute(select(UserProfile).where(UserProfile.user_id == user_id))
     profile = result.scalar_one_or_none()
     if not profile:
         profile = _bootstrap_profile(user)
@@ -352,9 +349,7 @@ async def update_preferences(
 ):
     """Update job preferences."""
     user_id = user["user_id"]
-    result = await db.execute(
-        select(UserProfile).where(UserProfile.user_id == user_id)
-    )
+    result = await db.execute(select(UserProfile).where(UserProfile.user_id == user_id))
     profile = result.scalar_one_or_none()
     if not profile:
         profile = _bootstrap_profile(user)
@@ -387,13 +382,13 @@ async def update_preferences(
 
     # Re-score jobs when preferences change
     try:
-        from app.services.matching.scorer import MatchScorer
+        from sqlalchemy import delete
+
         # Delete old matches so they get rescored
         from app.db.models.job_match import JobMatch
-        from sqlalchemy import delete
-        await db.execute(
-            delete(JobMatch).where(JobMatch.user_id == user_id)
-        )
+        from app.services.matching.scorer import MatchScorer
+
+        await db.execute(delete(JobMatch).where(JobMatch.user_id == user_id))
         await db.commit()
         scorer = MatchScorer()
         await scorer.score_jobs_for_user(db, user_id)
@@ -410,9 +405,7 @@ async def get_eeo_profile(
 ):
     """Get EEO/demographic data for the authenticated user (separate from core profile)."""
     user_id = user["user_id"]
-    result = await db.execute(
-        select(UserProfile).where(UserProfile.user_id == user_id)
-    )
+    result = await db.execute(select(UserProfile).where(UserProfile.user_id == user_id))
     profile = result.scalar_one_or_none()
     if not profile:
         raise HTTPException(404, "Profile not found.")
@@ -434,9 +427,7 @@ async def update_eeo_profile(
 ):
     """Update EEO/demographic fields for the authenticated user."""
     user_id = user["user_id"]
-    result = await db.execute(
-        select(UserProfile).where(UserProfile.user_id == user_id)
-    )
+    result = await db.execute(select(UserProfile).where(UserProfile.user_id == user_id))
     profile = result.scalar_one_or_none()
     if not profile:
         raise HTTPException(404, "Profile not found.")

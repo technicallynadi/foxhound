@@ -5,7 +5,7 @@ https://api.stackexchange.com/docs
 """
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import httpx
 
@@ -112,7 +112,7 @@ def _parse_question(item: dict) -> dict | None:
     body = _strip_html(item.get("body", ""))
     created = None
     if item.get("creation_date"):
-        created = datetime.fromtimestamp(item["creation_date"], tz=timezone.utc).isoformat()
+        created = datetime.fromtimestamp(item["creation_date"], tz=UTC).isoformat()
 
     return {
         "source_id": f"so_{item.get('question_id', '')}",
@@ -135,6 +135,7 @@ def _parse_question(item: dict) -> dict | None:
 
 def _strip_html(text: str) -> str:
     import re
+
     text = re.sub(r"<[^>]+>", " ", text)
     text = re.sub(r"&[a-z]+;", " ", text)
     text = re.sub(r"\s+", " ", text)

@@ -7,7 +7,7 @@ GET  /api/v1/watchdog/checks/{application_id} -- check history for one applicati
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
@@ -49,7 +49,7 @@ async def trigger_manual_check(
 
     # Rate limit: 1 manual check per hour
     if application.last_watchdog_check_at:
-        one_hour_ago = datetime.now(timezone.utc) - timedelta(hours=1)
+        one_hour_ago = datetime.now(UTC) - timedelta(hours=1)
         if application.last_watchdog_check_at > one_hour_ago:
             raise HTTPException(
                 status_code=429,
@@ -59,9 +59,7 @@ async def trigger_manual_check(
     # Run the check (lazy import to avoid tinyfish at module level)
     from app.services.watchdog.checker import check_application
 
-    outcome = await check_application(
-        application, job, triggered_by="manual"
-    )
+    outcome = await check_application(application, job, triggered_by="manual")
 
     # Fetch the latest check record
     check_result = await db.execute(
@@ -121,14 +119,8 @@ async def get_watchdog_status(
             "posting_diff_summary": app.posting_diff_summary,
             "watchdog_enabled": app.watchdog_enabled,
             "days_since_applied": _days_since(app),
-            "last_check_at": (
-                app.last_watchdog_check_at.isoformat()
-                if app.last_watchdog_check_at
-                else None
-            ),
-            "submitted_at": (
-                app.submitted_at.isoformat() if app.submitted_at else None
-            ),
+            "last_check_at": (app.last_watchdog_check_at.isoformat() if app.last_watchdog_check_at else None),
+            "submitted_at": (app.submitted_at.isoformat() if app.submitted_at else None),
             "created_at": app.created_at.isoformat(),
         }
         for app, job in rows
@@ -189,4 +181,4 @@ def _days_since(app: Application) -> int:
     ref = app.submitted_at or app.created_at
     if not ref:
         return 0
-    return max(0, (datetime.now(timezone.utc) - ref).days)
+    return max(0, (datetime.now(UTC) - ref).days)

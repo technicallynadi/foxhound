@@ -1,19 +1,18 @@
 """Tests for applications API routes: create, list, stats, detail."""
 
-import json
-import pytest
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import uuid4
 
+import pytest
 from httpx import ASGITransport, AsyncClient
 
 from app.db.models.application import Application
 from app.main import app
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 async def sample_application(db, sample_profile, sample_jobs):
@@ -26,7 +25,7 @@ async def sample_application(db, sample_profile, sample_jobs):
         trigger="manual",
         tinyfish_status="submitted",
         tinyfish_duration_ms=3500,
-        submitted_at=datetime.now(timezone.utc),
+        submitted_at=datetime.now(UTC),
     )
     db.add(application)
     await db.commit()
@@ -36,6 +35,7 @@ async def sample_application(db, sample_profile, sample_jobs):
 # ---------------------------------------------------------------------------
 # List applications
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_list_applications_empty(user_id):
@@ -85,6 +85,7 @@ async def test_list_applications_filter_by_status(db, sample_profile, sample_job
 # Application detail
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_get_application_detail(db, sample_application):
     transport = ASGITransport(app=app)
@@ -107,6 +108,7 @@ async def test_get_application_not_found(user_id):
 # ---------------------------------------------------------------------------
 # Application stats
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_application_stats(db, sample_application):

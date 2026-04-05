@@ -8,12 +8,11 @@ from __future__ import annotations
 
 import logging
 
-import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from app.core.config import settings
-from app.services.auth_service import get_current_user, get_optional_user, get_user_tier
+from app.services.auth_service import get_current_user, get_user_tier
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["auth"])

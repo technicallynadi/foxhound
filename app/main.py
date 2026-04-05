@@ -29,10 +29,12 @@ async def lifespan(app: FastAPI):
 
     # Register recurring scheduled jobs
     from app.services.scheduling.scheduler import ensure_recurring_jobs
+
     await ensure_recurring_jobs()
 
     # Start background loops
     import asyncio
+
     from app.services.apply.timeout_loop import application_timeout_loop
     from app.services.run_service import worker_loop
 
@@ -53,10 +55,12 @@ app = FastAPI(
 )
 
 from app.core.errors import FoxhoundError, foxhound_error_handler
+
 app.add_exception_handler(FoxhoundError, foxhound_error_handler)
 
-from starlette.middleware.cors import CORSMiddleware
 import os as _os
+
+from starlette.middleware.cors import CORSMiddleware
 
 _cors_origins = _os.environ.get("FOXHOUND_CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(",")
 app.add_middleware(
@@ -67,7 +71,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.mount("/static", StaticFiles(directory=str((__import__("pathlib").Path(__file__).resolve().parent / "static"))), name="static")
+app.mount(
+    "/static",
+    StaticFiles(directory=str(__import__("pathlib").Path(__file__).resolve().parent / "static")),
+    name="static",
+)
 
 
 def _include_router(module_path: str) -> None:

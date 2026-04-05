@@ -5,7 +5,7 @@ https://hn.algolia.com/api
 """
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import httpx
 
@@ -69,6 +69,7 @@ async def fetch_hn_comments(
 async def fetch_hn_signals(topic: str, limit: int = 30) -> list[dict]:
     """Fetch both stories and comments, merge and deduplicate."""
     import asyncio
+
     stories, comments = await asyncio.gather(
         fetch_hn_stories(topic, limit=limit // 2),
         fetch_hn_comments(topic, limit=limit // 2),
@@ -86,7 +87,7 @@ async def fetch_hn_signals(topic: str, limit: int = 30) -> list[dict]:
 def _parse_story(hit: dict) -> dict:
     created = None
     if hit.get("created_at_i"):
-        created = datetime.fromtimestamp(hit["created_at_i"], tz=timezone.utc).isoformat()
+        created = datetime.fromtimestamp(hit["created_at_i"], tz=UTC).isoformat()
 
     return {
         "source_id": f"hn_{hit.get('objectID', '')}",
@@ -107,7 +108,7 @@ def _parse_story(hit: dict) -> dict:
 def _parse_comment(hit: dict) -> dict:
     created = None
     if hit.get("created_at_i"):
-        created = datetime.fromtimestamp(hit["created_at_i"], tz=timezone.utc).isoformat()
+        created = datetime.fromtimestamp(hit["created_at_i"], tz=UTC).isoformat()
 
     # Clean HTML from comment text
     text = hit.get("comment_text", "")
@@ -134,6 +135,7 @@ def _parse_comment(hit: dict) -> dict:
 def _strip_html(text: str) -> str:
     """Remove HTML tags from HN comment text."""
     import re
+
     text = re.sub(r"<[^>]+>", " ", text)
     text = re.sub(r"&[a-z]+;", " ", text)
     text = re.sub(r"\s+", " ", text)

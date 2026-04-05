@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import uuid4
 
 from sqlalchemy import select
@@ -33,9 +33,7 @@ logger = logging.getLogger(__name__)
 async def discover_for_user(user_id: str) -> int:
     """Run TinyFish discovery for a single user. Returns count of new jobs found."""
     async with async_session() as db:
-        result = await db.execute(
-            select(UserProfile).where(UserProfile.user_id == user_id)
-        )
+        result = await db.execute(select(UserProfile).where(UserProfile.user_id == user_id))
         profile = result.scalar_one_or_none()
         if not profile:
             return 0
@@ -60,7 +58,10 @@ async def discover_for_user(user_id: str) -> int:
                     total_new += new_count
                     logger.info(
                         "TinyFish discovery for %s: goal='%s' found=%d new=%d",
-                        user_id, goal["query"][:50], len(jobs), new_count,
+                        user_id,
+                        goal["query"][:50],
+                        len(jobs),
+                        new_count,
                     )
             except Exception:
                 logger.exception("TinyFish discovery failed for goal: %s", goal["query"][:50])
@@ -69,6 +70,7 @@ async def discover_for_user(user_id: str) -> int:
         if total_new > 0:
             try:
                 from app.services.matching.scorer import MatchScorer
+
                 scorer = MatchScorer()
                 await scorer.score_jobs_for_user(db, user_id)
             except Exception:
@@ -79,6 +81,7 @@ async def discover_for_user(user_id: str) -> int:
     # Log activity
     if total_new > 0:
         from app.services.activity.logger import log_activity
+
         await log_activity(
             user_id=user_id,
             event_type="matches_discovered",
@@ -112,32 +115,36 @@ def _build_search_goals(
     query = f"{title} {location_hint}".strip()
 
     # Goal 1: Google — find job postings on company career pages
-    goals.append({
-        "query": query,
-        "url": f"https://www.google.com/search?q={query.replace(' ', '+')}+hiring+apply+2026",
-        "goal": (
-            f"Find 3-5 open positions for '{title}'"
-            f"{f' in {location_hint}' if location_hint else ''}. "
-            "Skip any results from boards.greenhouse.io, jobs.lever.co, or jobs.ashbyhq.com. "
-            "Click into the top 3 most relevant results. "
-            "For each real job posting, extract: job title, company name, location, and the direct apply URL. "
-            'Return as JSON array: [{"title": "...", "company": "...", "location": "...", "apply_url": "..."}]'
-        ),
-    })
+    goals.append(
+        {
+            "query": query,
+            "url": f"https://www.google.com/search?q={query.replace(' ', '+')}+hiring+apply+2026",
+            "goal": (
+                f"Find 3-5 open positions for '{title}'"
+                f"{f' in {location_hint}' if location_hint else ''}. "
+                "Skip any results from boards.greenhouse.io, jobs.lever.co, or jobs.ashbyhq.com. "
+                "Click into the top 3 most relevant results. "
+                "For each real job posting, extract: job title, company name, location, and the direct apply URL. "
+                'Return as JSON array: [{"title": "...", "company": "...", "location": "...", "apply_url": "..."}]'
+            ),
+        }
+    )
 
     # Goal 2: Reddit — find who's hiring threads and job posts
-    goals.append({
-        "query": query,
-        "url": f"https://www.google.com/search?q=site:reddit.com+{title.replace(' ', '+')}+hiring+2026",
-        "goal": (
-            f"Find Reddit posts about companies hiring for '{title}' roles"
-            f"{f' in {location_hint}' if location_hint else ''}. "
-            "Look for 'Who is hiring' threads, job postings, and hiring announcements. "
-            "Click into 2-3 relevant threads. Extract any job opportunities mentioned: "
-            "job title, company name, location, and apply URL if available. "
-            'Return as JSON array: [{"title": "...", "company": "...", "location": "...", "apply_url": "..."}]'
-        ),
-    })
+    goals.append(
+        {
+            "query": query,
+            "url": f"https://www.google.com/search?q=site:reddit.com+{title.replace(' ', '+')}+hiring+2026",
+            "goal": (
+                f"Find Reddit posts about companies hiring for '{title}' roles"
+                f"{f' in {location_hint}' if location_hint else ''}. "
+                "Look for 'Who is hiring' threads, job postings, and hiring announcements. "
+                "Click into 2-3 relevant threads. Extract any job opportunities mentioned: "
+                "job title, company name, location, and apply URL if available. "
+                'Return as JSON array: [{"title": "...", "company": "...", "location": "...", "apply_url": "..."}]'
+            ),
+        }
+    )
 
     return goals
 
@@ -149,6 +156,7 @@ async def _run_tinyfish_search(goal: dict) -> list[dict]:
     async with TINYFISH_SEMAPHORE:
         try:
             from tinyfish import BrowserProfile, RunStatus
+
             from app.services.ingest.tinyfish_adapter import _get_client
 
             client = _get_client()
@@ -185,7 +193,7 @@ def _parse_results(raw: str) -> list[dict]:
         pass
 
     # Try extracting JSON array from text
-    match = re.search(r'\[[\s\S]*\]', raw)
+    match = re.search(r"\[[\s\S]*\]", raw)
     if match:
         try:
             data = json.loads(match.group(0))
@@ -213,17 +221,13 @@ async def _ingest_jobs(db: AsyncSession, jobs: list[dict]) -> int:
             continue
 
         # Dedup 1: exact URL match
-        url_check = await db.execute(
-            select(JobListing.id).where(JobListing.apply_url == apply_url).limit(1)
-        )
+        url_check = await db.execute(select(JobListing.id).where(JobListing.apply_url == apply_url).limit(1))
         if url_check.scalar_one_or_none():
             continue
 
         # Dedup 2: company + title + location hash match
         dedup_hash = compute_dedup_hash(company, title, location)
-        hash_check = await db.execute(
-            select(JobListing.id).where(JobListing.dedup_hash == dedup_hash).limit(1)
-        )
+        hash_check = await db.execute(select(JobListing.id).where(JobListing.dedup_hash == dedup_hash).limit(1))
         if hash_check.scalar_one_or_none():
             continue
 
@@ -242,7 +246,7 @@ async def _ingest_jobs(db: AsyncSession, jobs: list[dict]) -> int:
             ats_type=ats_type,
             status="active",
             dedup_hash=dedup_hash,
-            discovered_at=datetime.now(timezone.utc),
+            discovered_at=datetime.now(UTC),
         )
         db.add(listing)
         new_count += 1

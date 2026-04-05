@@ -9,7 +9,7 @@ Only fires on meaningful status transitions (active->removed, etc.).
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 
@@ -27,17 +27,10 @@ logger = logging.getLogger(__name__)
 
 MESSAGES = {
     "removed": (
-        "The {title} role at {company} was taken down. "
-        "This often means they're reviewing applications — stay ready."
+        "The {title} role at {company} was taken down. This often means they're reviewing applications — stay ready."
     ),
-    "edited": (
-        "The posting for {title} at {company} was updated. "
-        "{diff_summary}"
-    ),
-    "reposted": (
-        "{company} reposted the {title} role. "
-        "Your original application may be on file, or you can re-apply."
-    ),
+    "edited": ("The posting for {title} at {company} was updated. {diff_summary}"),
+    "reposted": ("{company} reposted the {title} role. Your original application may be on file, or you can re-apply."),
 }
 
 
@@ -55,9 +48,7 @@ async def send_watchdog_alert(
 ) -> dict:
     """Send a watchdog status change notification."""
     async with async_session() as db:
-        result = await db.execute(
-            select(UserProfile).where(UserProfile.user_id == application.user_id)
-        )
+        result = await db.execute(select(UserProfile).where(UserProfile.user_id == application.user_id))
         profile = result.scalar_one_or_none()
         if not profile:
             return {"skipped": "no profile"}
@@ -93,9 +84,7 @@ async def send_watchdog_alert(
             )
         elif channel == "sms":
             sms = f"Foxhound: {job.company} - {job.title} posting {new_status}."
-            results["sms"] = await _post_webhook(
-                webhook_url, {"text": sms, "to": getattr(profile, "phone", "") or ""}
-            )
+            results["sms"] = await _post_webhook(webhook_url, {"text": sms, "to": getattr(profile, "phone", "") or ""})
 
     return results
 
@@ -167,9 +156,7 @@ async def _send_discord_watchdog(
     if diff_summary:
         embed["fields"].append({"name": "Changes", "value": diff_summary[:1000]})
 
-    return await _post_webhook(
-        webhook_url, {"content": message, "embeds": [embed]}
-    )
+    return await _post_webhook(webhook_url, {"content": message, "embeds": [embed]})
 
 
 # ---------------------------------------------------------------------------
@@ -181,5 +168,5 @@ def _days_since_applied(application: Application) -> int:
     ref = application.submitted_at or application.created_at
     if not ref:
         return 0
-    delta = datetime.now(timezone.utc) - ref
+    delta = datetime.now(UTC) - ref
     return max(0, delta.days)

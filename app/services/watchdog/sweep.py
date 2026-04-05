@@ -13,7 +13,7 @@ import asyncio
 import json
 import logging
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from urllib.parse import urlparse
 
 from sqlalchemy import select
@@ -75,18 +75,14 @@ async def run_watchdog_sweep(
         "changed": 0,
     }
 
-    async def _check_domain_group(
-        domain: str, items: list[tuple[Application, JobListing]]
-    ) -> None:
+    async def _check_domain_group(domain: str, items: list[tuple[Application, JobListing]]) -> None:
         for idx, (app, job) in enumerate(items):
             async with semaphore:
                 try:
                     # Lazy import to avoid tinyfish at module level
                     from app.services.watchdog.checker import check_application
 
-                    outcome = await check_application(
-                        app, job, triggered_by="scheduled"
-                    )
+                    outcome = await check_application(app, job, triggered_by="scheduled")
                     status = outcome.get("status", "check_failed")
                     results["checked"] += 1
 
@@ -105,6 +101,7 @@ async def run_watchdog_sweep(
                     # Update ghost score after each check
                     try:
                         from app.services.ghost_detector import score_job
+
                         async with async_session() as ghost_db:
                             ghost_result = await score_job(ghost_db, job.id)
                             if "error" not in ghost_result:
@@ -113,7 +110,7 @@ async def run_watchdog_sweep(
                                     ghost_job.ghost_score = ghost_result["score"]
                                     ghost_job.ghost_risk = ghost_result["risk"]
                                     ghost_job.ghost_factors_json = json.dumps(ghost_result["factors"])
-                                    ghost_job.ghost_checked_at = datetime.now(timezone.utc)
+                                    ghost_job.ghost_checked_at = datetime.now(UTC)
                                     if status == "reposted":
                                         ghost_job.repost_count = (ghost_job.repost_count or 0) + 1
                                     await ghost_db.commit()
@@ -121,9 +118,7 @@ async def run_watchdog_sweep(
                         logger.warning("Ghost score update failed for %s: %s", job.id, e)
 
                 except Exception:
-                    logger.exception(
-                        "Watchdog check failed: app=%s domain=%s", app.id, domain
-                    )
+                    logger.exception("Watchdog check failed: app=%s domain=%s", app.id, domain)
                     results["checked"] += 1
                     results["failed"] += 1
 
@@ -132,16 +127,12 @@ async def run_watchdog_sweep(
                 await asyncio.sleep(domain_delay_seconds)
 
     # Launch all domain groups concurrently; the semaphore gates parallelism
-    tasks = [
-        _check_domain_group(domain, items)
-        for domain, items in by_domain.items()
-    ]
+    tasks = [_check_domain_group(domain, items) for domain, items in by_domain.items()]
     await asyncio.gather(*tasks, return_exceptions=True)
 
     elapsed = time.monotonic() - start
     logger.info(
-        "Watchdog sweep complete: checked=%d active=%d removed=%d "
-        "edited=%d failed=%d elapsed=%.1fs",
+        "Watchdog sweep complete: checked=%d active=%d removed=%d edited=%d failed=%d elapsed=%.1fs",
         results["checked"],
         results["active"],
         results["removed"],
@@ -168,8 +159,8 @@ async def _get_eligible_applications(
     - created within the last 30 days
     - not already checked in the last 20 hours (handles manual mid-day checks)
     """
-    cutoff = datetime.now(timezone.utc) - timedelta(days=MAX_APPLICATION_AGE_DAYS)
-    recheck_cutoff = datetime.now(timezone.utc) - timedelta(hours=20)
+    cutoff = datetime.now(UTC) - timedelta(days=MAX_APPLICATION_AGE_DAYS)
+    recheck_cutoff = datetime.now(UTC) - timedelta(hours=20)
 
     result = await db.execute(
         select(Application, JobListing)
@@ -178,10 +169,7 @@ async def _get_eligible_applications(
             Application.watchdog_enabled.is_(True),
             Application.status.notin_(["failed", "canceled"]),
             Application.created_at >= cutoff,
-            (
-                Application.last_watchdog_check_at.is_(None)
-                | (Application.last_watchdog_check_at < recheck_cutoff)
-            ),
+            (Application.last_watchdog_check_at.is_(None) | (Application.last_watchdog_check_at < recheck_cutoff)),
         )
         .order_by(Application.last_watchdog_check_at.asc().nullsfirst())
     )

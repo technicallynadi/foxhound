@@ -1,6 +1,6 @@
 import uuid
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from time import time
 
 from fastapi import APIRouter, HTTPException, Request
@@ -40,9 +40,7 @@ async def join_waitlist(body: WaitlistRequest, req: Request):
 
     await init_db()
     async with async_session() as session:
-        existing = await session.execute(
-            select(WaitlistEntry).where(WaitlistEntry.email == body.email)
-        )
+        existing = await session.execute(select(WaitlistEntry).where(WaitlistEntry.email == body.email))
         if existing.scalar_one_or_none():
             return {"status": "already_registered", "message": "You're already on the list."}
 
@@ -50,7 +48,7 @@ async def join_waitlist(body: WaitlistRequest, req: Request):
             id=f"wl_{uuid.uuid4().hex[:10]}",
             email=body.email,
             referral_source=body.referral_source,
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
         session.add(entry)
         await session.commit()

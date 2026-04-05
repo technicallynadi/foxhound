@@ -1,5 +1,6 @@
-import httpx
 import logging
+
+import httpx
 
 logger = logging.getLogger(__name__)
 
@@ -105,16 +106,18 @@ async def find_relevant_repos(topic: str, limit: int = 10) -> list[dict]:
     repos = []
     for item in items:
         full_name = item.get("full_name", "")
-        repos.append({
-            "repo": full_name,
-            "url": item.get("html_url", ""),
-            "readme_url": f"https://github.com/{full_name}#readme",
-            "description": item.get("description", "") or "",
-            "stars": item.get("stargazers_count", 0),
-            "open_issues": item.get("open_issues_count", 0),
-            "language": item.get("language", ""),
-            "topics": item.get("topics", []),
-        })
+        repos.append(
+            {
+                "repo": full_name,
+                "url": item.get("html_url", ""),
+                "readme_url": f"https://github.com/{full_name}#readme",
+                "description": item.get("description", "") or "",
+                "stars": item.get("stargazers_count", 0),
+                "open_issues": item.get("open_issues_count", 0),
+                "language": item.get("language", ""),
+                "topics": item.get("topics", []),
+            }
+        )
 
     return repos
 
@@ -127,7 +130,7 @@ async def fetch_repo_issues_with_pain(repo: str, limit: int = 15) -> list[dict]:
     pain_queries = [
         f"repo:{repo} is:issue is:open label:bug",
         f"repo:{repo} is:issue is:open label:enhancement",
-        f"repo:{repo} is:issue \"feature request\" OR \"workaround\" OR \"alternative\" OR \"limitation\"",
+        f'repo:{repo} is:issue "feature request" OR "workaround" OR "alternative" OR "limitation"',
     ]
 
     results: list[dict] = []

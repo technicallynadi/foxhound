@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import DateTime, Float, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
@@ -25,11 +25,9 @@ class FoxhoundJob(Base):
     lease_owner: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
     lease_expires_at: Mapped[datetime | None] = mapped_column(TZDateTime, nullable=True, index=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        TZDateTime, default=lambda: datetime.now(timezone.utc)
-    )
+    created_at: Mapped[datetime] = mapped_column(TZDateTime, default=lambda: datetime.now(UTC))
     updated_at: Mapped[datetime] = mapped_column(
-        TZDateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc)
+        TZDateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC)
     )
     completed_at: Mapped[datetime | None] = mapped_column(TZDateTime, nullable=True)
     canceled_at: Mapped[datetime | None] = mapped_column(TZDateTime, nullable=True)

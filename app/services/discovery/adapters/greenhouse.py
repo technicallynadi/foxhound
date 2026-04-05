@@ -21,23 +21,47 @@ logger = logging.getLogger(__name__)
 # (slug, display_name) — slug is the API identifier, display_name is what users see
 DEFAULT_BOARDS: list[tuple[str, str]] = [
     # Tier 1 — high volume, always hiring
-    ("airbnb", "Airbnb"), ("lyft", "Lyft"), ("databricks", "Databricks"),
-    ("datadog", "Datadog"), ("cloudflare", "Cloudflare"), ("twilio", "Twilio"),
-    ("figma", "Figma"), ("mongodb", "MongoDB"), ("doordash", "DoorDash"),
-    ("duolingo", "Duolingo"), ("robinhood", "Robinhood"), ("instacart", "Instacart"),
-    ("plaid", "Plaid"), ("hubspot", "HubSpot"), ("pinterest", "Pinterest"),
-    ("crowdstrike", "CrowdStrike"), ("okta", "Okta"), ("brex", "Brex"),
-    ("asana", "Asana"), ("squarespace", "Squarespace"),
+    ("airbnb", "Airbnb"),
+    ("lyft", "Lyft"),
+    ("databricks", "Databricks"),
+    ("datadog", "Datadog"),
+    ("cloudflare", "Cloudflare"),
+    ("twilio", "Twilio"),
+    ("figma", "Figma"),
+    ("mongodb", "MongoDB"),
+    ("doordash", "DoorDash"),
+    ("duolingo", "Duolingo"),
+    ("robinhood", "Robinhood"),
+    ("instacart", "Instacart"),
+    ("plaid", "Plaid"),
+    ("hubspot", "HubSpot"),
+    ("pinterest", "Pinterest"),
+    ("crowdstrike", "CrowdStrike"),
+    ("okta", "Okta"),
+    ("brex", "Brex"),
+    ("asana", "Asana"),
+    ("squarespace", "Squarespace"),
     # Tier 2 — strong eng brands
-    ("cockroachlabs", "Cockroach Labs"), ("grafanalabs", "Grafana Labs"),
-    ("hashicorp", "HashiCorp"), ("snyk", "Snyk"), ("gusto", "Gusto"),
-    ("airtable", "Airtable"), ("benchling", "Benchling"), ("apolloio", "Apollo.io"),
-    ("sentinellabs", "SentinelOne"), ("abnormalsecurity", "Abnormal Security"),
-    ("synthesia", "Synthesia"), ("brave", "Brave"),
+    ("cockroachlabs", "Cockroach Labs"),
+    ("grafanalabs", "Grafana Labs"),
+    ("hashicorp", "HashiCorp"),
+    ("snyk", "Snyk"),
+    ("gusto", "Gusto"),
+    ("airtable", "Airtable"),
+    ("benchling", "Benchling"),
+    ("apolloio", "Apollo.io"),
+    ("sentinellabs", "SentinelOne"),
+    ("abnormalsecurity", "Abnormal Security"),
+    ("synthesia", "Synthesia"),
+    ("brave", "Brave"),
     # Tier 3 — niche / smaller
-    ("remotecom", "Remote.com"), ("flexport", "Flexport"), ("fireblocks", "Fireblocks"),
-    ("eucalyptus", "Eucalyptus"), ("stokespacetechnologies", "Stoke Space"),
-    ("spacex", "SpaceX"), ("redventures", "Red Ventures"),
+    ("remotecom", "Remote.com"),
+    ("flexport", "Flexport"),
+    ("fireblocks", "Fireblocks"),
+    ("eucalyptus", "Eucalyptus"),
+    ("stokespacetechnologies", "Stoke Space"),
+    ("spacex", "SpaceX"),
+    ("redventures", "Red Ventures"),
     ("appliedintuition", "Applied Intuition"),
 ]
 
@@ -89,23 +113,25 @@ class GreenhouseAdapter:
             if job.get("location", {}).get("name"):
                 location_name = job["location"]["name"]
 
-            listings.append({
-                "external_id": str(job.get("id", "")),
-                "title": job.get("title", ""),
-                "company": display_name,
-                "company_url": f"https://boards.greenhouse.io/{slug}",
-                "description": job.get("content", ""),
-                "description_html": job.get("content", ""),
-                "location": location_name,
-                "remote_type": _infer_remote(location_name),
-                "apply_url": apply_url,
-                "ats_type": ats_type,
-                "auto_apply_supported": is_auto_apply_supported(ats_type),
-                "source": "greenhouse",
-                "source_url": apply_url,
-                "posted_at": job.get("updated_at"),
-                "dedup_hash": compute_dedup_hash(slug, job.get("title", ""), location_name),
-            })
+            listings.append(
+                {
+                    "external_id": str(job.get("id", "")),
+                    "title": job.get("title", ""),
+                    "company": display_name,
+                    "company_url": f"https://boards.greenhouse.io/{slug}",
+                    "description": job.get("content", ""),
+                    "description_html": job.get("content", ""),
+                    "location": location_name,
+                    "remote_type": _infer_remote(location_name),
+                    "apply_url": apply_url,
+                    "ats_type": ats_type,
+                    "auto_apply_supported": is_auto_apply_supported(ats_type),
+                    "source": "greenhouse",
+                    "source_url": apply_url,
+                    "posted_at": job.get("updated_at"),
+                    "dedup_hash": compute_dedup_hash(slug, job.get("title", ""), location_name),
+                }
+            )
 
         return listings
 

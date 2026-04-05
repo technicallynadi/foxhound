@@ -1,48 +1,62 @@
 """Tests for form scanner: field classification and analysis."""
 
 import pytest
-from app.services.apply.form_scanner import (
-    FormField, ScanResult, classify_field, match_field_to_profile, analyze_scan,
-)
 
+from app.services.apply.form_scanner import (
+    FormField,
+    ScanResult,
+    analyze_scan,
+    classify_field,
+    match_field_to_profile,
+)
 
 # ---------------------------------------------------------------------------
 # Field classification
 # ---------------------------------------------------------------------------
 
-@pytest.mark.parametrize("label,expected", [
-    ("First Name", "auto_fill"),
-    ("Last Name", "auto_fill"),
-    ("Email", "auto_fill"),
-    ("Phone number", "auto_fill"),
-    ("LinkedIn URL", "auto_fill"),
-    ("Location", "auto_fill"),
-    ("Current company", "auto_fill"),
-    ("Years of experience", "auto_fill"),
-])
+
+@pytest.mark.parametrize(
+    "label,expected",
+    [
+        ("First Name", "auto_fill"),
+        ("Last Name", "auto_fill"),
+        ("Email", "auto_fill"),
+        ("Phone number", "auto_fill"),
+        ("LinkedIn URL", "auto_fill"),
+        ("Location", "auto_fill"),
+        ("Current company", "auto_fill"),
+        ("Years of experience", "auto_fill"),
+    ],
+)
 def test_classify_auto_fill(label, expected):
     assert classify_field(label) == expected
 
 
-@pytest.mark.parametrize("label,expected", [
-    ("Why do you want to work here?", "narrative"),
-    ("Tell us about yourself", "narrative"),
-    ("Describe your experience with distributed systems", "narrative"),
-    ("Cover letter", "narrative"),
-    ("What interests you about this role?", "narrative"),
-])
+@pytest.mark.parametrize(
+    "label,expected",
+    [
+        ("Why do you want to work here?", "narrative"),
+        ("Tell us about yourself", "narrative"),
+        ("Describe your experience with distributed systems", "narrative"),
+        ("Cover letter", "narrative"),
+        ("What interests you about this role?", "narrative"),
+    ],
+)
 def test_classify_narrative(label, expected):
     assert classify_field(label) == expected
 
 
-@pytest.mark.parametrize("label,expected", [
-    ("Salary expectations", "sensitive"),
-    ("Desired compensation", "sensitive"),
-    ("Criminal background", "sensitive"),
-    ("Disability status", "sensitive"),
-    ("Gender", "sensitive"),
-    ("Start date", "sensitive"),
-])
+@pytest.mark.parametrize(
+    "label,expected",
+    [
+        ("Salary expectations", "sensitive"),
+        ("Desired compensation", "sensitive"),
+        ("Criminal background", "sensitive"),
+        ("Disability status", "sensitive"),
+        ("Gender", "sensitive"),
+        ("Start date", "sensitive"),
+    ],
+)
 def test_classify_sensitive(label, expected):
     assert classify_field(label) == expected
 
@@ -55,6 +69,7 @@ def test_classify_unknown():
 # Profile field matching
 # ---------------------------------------------------------------------------
 
+
 def test_match_field_to_profile():
     assert match_field_to_profile("First Name") == "first_name"
     assert match_field_to_profile("Email address") == "email"
@@ -65,6 +80,7 @@ def test_match_field_to_profile():
 # ---------------------------------------------------------------------------
 # Scan analysis
 # ---------------------------------------------------------------------------
+
 
 def test_analyze_scan_basic():
     scan = ScanResult(

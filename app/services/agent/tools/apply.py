@@ -2,26 +2,24 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
-from datetime import datetime, timezone
-from uuid import uuid4
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.application import Application
 from app.db.models.application_question import ApplicationQuestion
-from app.db.models.job_match import JobMatch
 from app.db.models.job_listing import JobListing
+from app.db.models.job_match import JobMatch
 from app.db.models.user_profile import UserProfile
+from app.services.agent.registry import tool
+from app.services.agent.utils.profile_filler import update_answer_bank
 from app.services.application_guidance import (
     build_application_context,
     build_recommended_next_action,
 )
-from app.services.agent.registry import tool
-from app.services.agent.utils.profile_filler import update_answer_bank
 
 logger = logging.getLogger(__name__)
 
@@ -52,29 +50,26 @@ logger = logging.getLogger(__name__)
 async def apply_to_job(db: AsyncSession, user_id: str, params: dict) -> dict:
     job = await _resolve_job(db, params)
     if not job:
-        return {"error": "job_not_found", "message": "Could not find that job.",
-                "suggestion": "Try searching first with search_jobs."}
+        return {
+            "error": "job_not_found",
+            "message": "Could not find that job.",
+            "suggestion": "Try searching first with search_jobs.",
+        }
 
     # Skip quality floor for direct URL applications (no match data)
     is_url_apply = bool(params.get("job_url"))
 
     # Quality floor: check match score before applying
-    match_result = await db.execute(
-        select(JobMatch).where(JobMatch.user_id == user_id, JobMatch.job_id == job.id)
-    )
+    match_result = await db.execute(select(JobMatch).where(JobMatch.user_id == user_id, JobMatch.job_id == job.id))
     match = match_result.scalar_one_or_none()
     match_score = match.match_score if match else None
 
-    profile_result = await db.execute(
-        select(UserProfile).where(UserProfile.user_id == user_id)
-    )
+    profile_result = await db.execute(select(UserProfile).where(UserProfile.user_id == user_id))
     profile = profile_result.scalar_one_or_none()
     if not profile or not profile.resume_storage_path:
         return {
             "error": "resume_required",
-            "message": (
-                "Foxhound can find jobs for you now, but it can't apply until you upload a resume."
-            ),
+            "message": ("Foxhound can find jobs for you now, but it can't apply until you upload a resume."),
             "suggestion": "Upload a resume in onboarding or profile, then try again.",
         }
 
@@ -83,13 +78,12 @@ async def apply_to_job(db: AsyncSession, user_id: str, params: dict) -> dict:
         alt_result = await db.execute(
             select(JobMatch, JobListing)
             .join(JobListing, JobMatch.job_id == JobListing.id)
-            .where(JobMatch.user_id == user_id, JobMatch.match_score >= 70, JobMatch.disqualified == False)
+            .where(JobMatch.user_id == user_id, JobMatch.match_score >= 70, JobMatch.disqualified.is_(False))
             .order_by(JobMatch.match_score.desc())
             .limit(3)
         )
         alternatives = [
-            {"title": j.title, "company": j.company, "match_score": m.match_score}
-            for m, j in alt_result.all()
+            {"title": j.title, "company": j.company, "match_score": m.match_score} for m, j in alt_result.all()
         ]
 
         # Gap analysis: compare user skills vs job requirements
@@ -104,7 +98,9 @@ async def apply_to_job(db: AsyncSession, user_id: str, params: dict) -> dict:
             ),
             "gap_analysis": gap_analysis,
             "alternatives": alternatives,
-            "suggestion": "Here are stronger matches instead." if alternatives else "Try searching for better-fitting roles.",
+            "suggestion": "Here are stronger matches instead."
+            if alternatives
+            else "Try searching for better-fitting roles.",
             "override_available": True,
         }
 
@@ -130,8 +126,7 @@ async def apply_to_job(db: AsyncSession, user_id: str, params: dict) -> dict:
         if questions:
             result["pending_questions"] = questions
             result["message"] = (
-                f"Scanning {job.company} — {job.title}. "
-                f"The form has {len(questions)} question(s) that need your input."
+                f"Scanning {job.company} — {job.title}. The form has {len(questions)} question(s) that need your input."
             )
         else:
             result["message"] = f"Application to {job.company} is waiting for input."
@@ -144,11 +139,12 @@ async def apply_to_job(db: AsyncSession, user_id: str, params: dict) -> dict:
         if application.screenshot_storage_path:
             result["screenshot"] = application.screenshot_storage_path
     elif application.status == "failed":
-        result["message"] = f"Application to {job.company} failed: {application.error_message or application.error_type}"
+        result["message"] = (
+            f"Application to {job.company} failed: {application.error_message or application.error_type}"
+        )
     elif application.status == "needs_manual":
         result["message"] = (
-            f"This application needs manual completion ({application.error_type}). "
-            f"Apply here: {job.apply_url}"
+            f"This application needs manual completion ({application.error_type}). Apply here: {job.apply_url}"
         )
         result["apply_url"] = job.apply_url
     elif application.status == "scanning":
@@ -184,9 +180,15 @@ async def apply_to_job(db: AsyncSession, user_id: str, params: dict) -> dict:
                 "items": {
                     "type": "object",
                     "properties": {
-                        "index": {"type": "integer", "description": "Question number from the list (0-based: first question is 0, second is 1, etc.)"},
-                        "action": {"type": "string", "enum": ["approve", "answer"],
-                                   "description": "'approve' to accept draft, 'answer' to provide own"},
+                        "index": {
+                            "type": "integer",
+                            "description": "Question number from the list (0-based: first question is 0, second is 1, etc.)",
+                        },
+                        "action": {
+                            "type": "string",
+                            "enum": ["approve", "answer"],
+                            "description": "'approve' to accept draft, 'answer' to provide own",
+                        },
                         "answer": {"type": "string", "description": "The answer text (required if action is 'answer')"},
                     },
                     "required": ["index", "action"],
@@ -218,8 +220,11 @@ async def answer_application_questions(db: AsyncSession, user_id: str, params: d
         )
         app = result.scalar_one_or_none()
         if not app:
-            return {"error": "no_pending", "message": "No application waiting for answers.",
-                    "suggestion": "Apply to a job first."}
+            return {
+                "error": "no_pending",
+                "message": "No application waiting for answers.",
+                "suggestion": "Apply to a job first.",
+            }
 
     # Load pending questions
     q_result = await db.execute(
@@ -237,7 +242,7 @@ async def answer_application_questions(db: AsyncSession, user_id: str, params: d
     profile_result = await db.execute(select(UserProfile).where(UserProfile.user_id == user_id))
     profile = profile_result.scalar_one_or_none()
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     for answer_data in answers:
         idx = answer_data.get("index")
         action = answer_data.get("action", "answer")
@@ -283,12 +288,14 @@ async def answer_application_questions(db: AsyncSession, user_id: str, params: d
         existing = json.loads(app.custom_answers_json or "[]")
         for q in all_qs:
             if q.final_answer:
-                existing.append({
-                    "question": q.field_label,
-                    "answer": q.final_answer,
-                    "confidence": 0.9 if q.status == "approved" else 0.8,
-                    "needs_approval": False,
-                })
+                existing.append(
+                    {
+                        "question": q.field_label,
+                        "answer": q.final_answer,
+                        "confidence": 0.9 if q.status == "approved" else 0.8,
+                        "needs_approval": False,
+                    }
+                )
         app.custom_answers_json = json.dumps(existing)
         app.phase = "fill"
         app.status = "in_progress"
@@ -298,10 +305,12 @@ async def answer_application_questions(db: AsyncSession, user_id: str, params: d
         # Trigger Phase 2 — fill and submit
         company = job.company if job else "this company"
         import logging
+
         _logger = logging.getLogger(__name__)
         _logger.info("All questions answered for %s — triggering Phase 2 resume_fill", company)
         try:
             from app.services.apply.orchestrator import ApplicationOrchestrator
+
             orchestrator = ApplicationOrchestrator()
             result_app = await orchestrator.resume_fill(db=db, application_id=app.id)
             _logger.info("Phase 2 complete for %s — status: %s", company, result_app.status)
@@ -382,8 +391,7 @@ async def check_application_status(db: AsyncSession, user_id: str, params: dict)
     else:
         # Most recent
         result = await db.execute(
-            select(Application).where(Application.user_id == user_id)
-            .order_by(Application.created_at.desc()).limit(1)
+            select(Application).where(Application.user_id == user_id).order_by(Application.created_at.desc()).limit(1)
         )
         app = result.scalar_one_or_none()
         if not app:
@@ -453,16 +461,16 @@ async def _resolve_job(db: AsyncSession, params: dict) -> JobListing | None:
 
     # URL-based lookup: check if we have it, otherwise create a temp listing
     if job_url:
-        result = await db.execute(
-            select(JobListing).where(JobListing.apply_url == job_url)
-        )
+        result = await db.execute(select(JobListing).where(JobListing.apply_url == job_url))
         existing = result.scalar_one_or_none()
         if existing:
             return existing
 
         # Create a temporary job listing for this URL
         from uuid import uuid4
+
         from app.services.discovery.ats_detector import detect_ats
+
         ats = detect_ats(job_url) or "unknown"
         # Extract company name from URL
         url_company = _company_from_url(job_url)
@@ -484,9 +492,7 @@ async def _resolve_job(db: AsyncSession, params: dict) -> JobListing | None:
     if not company and not title:
         return None
 
-    result = await db.execute(
-        select(JobListing).where(JobListing.status == "active")
-    )
+    result = await db.execute(select(JobListing).where(JobListing.status == "active"))
     candidates = list(result.scalars().all())
 
     best_score = 0
@@ -509,26 +515,25 @@ async def _resolve_job(db: AsyncSession, params: dict) -> JobListing | None:
 def _company_from_url(url: str) -> str:
     """Extract a company name from a job URL."""
     import re
+
     # Greenhouse: job-boards.greenhouse.io/COMPANY/...
-    m = re.search(r'greenhouse\.io/([^/]+)', url)
+    m = re.search(r"greenhouse\.io/([^/]+)", url)
     if m:
-        return m.group(1).replace('-', ' ').title()
+        return m.group(1).replace("-", " ").title()
     # Ashby: jobs.ashbyhq.com/COMPANY/...
-    m = re.search(r'ashbyhq\.com/([^/]+)', url)
+    m = re.search(r"ashbyhq\.com/([^/]+)", url)
     if m:
-        return m.group(1).replace('-', ' ').title()
+        return m.group(1).replace("-", " ").title()
     # Lever: jobs.lever.co/COMPANY/...
-    m = re.search(r'lever\.co/([^/]+)', url)
+    m = re.search(r"lever\.co/([^/]+)", url)
     if m:
-        return m.group(1).replace('-', ' ').title()
+        return m.group(1).replace("-", " ").title()
     return ""
 
 
 async def _analyze_skill_gaps(db: AsyncSession, user_id: str, job: JobListing) -> dict:
     """Analyze the gap between user skills and job requirements."""
-    result = await db.execute(
-        select(UserProfile).where(UserProfile.user_id == user_id)
-    )
+    result = await db.execute(select(UserProfile).where(UserProfile.user_id == user_id))
     profile = result.scalar_one_or_none()
     if not profile:
         return {"summary": "Set up your profile to see skill gap analysis."}

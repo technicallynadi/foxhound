@@ -58,10 +58,12 @@ async def get_dossier(db: AsyncSession, user_id: str, params: dict) -> dict:
     if not application_id and job_id:
         # Find application for this job
         result = await db.execute(
-            select(Application).where(
+            select(Application)
+            .where(
                 Application.job_id == job_id,
                 Application.user_id == user_id,
-            ).order_by(Application.created_at.desc())
+            )
+            .order_by(Application.created_at.desc())
             .limit(1)
         )
         app = result.scalar_one_or_none()
@@ -70,10 +72,7 @@ async def get_dossier(db: AsyncSession, user_id: str, params: dict) -> dict:
         else:
             return {
                 "error": "no_application",
-                "message": (
-                    "No application found for this job. "
-                    "Apply first, then request a report."
-                ),
+                "message": ("No application found for this job. Apply first, then request a report."),
             }
 
     if not application_id and company_name:
@@ -92,10 +91,7 @@ async def get_dossier(db: AsyncSession, user_id: str, params: dict) -> dict:
         if not application_id:
             return {
                 "error": "no_application",
-                "message": (
-                    f"No application found for '{company_name}'. "
-                    "Apply first, then request a report."
-                ),
+                "message": (f"No application found for '{company_name}'. Apply first, then request a report."),
                 "suggestion": "Use search_jobs to find the company, apply, then request a report.",
             }
 
@@ -118,8 +114,7 @@ async def get_dossier(db: AsyncSession, user_id: str, params: dict) -> dict:
             "status": "ready",
             "dossier_id": existing.id,
             "message": (
-                f"Intelligence Report is already complete for this application. "
-                f"View it at /dossier/{existing.id}"
+                f"Intelligence Report is already complete for this application. View it at /dossier/{existing.id}"
             ),
         }
     if existing and existing.status == "building":

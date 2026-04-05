@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import ipaddress
+import socket
 from urllib.parse import urlparse
 
 # Known ATS domains that TinyFish is allowed to navigate to
@@ -36,38 +38,61 @@ def validate_apply_url(url: str) -> bool:
     if parsed.scheme != "https":
         return False
 
-    host = (parsed.hostname or "").lower()
+    host = (parsed.hostname or "").strip().lower().rstrip(".")
     if not host:
-        return False
-
-    # Block private/reserved ranges
-    if _is_private_host(host):
         return False
 
     # Check exact matches
     if host in ATS_DOMAIN_ALLOWLIST:
+        allowed = True
+    else:
+        # Check wildcard suffixes
+        allowed = False
+        for suffix in ATS_WILDCARD_SUFFIXES:
+            if host.endswith(suffix):
+                allowed = True
+                break
+
+    if not allowed:
+        return False
+
+    # Block private/reserved literal hosts (IPv4 + IPv6).
+    if _is_private_or_reserved_ip(host):
+        return False
+
+    # Best-effort DNS rebinding guard:
+    # if DNS resolves and any address is non-public, reject.
+    # If DNS cannot be resolved in this environment, keep allowlist decision.
+    for ip_text in _resolve_host_ips(host):
+        if _is_private_or_reserved_ip(ip_text):
+            return False
+
+    return True
+
+
+def _resolve_host_ips(host: str) -> set[str]:
+    """Resolve hostname to IPv4/IPv6 strings (best effort)."""
+    try:
+        records = socket.getaddrinfo(host, 443, type=socket.SOCK_STREAM)
+    except (socket.gaierror, OSError):
+        return set()
+    ips: set[str] = set()
+    for rec in records:
+        sockaddr = rec[4]
+        if not sockaddr:
+            continue
+        ips.add(str(sockaddr[0]))
+    return ips
+
+
+def _is_private_or_reserved_ip(value: str) -> bool:
+    """True if a literal IP address is not globally routable."""
+    if value == "localhost":
         return True
-
-    # Check wildcard suffixes
-    for suffix in ATS_WILDCARD_SUFFIXES:
-        if host.endswith(suffix):
-            return True
-
-    return False
-
-
-def _is_private_host(host: str) -> bool:
-    """Check if a hostname resolves to a private/reserved IP range."""
-    # Block common private hostnames
-    private_patterns = [
-        "localhost", "127.0.0.1", "0.0.0.0",
-        "169.254.", "10.", "172.16.", "172.17.", "172.18.",
-        "172.19.", "172.20.", "172.21.", "172.22.", "172.23.",
-        "172.24.", "172.25.", "172.26.", "172.27.", "172.28.",
-        "172.29.", "172.30.", "172.31.", "192.168.",
-        "::1", "fc00:", "fe80:",
-    ]
-    for pattern in private_patterns:
-        if host.startswith(pattern) or host == pattern:
-            return True
+    try:
+        ip = ipaddress.ip_address(value)
+    except ValueError:
+        return False
+    if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_multicast or ip.is_reserved or ip.is_unspecified:
+        return True
     return False

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select
@@ -89,7 +89,7 @@ async def start_dossier(
     user_id = user["user_id"]
 
     # Rate limit check
-    day_ago = datetime.now(timezone.utc) - timedelta(days=1)
+    day_ago = datetime.now(UTC) - timedelta(days=1)
     count_result = await db.execute(
         select(func.count())
         .select_from(Dossier)
@@ -191,6 +191,7 @@ async def resynthesize_dossier(
 
     builder = DossierBuilder()
     import asyncio
+
     asyncio.create_task(
         builder._resynthesize(dossier_id),
         name=f"resynth-{dossier_id[:8]}",
@@ -235,13 +236,15 @@ async def get_pending_notifications(
 
     notifications = []
     for dossier, company, role in result.all():
-        notifications.append({
-            "dossier_id": dossier.id,
-            "company": company or dossier.company_normalized,
-            "role": role or "",
-            "status": dossier.status,
-            "completed_at": dossier.completed_at.isoformat() if dossier.completed_at else None,
-        })
+        notifications.append(
+            {
+                "dossier_id": dossier.id,
+                "company": company or dossier.company_normalized,
+                "role": role or "",
+                "status": dossier.status,
+                "completed_at": dossier.completed_at.isoformat() if dossier.completed_at else None,
+            }
+        )
 
     return {"notifications": notifications}
 
@@ -266,7 +269,7 @@ async def dismiss_notification(
     if not dossier:
         raise HTTPException(status_code=404, detail="Dossier not found")
 
-    dossier.notified_at = datetime.now(timezone.utc)
+    dossier.notified_at = datetime.now(UTC)
     await db.commit()
 
     return {"ok": True}

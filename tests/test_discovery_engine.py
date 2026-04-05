@@ -1,35 +1,42 @@
 """Tests for job discovery engine and adapters."""
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from app.services.discovery.adapters.greenhouse import GreenhouseAdapter, _infer_remote as gh_infer_remote
-from app.services.discovery.adapters.lever import LeverAdapter, _infer_remote as lever_infer_remote
-from app.services.discovery.adapters.ashby import AshbyAdapter, _infer_remote as ashby_infer_remote
-from app.services.discovery.adapters.hn_hiring import HNHiringAdapter, _parse_hn_comment
-from app.services.discovery.deduplicator import compute_dedup_hash
-from app.services.discovery.ats_detector import detect_ats, is_auto_apply_supported
-from app.services.discovery.engine import JobDiscoveryEngine
+import pytest
 
+from app.services.discovery.adapters.ashby import AshbyAdapter
+from app.services.discovery.adapters.ashby import _infer_remote as ashby_infer_remote
+from app.services.discovery.adapters.greenhouse import GreenhouseAdapter
+from app.services.discovery.adapters.greenhouse import _infer_remote as gh_infer_remote
+from app.services.discovery.adapters.hn_hiring import HNHiringAdapter, _parse_hn_comment
+from app.services.discovery.adapters.lever import LeverAdapter
+from app.services.discovery.adapters.lever import _infer_remote as lever_infer_remote
+from app.services.discovery.ats_detector import detect_ats, is_auto_apply_supported
+from app.services.discovery.deduplicator import compute_dedup_hash
+from app.services.discovery.engine import JobDiscoveryEngine
 
 # ---------------------------------------------------------------------------
 # Deduplicator
 # ---------------------------------------------------------------------------
+
 
 def test_dedup_hash_stable():
     h1 = compute_dedup_hash("Stripe", "Backend Engineer", "San Francisco")
     h2 = compute_dedup_hash("Stripe", "Backend Engineer", "San Francisco")
     assert h1 == h2
 
+
 def test_dedup_hash_case_insensitive():
     h1 = compute_dedup_hash("STRIPE", "Backend Engineer", "SF")
     h2 = compute_dedup_hash("stripe", "backend engineer", "sf")
     assert h1 == h2
 
+
 def test_dedup_hash_different_jobs():
     h1 = compute_dedup_hash("Stripe", "Backend", "SF")
     h2 = compute_dedup_hash("Stripe", "Frontend", "SF")
     assert h1 != h2
+
 
 def test_dedup_hash_none_location():
     h = compute_dedup_hash("Stripe", "Engineer", None)
@@ -40,20 +47,32 @@ def test_dedup_hash_none_location():
 # ATS Detector
 # ---------------------------------------------------------------------------
 
-@pytest.mark.parametrize("url,expected", [
-    ("https://boards.greenhouse.io/anthropic/jobs/123", "greenhouse"),
-    ("https://jobs.lever.co/stripe/abc", "lever"),
-    ("https://jobs.ashbyhq.com/openai/xyz", "ashby"),
-    ("https://company.myworkdayjobs.com/en-US/jobs", "workday"),
-    ("https://random.com/careers", None),
-])
+
+@pytest.mark.parametrize(
+    "url,expected",
+    [
+        ("https://boards.greenhouse.io/anthropic/jobs/123", "greenhouse"),
+        ("https://jobs.lever.co/stripe/abc", "lever"),
+        ("https://jobs.ashbyhq.com/openai/xyz", "ashby"),
+        ("https://company.myworkdayjobs.com/en-US/jobs", "workday"),
+        ("https://random.com/careers", None),
+    ],
+)
 def test_detect_ats(url, expected):
     assert detect_ats(url) == expected
 
-@pytest.mark.parametrize("ats,expected", [
-    ("greenhouse", True), ("ashby", True), ("lever", True),
-    ("workday", False), ("icims", False), (None, False),
-])
+
+@pytest.mark.parametrize(
+    "ats,expected",
+    [
+        ("greenhouse", True),
+        ("ashby", True),
+        ("lever", True),
+        ("workday", False),
+        ("icims", False),
+        (None, False),
+    ],
+)
 def test_auto_apply_supported(ats, expected):
     assert is_auto_apply_supported(ats) == expected
 
@@ -62,19 +81,31 @@ def test_auto_apply_supported(ats, expected):
 # Remote inference
 # ---------------------------------------------------------------------------
 
-@pytest.mark.parametrize("location,expected", [
-    ("Remote", "remote"), ("San Francisco (Hybrid)", "hybrid"),
-    ("New York, NY", None), ("", None),
-])
+
+@pytest.mark.parametrize(
+    "location,expected",
+    [
+        ("Remote", "remote"),
+        ("San Francisco (Hybrid)", "hybrid"),
+        ("New York, NY", None),
+        ("", None),
+    ],
+)
 def test_greenhouse_infer_remote(location, expected):
     assert gh_infer_remote(location) == expected
 
-@pytest.mark.parametrize("location,expected", [
-    ("Remote - US", "remote"), ("London (Hybrid)", "hybrid"),
-    ("Austin, TX", None),
-])
+
+@pytest.mark.parametrize(
+    "location,expected",
+    [
+        ("Remote - US", "remote"),
+        ("London (Hybrid)", "hybrid"),
+        ("Austin, TX", None),
+    ],
+)
 def test_lever_infer_remote(location, expected):
     assert lever_infer_remote(location) == expected
+
 
 def test_ashby_infer_remote_from_field():
     assert ashby_infer_remote("New York", {"isRemote": True}) == "remote"
@@ -87,6 +118,7 @@ def test_ashby_infer_remote_from_field():
 # HN Comment Parser
 # ---------------------------------------------------------------------------
 
+
 def test_parse_hn_comment_standard():
     text = "Acme Corp | Senior Engineer | Remote | https://acme.com/jobs"
     result = _parse_hn_comment(text)
@@ -96,15 +128,18 @@ def test_parse_hn_comment_standard():
     assert result["remote_type"] == "remote"
     assert result["apply_url"] == "https://acme.com/jobs"
 
+
 def test_parse_hn_comment_two_parts():
     text = "Startup | Hiring all roles"
     result = _parse_hn_comment(text)
     assert result is not None
     assert result["company"] == "Startup"
 
+
 def test_parse_hn_comment_too_short():
     result = _parse_hn_comment("A")
     assert result is None
+
 
 def test_parse_hn_comment_no_pipe():
     result = _parse_hn_comment("Just a regular comment with no structured data")
@@ -114,6 +149,7 @@ def test_parse_hn_comment_no_pipe():
 # ---------------------------------------------------------------------------
 # Greenhouse Adapter (mocked HTTP)
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_greenhouse_fetch_single_board():
@@ -174,6 +210,7 @@ async def test_greenhouse_handles_404():
 # Lever Adapter (mocked HTTP)
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_lever_fetch_single_company():
     adapter = LeverAdapter(companies=[("acme", "Acme")])
@@ -212,6 +249,7 @@ async def test_lever_fetch_single_company():
 # ---------------------------------------------------------------------------
 # Ashby Adapter (mocked HTTP)
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_ashby_fetch_with_compensation():
@@ -254,15 +292,14 @@ async def test_ashby_fetch_with_compensation():
 # HN Hiring Adapter (mocked HTTP)
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_hn_hiring_fetch():
     adapter = HNHiringAdapter()
 
     search_resp = MagicMock()
     search_resp.status_code = 200
-    search_resp.json.return_value = {
-        "hits": [{"objectID": "999"}]
-    }
+    search_resp.json.return_value = {"hits": [{"objectID": "999"}]}
     search_resp.raise_for_status = MagicMock()
 
     item_resp = MagicMock()
@@ -321,6 +358,7 @@ async def test_hn_hiring_no_thread():
 # Discovery Engine — store_listings dedup (DB integration)
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_engine_stores_new_listings(db):
     engine = JobDiscoveryEngine()
@@ -348,9 +386,12 @@ async def test_engine_deduplicates(db):
     listings = [
         {
             "external_id": "dedup-001",
-            "title": "Role A", "company": "DedupCo",
-            "description": "A role", "apply_url": "https://x.com/1",
-            "source": "test", "source_url": "https://x.com",
+            "title": "Role A",
+            "company": "DedupCo",
+            "description": "A role",
+            "apply_url": "https://x.com/1",
+            "source": "test",
+            "source_url": "https://x.com",
             "dedup_hash": dedup_hash,
         },
     ]

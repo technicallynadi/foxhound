@@ -11,7 +11,7 @@ inner query bodies need updating once Phase 0 lands.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -28,16 +28,17 @@ router = APIRouter(prefix="/api/v1/dispatch", tags=["dispatch"])
 # Response schemas
 # ---------------------------------------------------------------------------
 
+
 class DispatchJobSummary(BaseModel):
     id: str
     job_type: str
-    agent_type: str | None          # PHASE-0-REQUIRED
+    agent_type: str | None  # PHASE-0-REQUIRED
     status: str
     priority: int
-    approval_required: bool         # PHASE-0-REQUIRED
-    approval_status: str | None     # PHASE-0-REQUIRED
-    parent_job_id: str | None       # PHASE-0-REQUIRED
-    child_count: int                # PHASE-0-REQUIRED (stub returns 0 until parent_job_id lands)
+    approval_required: bool  # PHASE-0-REQUIRED
+    approval_status: str | None  # PHASE-0-REQUIRED
+    parent_job_id: str | None  # PHASE-0-REQUIRED
+    child_count: int  # PHASE-0-REQUIRED (stub returns 0 until parent_job_id lands)
     created_at: datetime
     updated_at: datetime
     completed_at: datetime | None
@@ -47,17 +48,18 @@ class DispatchJobSummary(BaseModel):
 
 class DispatchJobDetail(DispatchJobSummary):
     payload_json: str
-    context_snapshot_json: str | None   # PHASE-0-REQUIRED
-    result_json: str | None             # PHASE-0-REQUIRED
+    context_snapshot_json: str | None  # PHASE-0-REQUIRED
+    result_json: str | None  # PHASE-0-REQUIRED
     children: list[DispatchJobSummary]
 
 
 class DAGNode(BaseModel):
     id: str
     job_type: str
-    agent_type: str | None      # PHASE-0-REQUIRED
+    agent_type: str | None  # PHASE-0-REQUIRED
     status: str
-    children: list["DAGNode"]
+    children: list[DAGNode]
+
 
 DAGNode.model_rebuild()
 
@@ -65,6 +67,7 @@ DAGNode.model_rebuild()
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _serialize_job(job: FoxhoundJob) -> dict:
     """Map FoxhoundJob ORM row to DispatchJobSummary dict.
@@ -108,8 +111,13 @@ def _build_dag_node(job: FoxhoundJob, children: list[FoxhoundJob]) -> dict:
         "agent_type": getattr(job, "agent_type", None),
         "status": job.status,
         "children": [
-            {"id": c.id, "job_type": c.job_type, "agent_type": getattr(c, "agent_type", None),
-             "status": c.status, "children": []}
+            {
+                "id": c.id,
+                "job_type": c.job_type,
+                "agent_type": getattr(c, "agent_type", None),
+                "status": c.status,
+                "children": [],
+            }
             for c in children
         ],
     }
@@ -119,6 +127,7 @@ def _build_dag_node(job: FoxhoundJob, children: list[FoxhoundJob]) -> dict:
 # GET /api/v1/dispatch/jobs
 # List all active dispatch jobs for the authenticated user.
 # ---------------------------------------------------------------------------
+
 
 @router.get("/jobs", response_model=list[DispatchJobSummary])
 async def list_dispatch_jobs(
@@ -149,6 +158,7 @@ async def list_dispatch_jobs(
 # Job detail with immediate children.
 # ---------------------------------------------------------------------------
 
+
 @router.get("/jobs/{job_id}", response_model=DispatchJobDetail)
 async def get_dispatch_job(
     job_id: str,
@@ -167,6 +177,7 @@ async def get_dispatch_job(
 # Approve a job that is awaiting_approval.
 # ---------------------------------------------------------------------------
 
+
 @router.post("/jobs/{job_id}/approve", response_model=DispatchJobSummary)
 async def approve_dispatch_job(
     job_id: str,
@@ -177,7 +188,7 @@ async def approve_dispatch_job(
 
     # PHASE-0-REQUIRED: check approval_required and approval_status columns
     approval_status = getattr(job, "approval_status", None)
-    if job.status != "awaiting_approval" or approval_status != "pending":
+    if job.status != "awaiting_approval" or (approval_status is not None and approval_status != "pending"):
         raise HTTPException(
             status_code=409,
             detail=f"Job {job_id} is not awaiting approval (status={job.status})",
@@ -187,7 +198,7 @@ async def approve_dispatch_job(
     # PHASE-0-REQUIRED: set job.approval_status = "approved"
     _set_attr(job, "approval_status", "approved")
     job.status = "queued"
-    job.updated_at = datetime.now(timezone.utc)
+    job.updated_at = datetime.now(UTC)
     await db.commit()
     await db.refresh(job)
     return _serialize_job(job)
@@ -198,6 +209,7 @@ async def approve_dispatch_job(
 # Deny a job that is awaiting_approval.
 # ---------------------------------------------------------------------------
 
+
 @router.post("/jobs/{job_id}/deny", response_model=DispatchJobSummary)
 async def deny_dispatch_job(
     job_id: str,
@@ -207,7 +219,7 @@ async def deny_dispatch_job(
     job = await _get_job_for_user(job_id, user["user_id"], db)
 
     approval_status = getattr(job, "approval_status", None)
-    if job.status != "awaiting_approval" or approval_status != "pending":
+    if job.status != "awaiting_approval" or (approval_status is not None and approval_status != "pending"):
         raise HTTPException(
             status_code=409,
             detail=f"Job {job_id} is not awaiting approval (status={job.status})",
@@ -217,8 +229,8 @@ async def deny_dispatch_job(
     _set_attr(job, "approval_status", "denied")
     _set_attr(job, "cancelled_by", user["user_id"])
     job.status = "canceled"
-    job.canceled_at = datetime.now(timezone.utc)
-    job.updated_at = datetime.now(timezone.utc)
+    job.canceled_at = datetime.now(UTC)
+    job.updated_at = datetime.now(UTC)
     await db.commit()
     await db.refresh(job)
     return _serialize_job(job)
@@ -228,6 +240,7 @@ async def deny_dispatch_job(
 # POST /api/v1/dispatch/jobs/{job_id}/cancel
 # Cancel a queued or running job.
 # ---------------------------------------------------------------------------
+
 
 @router.post("/jobs/{job_id}/cancel", response_model=DispatchJobSummary)
 async def cancel_dispatch_job(
@@ -246,8 +259,8 @@ async def cancel_dispatch_job(
     # PHASE-0-REQUIRED: set job.cancelled_by = user_id
     _set_attr(job, "cancelled_by", user["user_id"])
     job.status = "canceled"
-    job.canceled_at = datetime.now(timezone.utc)
-    job.updated_at = datetime.now(timezone.utc)
+    job.canceled_at = datetime.now(UTC)
+    job.updated_at = datetime.now(UTC)
     await db.commit()
     await db.refresh(job)
     return _serialize_job(job)
@@ -257,6 +270,7 @@ async def cancel_dispatch_job(
 # GET /api/v1/dispatch/dag/{root_job_id}
 # Full DAG tree rooted at root_job_id (two levels deep, per design plan).
 # ---------------------------------------------------------------------------
+
 
 @router.get("/dag/{root_job_id}", response_model=DAGNode)
 async def get_dispatch_dag(
@@ -275,10 +289,12 @@ async def get_dispatch_dag(
 # Internal helpers
 # ---------------------------------------------------------------------------
 
+
 def _job_belongs_to_user(job: FoxhoundJob, user_id: str) -> bool:
     """Temporary user filter until Phase 0 adds user_id column."""
     # PHASE-0-REQUIRED: replace body with `return job.user_id == user_id`
     import json as _json
+
     try:
         payload = _json.loads(job.payload_json or "{}")
         return payload.get("user_id") == user_id or payload.get("run_id", "").startswith(user_id + "_")

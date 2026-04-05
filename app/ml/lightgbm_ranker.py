@@ -11,6 +11,7 @@ from pathlib import Path
 
 try:
     import numpy as np
+
     _HAS_NUMPY = True
 except ImportError:
     _HAS_NUMPY = False
@@ -25,13 +26,27 @@ MIN_TRAINING_SAMPLES = 500
 MIN_TRAINING_GROUPS = 50
 
 RANKING_FEATURES = [
-    "evidence_count", "breakpoint_count", "workaround_count",
-    "incumbent_failure_count", "source_count", "tool_count",
-    "has_grounded_persona", "has_breakpoint", "has_workaround",
-    "has_incumbent_failure", "pain_type_count", "base_opportunity_score",
-    "frequency_score", "pain_intensity_score", "workaround_score_base",
-    "cross_source_score", "buyer_quality_score", "buildability_score",
-    "freshness_score", "execution_ready_score", "avg_signal_quality",
+    "evidence_count",
+    "breakpoint_count",
+    "workaround_count",
+    "incumbent_failure_count",
+    "source_count",
+    "tool_count",
+    "has_grounded_persona",
+    "has_breakpoint",
+    "has_workaround",
+    "has_incumbent_failure",
+    "pain_type_count",
+    "base_opportunity_score",
+    "frequency_score",
+    "pain_intensity_score",
+    "workaround_score_base",
+    "cross_source_score",
+    "buyer_quality_score",
+    "buildability_score",
+    "freshness_score",
+    "execution_ready_score",
+    "avg_signal_quality",
     "source_diversity_count",
 ]
 
@@ -53,6 +68,7 @@ def load_model(version: str = "latest") -> bool:
 
     try:
         import lightgbm as lgb
+
         _model = lgb.Booster(model_file=str(model_path))
         _is_loaded = True
         logger.info("Loaded ranker model from %s", model_path)
@@ -120,10 +136,7 @@ def train(dataset_path: str, output_version: str = "v0_1") -> dict:
     # Sort by query_group so LightGBM can read group boundaries
     rows.sort(key=lambda r: r.get("query_group", ""))
 
-    X = np.array([
-        [float(r.get("features", {}).get(f, 0)) for f in RANKING_FEATURES]
-        for r in rows
-    ])
+    X = np.array([[float(r.get("features", {}).get(f, 0)) for f in RANKING_FEATURES] for r in rows])
     y = np.array([int(r.get("relevance_label", 0)) for r in rows])
 
     # Build group sizes
@@ -220,23 +233,17 @@ def _ndcg_at_k(y_true: np.ndarray, y_pred: np.ndarray, groups: list[int], k: int
     ndcgs = []
     offset = 0
     for size in groups:
-        true_slice = y_true[offset:offset + size]
-        pred_slice = y_pred[offset:offset + size]
+        true_slice = y_true[offset : offset + size]
+        pred_slice = y_pred[offset : offset + size]
         offset += size
 
         # Sort by predicted score descending
         order = np.argsort(-pred_slice)
         sorted_true = true_slice[order]
 
-        dcg = sum(
-            (2 ** rel - 1) / math.log2(i + 2)
-            for i, rel in enumerate(sorted_true[:k])
-        )
+        dcg = sum((2**rel - 1) / math.log2(i + 2) for i, rel in enumerate(sorted_true[:k]))
         ideal = np.sort(true_slice)[::-1]
-        idcg = sum(
-            (2 ** rel - 1) / math.log2(i + 2)
-            for i, rel in enumerate(ideal[:k])
-        )
+        idcg = sum((2**rel - 1) / math.log2(i + 2) for i, rel in enumerate(ideal[:k]))
         ndcgs.append(dcg / idcg if idcg > 0 else 0.0)
 
     return sum(ndcgs) / len(ndcgs) if ndcgs else 0.0

@@ -1,6 +1,6 @@
 """ReconDossier model: cached company intelligence dossiers."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import DateTime, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
@@ -14,7 +14,8 @@ class ReconDossier(Base):
     __tablename__ = "recon_dossiers"
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
-    company_normalized: Mapped[str] = mapped_column(String, unique=True, index=True)
+    user_id: Mapped[str] = mapped_column(String, index=True)
+    company_normalized: Mapped[str] = mapped_column(String, index=True)
     company_display: Mapped[str] = mapped_column(String)
 
     # Raw source data (stored as JSON strings)
@@ -31,11 +32,9 @@ class ReconDossier(Base):
     tinyfish_credits: Mapped[int] = mapped_column(Integer, default=0)
     duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
-    created_at: Mapped[datetime] = mapped_column(
-        TZDateTime, default=lambda: datetime.now(timezone.utc)
-    )
+    created_at: Mapped[datetime] = mapped_column(TZDateTime, default=lambda: datetime.now(UTC))
     updated_at: Mapped[datetime] = mapped_column(
         TZDateTime,
-        default=lambda: datetime.now(timezone.utc),
-        onupdate=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
     )

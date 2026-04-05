@@ -51,9 +51,7 @@ async def find_hiring_manager(db: AsyncSession, user_id: str, params: dict) -> d
     # Resolve job_id if only company_name given
     if not job_id and company_name:
         result = await db.execute(
-            select(JobListing)
-            .where(JobListing.status == "active")
-            .order_by(JobListing.discovered_at.desc())
+            select(JobListing).where(JobListing.status == "active").order_by(JobListing.discovered_at.desc())
         )
         for job in result.scalars():
             if company_name in (job.company or "").lower():
@@ -68,23 +66,19 @@ async def find_hiring_manager(db: AsyncSession, user_id: str, params: dict) -> d
         }
 
     # Load job
-    job_result = await db.execute(
-        select(JobListing).where(JobListing.id == job_id)
-    )
+    job_result = await db.execute(select(JobListing).where(JobListing.id == job_id))
     job = job_result.scalar_one_or_none()
     if not job:
         return {"error": "job_not_found", "message": f"Job {job_id} not found."}
 
     # Load user profile
-    profile_result = await db.execute(
-        select(UserProfile).where(UserProfile.user_id == user_id)
-    )
+    profile_result = await db.execute(select(UserProfile).where(UserProfile.user_id == user_id))
     profile = profile_result.scalar_one_or_none()
 
     # Lazy imports
     from app.services.pathfinder.extractor import extract_manager_signals
-    from app.services.pathfinder.overlap import OverlapResult, find_overlap
     from app.services.pathfinder.outreach import draft_outreach
+    from app.services.pathfinder.overlap import OverlapResult, find_overlap
     from app.services.pathfinder.search_url import build_search_urls
 
     # 1. Extract manager signals
@@ -118,9 +112,7 @@ async def find_hiring_manager(db: AsyncSession, user_id: str, params: dict) -> d
             job_seniority=job.seniority,
             job_description=job.description,
         )
-        user_name = " ".join(
-            p for p in [profile.first_name, profile.last_name] if p
-        ) or "there"
+        user_name = " ".join(p for p in [profile.first_name, profile.last_name] if p) or "there"
         user_summary = profile.summary
 
     overlap_summary = overlap.summary_for_outreach() if overlap else "general interest in the role"
@@ -157,7 +149,7 @@ async def find_hiring_manager(db: AsyncSession, user_id: str, params: dict) -> d
             f"Find them:\n"
             f"  LinkedIn: {search_urls['linkedin']}\n"
             f"  Google: {search_urls['google']}\n\n"
-            f"Draft LinkedIn note:\n\"{linkedin_note}\"\n\n"
+            f'Draft LinkedIn note:\n"{linkedin_note}"\n\n'
             f"Draft email subject: {outreach.get('email_subject', '')}\n"
             f"Draft email:\n{outreach.get('email_body', '')}"
         ),

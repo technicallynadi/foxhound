@@ -31,7 +31,7 @@ async def list_matches(
         .join(JobListing, JobMatch.job_id == JobListing.id)
         .where(
             JobMatch.user_id == user_id,
-            JobMatch.disqualified == False,
+            JobMatch.disqualified.is_(False),
             JobMatch.match_score >= min_score,
         )
         .order_by(JobMatch.match_score.desc())

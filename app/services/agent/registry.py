@@ -12,8 +12,9 @@ import functools
 import importlib
 import logging
 import pkgutil
+from collections.abc import Callable, Coroutine
 from dataclasses import dataclass, field
-from typing import Any, Callable, Coroutine
+from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -102,9 +103,7 @@ def get_tool_spec(name: str) -> ToolSpec | None:
     return _registry.get(name)
 
 
-async def execute_tool(
-    db: AsyncSession, user_id: str, tool_name: str, params: dict
-) -> dict:
+async def execute_tool(db: AsyncSession, user_id: str, tool_name: str, params: dict) -> dict:
     """Execute a tool by name. Returns the tool result dict."""
     spec = _registry.get(tool_name)
     if not spec:

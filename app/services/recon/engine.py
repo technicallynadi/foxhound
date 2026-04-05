@@ -6,19 +6,19 @@ result as an SSE event as it finishes, then synthesizes with Claude Haiku.
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 import time
-from datetime import datetime, timezone, timedelta
-from typing import Any, AsyncGenerator
+from collections.abc import AsyncGenerator
+from datetime import UTC, datetime, timedelta
+from typing import Any
 from uuid import uuid4
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.recon_dossier import ReconDossier
-from app.services.recon.sources import fetch_about_page, fetch_careers_page, load_posting_data
+from app.services.recon.sources import load_posting_data
 from app.services.recon.synthesizer import synthesize_dossier
 
 logger = logging.getLogger(__name__)
@@ -72,7 +72,7 @@ class ReconEngine:
                 return
 
             company_name = posting_data.get("company", "Unknown")
-            company_url = posting_data.get("company_url")
+            posting_data.get("company_url")
             normalized = _normalize_company(company_name)
 
             # Check cache
@@ -95,15 +95,18 @@ class ReconEngine:
 
             # Stream posting data immediately (already loaded, free)
             yield _sse_event("status", {"phase": "starting", "sources": ["posting"]})
-            yield _sse_event("posting", {
-                "title": posting_data.get("title"),
-                "company": company_name,
-                "location": posting_data.get("location"),
-                "remote_type": posting_data.get("remote_type"),
-                "seniority": posting_data.get("seniority"),
-                "salary_min": posting_data.get("salary_min"),
-                "salary_max": posting_data.get("salary_max"),
-            })
+            yield _sse_event(
+                "posting",
+                {
+                    "title": posting_data.get("title"),
+                    "company": company_name,
+                    "location": posting_data.get("location"),
+                    "remote_type": posting_data.get("remote_type"),
+                    "seniority": posting_data.get("seniority"),
+                    "salary_min": posting_data.get("salary_min"),
+                    "salary_max": posting_data.get("salary_max"),
+                },
+            )
 
             # Quick brief — LLM only, no TinyFish (instant)
             # For deep research, the cascade calls TinyFish directly
@@ -115,9 +118,7 @@ class ReconEngine:
 
             # Synthesize from job posting data (instant, free)
             yield _sse_event("status", {"phase": "synthesizing"})
-            synthesis = await synthesize_dossier(
-                company_name, careers_data, company_data, posting_data
-            )
+            synthesis = await synthesize_dossier(company_name, careers_data, company_data, posting_data)
             yield _sse_event("synthesis", synthesis)
 
             # Cache the dossier
@@ -127,6 +128,7 @@ class ReconEngine:
             try:
                 dossier = ReconDossier(
                     id=dossier_id,
+                    user_id=self.user_id,
                     company_normalized=normalized,
                     company_display=company_name,
                     careers_data=json.dumps(careers_data, default=str) if careers_data else None,
@@ -145,11 +147,14 @@ class ReconEngine:
                 # If it's a unique constraint violation, the cache was already written
                 await self.db.rollback()
 
-            yield _sse_event("done", {
-                "dossier_id": dossier_id,
-                "cached": False,
-                "duration_ms": duration_ms,
-            })
+            yield _sse_event(
+                "done",
+                {
+                    "dossier_id": dossier_id,
+                    "cached": False,
+                    "duration_ms": duration_ms,
+                },
+            )
 
     async def run_sync(self) -> dict[str, Any]:
         """Collect all results synchronously (for agent tool use).
@@ -199,9 +204,10 @@ class ReconEngine:
 
     async def _check_cache(self, company_normalized: str) -> ReconDossier | None:
         """Check for a cached dossier within the TTL window."""
-        cutoff = datetime.now(timezone.utc) - _CACHE_TTL
+        cutoff = datetime.now(UTC) - _CACHE_TTL
         result = await self.db.execute(
             select(ReconDossier).where(
+                ReconDossier.user_id == self.user_id,
                 ReconDossier.company_normalized == company_normalized,
                 ReconDossier.created_at > cutoff,
             )

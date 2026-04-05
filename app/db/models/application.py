@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import Boolean, DateTime, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
@@ -43,9 +43,7 @@ class Application(Base):
     # --- Screenshot receipt ---
     pre_submit_screenshot_path: Mapped[str | None] = mapped_column(String, nullable=True)
     screenshot_storage_path: Mapped[str | None] = mapped_column(String, nullable=True)
-    screenshot_captured_at: Mapped[datetime | None] = mapped_column(
-        TZDateTime, nullable=True
-    )
+    screenshot_captured_at: Mapped[datetime | None] = mapped_column(TZDateTime, nullable=True)
 
     # --- Error handling ---
     error_type: Mapped[str | None] = mapped_column(String, nullable=True)
@@ -60,28 +58,22 @@ class Application(Base):
 
     # --- Notification ---
     notification_sent: Mapped[bool] = mapped_column(Boolean, default=False)
-    notification_sent_at: Mapped[datetime | None] = mapped_column(
-        TZDateTime, nullable=True
-    )
+    notification_sent_at: Mapped[datetime | None] = mapped_column(TZDateTime, nullable=True)
 
     # --- Watchdog monitoring ---
     posting_status: Mapped[str] = mapped_column(
         String, default="unknown"
     )  # active | removed | edited | reposted | unknown | check_failed
-    last_watchdog_check_at: Mapped[datetime | None] = mapped_column(
-        TZDateTime, nullable=True
-    )
+    last_watchdog_check_at: Mapped[datetime | None] = mapped_column(TZDateTime, nullable=True)
     posting_last_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     posting_diff_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     watchdog_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
 
     # --- Timestamps ---
-    created_at: Mapped[datetime] = mapped_column(
-        TZDateTime, default=lambda: datetime.now(timezone.utc)
-    )
+    created_at: Mapped[datetime] = mapped_column(TZDateTime, default=lambda: datetime.now(UTC))
     submitted_at: Mapped[datetime | None] = mapped_column(TZDateTime, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(
         TZDateTime,
-        default=lambda: datetime.now(timezone.utc),
-        onupdate=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
     )

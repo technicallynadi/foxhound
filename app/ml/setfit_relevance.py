@@ -29,6 +29,7 @@ def load_model(version: str = "latest") -> bool:
 
     try:
         import pickle
+
         with open(model_path, "rb") as f:
             _model = pickle.load(f)
         _is_loaded = True
@@ -69,11 +70,12 @@ def predict(query: str, text: str) -> dict:
 
 def train(dataset_path: str, output_version: str = "v0_1") -> dict:
     """Train a relevance model from a JSONL dataset."""
+    import pickle
+
     from sklearn.feature_extraction.text import TfidfVectorizer
     from sklearn.linear_model import LogisticRegression
-    from sklearn.model_selection import train_test_split
     from sklearn.metrics import f1_score
-    import pickle
+    from sklearn.model_selection import train_test_split
 
     # Load dataset
     rows = []

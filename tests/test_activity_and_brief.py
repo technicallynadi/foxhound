@@ -1,14 +1,14 @@
 """Tests for activity logging, brief model, and the activity/brief APIs."""
 
 import json
-import pytest
+from datetime import UTC
 from uuid import uuid4
+
+import pytest
 from httpx import ASGITransport, AsyncClient
 
-from app.main import app
-from app.db.models.agent_activity import AgentActivity
 from app.db.models.foxhound_brief import FoxhoundBrief
-
+from app.main import app
 
 # ---------------------------------------------------------------------------
 # Activity logger
@@ -63,9 +63,8 @@ async def test_foxhound_brief_creation(db):
     await db.commit()
 
     from sqlalchemy import select
-    result = await db.execute(
-        select(FoxhoundBrief).where(FoxhoundBrief.user_id == "test-user")
-    )
+
+    result = await db.execute(select(FoxhoundBrief).where(FoxhoundBrief.user_id == "test-user"))
     loaded = result.scalar_one()
     assert loaded.status == "assembling"
     assert loaded.company_brief_json is None
@@ -153,6 +152,7 @@ async def test_activity_stats(user_id):
 
 def test_rate_limit_creates_dependency():
     from app.api.rate_limit import rate_limit
+
     dep = rate_limit("test_scope", 5, 60)
     assert callable(dep)
 
@@ -165,8 +165,9 @@ def test_rate_limit_creates_dependency():
 @pytest.mark.asyncio
 async def test_claim_next_job_respects_scheduled_time(db):
     """Jobs with future next_scheduled_at should NOT be claimed."""
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
     from uuid import uuid4
+
     from app.db.models.foxhound_job import FoxhoundJob
 
     # Create a job scheduled 1 hour in the future
@@ -178,12 +179,13 @@ async def test_claim_next_job_respects_scheduled_time(db):
         priority=50,
         payload_json=json.dumps({"user_id": "test", "job_id": "test"}),
         status="queued",
-        next_scheduled_at=datetime.now(timezone.utc) + timedelta(hours=1),
+        next_scheduled_at=datetime.now(UTC) + timedelta(hours=1),
     )
     db.add(future_job)
     await db.commit()
 
     from app.services.run_service import claim_next_job
+
     result = await claim_next_job("test-worker")
 
     # Should NOT claim the future-scheduled job

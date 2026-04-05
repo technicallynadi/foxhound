@@ -2,19 +2,18 @@
 
 from __future__ import annotations
 
-import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.application import Application
 from app.db.models.job_listing import JobListing
+from app.services.agent.registry import tool
 from app.services.application_guidance import (
     build_application_context,
     build_recommended_next_action,
 )
-from app.services.agent.registry import tool
 
 
 @tool(
@@ -26,7 +25,10 @@ from app.services.agent.registry import tool
     input_schema={
         "type": "object",
         "properties": {
-            "status": {"type": "string", "description": "Filter by status (pending, submitted, failed, waiting_user_input, needs_manual)"},
+            "status": {
+                "type": "string",
+                "description": "Filter by status (pending, submitted, failed, waiting_user_input, needs_manual)",
+            },
             "company": {"type": "string", "description": "Filter by company name"},
             "limit": {"type": "integer", "description": "Max results (default 10)"},
         },
@@ -103,4 +105,4 @@ def _days_since(app: Application) -> int:
     ref = app.submitted_at or app.created_at
     if not ref:
         return 0
-    return max(0, (datetime.now(timezone.utc) - ref).days)
+    return max(0, (datetime.now(UTC) - ref).days)

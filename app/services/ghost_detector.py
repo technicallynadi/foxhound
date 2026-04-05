@@ -12,9 +12,8 @@ Returns a ghost risk score (0-100) and human-readable risk factors.
 
 from __future__ import annotations
 
-import json
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import func, select
@@ -45,7 +44,7 @@ def calculate_ghost_score(
     """
     score = 0
     factors: list[str] = []
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     # --- Factor 1: Posting age ---
     posted = job.posted_at or job.discovered_at
@@ -150,8 +149,11 @@ async def score_job(db: AsyncSession, job_id: str) -> dict[str, Any]:
     repost_count = 0
     try:
         from app.db.models.watchdog_check import WatchdogCheck
+
         result = await db.execute(
-            select(func.count()).select_from(WatchdogCheck).where(
+            select(func.count())
+            .select_from(WatchdogCheck)
+            .where(
                 WatchdogCheck.job_id == job_id,
                 WatchdogCheck.status_change == "reposted",
             )
@@ -166,7 +168,9 @@ async def score_job(db: AsyncSession, job_id: str) -> dict[str, Any]:
     if job.company:
         # Count active listings from this company
         result = await db.execute(
-            select(func.count()).select_from(JobListing).where(
+            select(func.count())
+            .select_from(JobListing)
+            .where(
                 JobListing.company == job.company,
                 JobListing.status == "active",
             )
@@ -175,9 +179,10 @@ async def score_job(db: AsyncSession, job_id: str) -> dict[str, Any]:
 
         # Count submitted applications (proxy for hiring activity)
         result = await db.execute(
-            select(func.count()).select_from(Application).join(
-                JobListing, Application.job_id == JobListing.id
-            ).where(
+            select(func.count())
+            .select_from(Application)
+            .join(JobListing, Application.job_id == JobListing.id)
+            .where(
                 JobListing.company == job.company,
                 Application.status == "submitted",
             )
@@ -188,9 +193,10 @@ async def score_job(db: AsyncSession, job_id: str) -> dict[str, Any]:
     response_rate = None
     if job.company:
         result = await db.execute(
-            select(func.count()).select_from(Application).join(
-                JobListing, Application.job_id == JobListing.id
-            ).where(
+            select(func.count())
+            .select_from(Application)
+            .join(JobListing, Application.job_id == JobListing.id)
+            .where(
                 JobListing.company == job.company,
             )
         )
@@ -198,9 +204,10 @@ async def score_job(db: AsyncSession, job_id: str) -> dict[str, Any]:
 
         if total_apps >= 3:  # Only calculate with enough data
             result = await db.execute(
-                select(func.count()).select_from(Application).join(
-                    JobListing, Application.job_id == JobListing.id
-                ).where(
+                select(func.count())
+                .select_from(Application)
+                .join(JobListing, Application.job_id == JobListing.id)
+                .where(
                     JobListing.company == job.company,
                     Application.status.in_(["submitted", "interviewing"]),
                 )
@@ -258,7 +265,7 @@ async def score_url(url: str) -> dict[str, Any]:
                     if updated_at:
                         try:
                             updated = datetime.fromisoformat(updated_at.replace("Z", "+00:00"))
-                            age = (datetime.now(timezone.utc) - updated).days
+                            age = (datetime.now(UTC) - updated).days
                             if age > 90:
                                 score += 25
                                 factors.append(f"Last updated {age} days ago")
@@ -320,7 +327,7 @@ async def score_url(url: str) -> dict[str, Any]:
                     score = 10
 
                     if created_at:
-                        age = (datetime.now(timezone.utc) - datetime.fromtimestamp(created_at / 1000, tz=timezone.utc)).days
+                        age = (datetime.now(UTC) - datetime.fromtimestamp(created_at / 1000, tz=UTC)).days
                         if age > 90:
                             score += 25
                             factors.append(f"Posted {age} days ago")
@@ -438,6 +445,7 @@ async def _check_url_via_browser(url: str) -> dict[str, Any]:
         async with TINYFISH_SEMAPHORE:
             try:
                 from tinyfish import BrowserProfile, RunStatus
+
                 from app.services.ingest.tinyfish_adapter import _get_client
 
                 client = _get_client()

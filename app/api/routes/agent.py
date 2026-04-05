@@ -8,17 +8,15 @@ GET  /api/v1/agent/sessions — List sessions
 
 from __future__ import annotations
 
-import json
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
-
-from app.api.rate_limit import rate_limit
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.rate_limit import rate_limit
 from app.db.models.agent_session import AgentMessage, AgentSession
 from app.db.session import get_db
 from app.services.agent.agent import FoxhoundAgent
@@ -55,8 +53,11 @@ async def agent_stream(
 
     async def event_generator():
         async for event in agent.respond_stream(
-            db=db, user_id=user_id, message=body.message,
-            session_id=body.session_id, channel=body.channel,
+            db=db,
+            user_id=user_id,
+            message=body.message,
+            session_id=body.session_id,
+            channel=body.channel,
         ):
             yield event
 
@@ -84,8 +85,11 @@ async def agent_sync(
         raise HTTPException(status_code=400, detail="Message cannot be empty")
 
     return await agent.respond(
-        db=db, user_id=user_id, message=body.message,
-        session_id=body.session_id, channel=body.channel,
+        db=db,
+        user_id=user_id,
+        message=body.message,
+        session_id=body.session_id,
+        channel=body.channel,
     )
 
 
@@ -109,21 +113,28 @@ async def agent_history(
             raise HTTPException(status_code=404, detail="Session not found")
     else:
         result = await db.execute(
-            select(AgentSession).where(AgentSession.user_id == user_id)
-            .order_by(AgentSession.last_message_at.desc()).limit(1)
+            select(AgentSession)
+            .where(AgentSession.user_id == user_id)
+            .order_by(AgentSession.last_message_at.desc())
+            .limit(1)
         )
         session = result.scalar_one_or_none()
         if not session:
             return {"session_id": None, "messages": []}
 
     result = await db.execute(
-        select(AgentMessage).where(AgentMessage.session_id == session.id)
-        .order_by(AgentMessage.created_at).limit(min(limit, 100))
+        select(AgentMessage)
+        .where(AgentMessage.session_id == session.id)
+        .order_by(AgentMessage.created_at)
+        .limit(min(limit, 100))
     )
     messages = [
         {
-            "id": m.id, "role": m.role, "content": m.content,
-            "tool_name": m.tool_name, "channel": m.channel,
+            "id": m.id,
+            "role": m.role,
+            "content": m.content,
+            "tool_name": m.tool_name,
+            "channel": m.channel,
             "created_at": m.created_at.isoformat(),
         }
         for m in result.scalars()
@@ -147,14 +158,19 @@ async def agent_sessions(
     """List a user's agent sessions."""
     user_id = user["user_id"]
     result = await db.execute(
-        select(AgentSession).where(AgentSession.user_id == user_id)
-        .order_by(AgentSession.last_message_at.desc()).limit(min(limit, 50))
+        select(AgentSession)
+        .where(AgentSession.user_id == user_id)
+        .order_by(AgentSession.last_message_at.desc())
+        .limit(min(limit, 50))
     )
     return {
         "sessions": [
-            {"id": s.id, "channel": s.channel,
-             "created_at": s.created_at.isoformat(),
-             "last_message_at": s.last_message_at.isoformat()}
+            {
+                "id": s.id,
+                "channel": s.channel,
+                "created_at": s.created_at.isoformat(),
+                "last_message_at": s.last_message_at.isoformat(),
+            }
             for s in result.scalars()
         ]
     }

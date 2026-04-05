@@ -9,7 +9,7 @@ GET /api/v1/settings               — current settings
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -116,11 +116,14 @@ async def update_autopilot(
     profile.updated_at = datetime.now(timezone.utc)
     await db.commit()
 
-    return {"changes": changes, "autopilot": {
-        "enabled": bool(profile.autopilot_enabled),
-        "threshold": profile.autopilot_threshold,
-        "daily_limit": profile.daily_apply_limit,
-    }}
+    return {
+        "changes": changes,
+        "autopilot": {
+            "enabled": bool(profile.autopilot_enabled),
+            "threshold": profile.autopilot_threshold,
+            "daily_limit": profile.daily_apply_limit,
+        },
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -194,9 +197,7 @@ async def update_blocklist(
 
 
 async def _get_profile(db: AsyncSession, user_id: str) -> UserProfile:
-    result = await db.execute(
-        select(UserProfile).where(UserProfile.user_id == user_id)
-    )
+    result = await db.execute(select(UserProfile).where(UserProfile.user_id == user_id))
     profile = result.scalar_one_or_none()
     if not profile:
         raise HTTPException(status_code=404, detail="No profile found. Upload your resume first.")

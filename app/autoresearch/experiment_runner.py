@@ -1,9 +1,8 @@
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
-from app.autoresearch.registry import register_version
 from app.autoresearch.evaluator import evaluate_pipeline_run
 
 logger = logging.getLogger(__name__)
@@ -43,7 +42,7 @@ async def run_pipeline_experiment(
         "metrics": metrics,
         "num_results": len(result.get("results", [])),
         "result_titles": [r.get("title", "")[:80] for r in result.get("results", [])],
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
     }
 
     _save_experiment(experiment)
@@ -67,10 +66,7 @@ def compare_experiments(experiments: list[dict], metric_key: str = "num_results"
     return {
         "winner": winner["variant_id"],
         "winner_score": _get_metric(winner),
-        "all_scores": {
-            e["variant_id"]: _get_metric(e)
-            for e in sorted_exps
-        },
+        "all_scores": {e["variant_id"]: _get_metric(e) for e in sorted_exps},
     }
 
 
@@ -88,7 +84,7 @@ def should_promote(
             continue
         c_val = candidate_metrics[key]
         b_val = baseline_metrics[key]
-        if not isinstance(c_val, (int, float)) or not isinstance(b_val, (int, float)):
+        if not isinstance(c_val, int | float) or not isinstance(b_val, int | float):
             continue
 
         diff = c_val - b_val
@@ -99,8 +95,7 @@ def should_promote(
 
     net_improvement = sum(improvements.values()) - abs(sum(regressions.values()))
     promote = (
-        net_improvement > improvement_threshold
-        and len(regressions) <= 1  # allow at most 1 minor regression
+        net_improvement > improvement_threshold and len(regressions) <= 1  # allow at most 1 minor regression
     )
 
     return {
@@ -113,7 +108,7 @@ def should_promote(
 
 def _save_experiment(experiment: dict) -> None:
     EXPERIMENTS_DIR.mkdir(parents=True, exist_ok=True)
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
     variant = experiment.get("variant_id", "unknown")
     filepath = EXPERIMENTS_DIR / f"exp_{variant}_{timestamp}.json"
     with open(filepath, "w") as f:

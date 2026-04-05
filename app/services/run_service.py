@@ -3,7 +3,7 @@ import contextlib
 import json
 import logging
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from urllib.parse import urlparse
 
 from sqlalchemy import func, or_, select
@@ -42,8 +42,10 @@ EVIDENCE_CLASS_TO_SOURCE_CLASS = {
 async def create_run(request: dict) -> str:
     run_id = f"run_{uuid.uuid4().hex[:10]}"
     job_id = f"job_{uuid.uuid4().hex[:10]}"
-    now = datetime.now(timezone.utc)
-    created_event = _event(run_id, "run.created", {"query": request["query"], "mode": request.get("mode", "pipeline_run")}, timestamp=now)
+    now = datetime.now(UTC)
+    created_event = _event(
+        run_id, "run.created", {"query": request["query"], "mode": request.get("mode", "pipeline_run")}, timestamp=now
+    )
     destination_ids = request.get("notification_destination_ids", [])
     destination_config = await resolve_notification_destinations(destination_ids)
     destination_config = _merge_direct_notification_destinations(
@@ -102,7 +104,9 @@ async def get_run_status(run_id: str) -> dict | None:
         "resource_counts": resource_counts,
         "notify": _load_json(row.notify_config_json, {}),
         "notification_destination_ids": _load_json(row.notification_destination_ids_json, []),
-        "notification_destinations": _mask_notification_destinations(_load_json(row.notification_destinations_json, {})),
+        "notification_destinations": _mask_notification_destinations(
+            _load_json(row.notification_destinations_json, {})
+        ),
         "notification_status": _load_json(row.notification_status_json, default_notification_status()),
         "output": _build_run_output(row.query, _load_json(row.result_json, None)),
         "events": _load_json(row.events_json, []),
@@ -130,7 +134,7 @@ async def get_job(job_id: str) -> dict | None:
 
 
 async def cancel_run(run_id: str) -> bool:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     async with async_session() as session:
         run = await session.get(FoxhoundRun, run_id)
         if not run:
@@ -159,7 +163,7 @@ async def cancel_run(run_id: str) -> bool:
 
 
 async def get_queue_health() -> dict:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     async with async_session() as session:
         result = await session.execute(
             select(FoxhoundJob.status, func.count(FoxhoundJob.id)).group_by(FoxhoundJob.status)
@@ -197,8 +201,12 @@ async def get_queue_health() -> dict:
         "completed_jobs": counts.get("completed", 0),
         "failed_jobs": counts.get("failed", 0),
         "stale_jobs": stale_jobs,
-        "average_queue_duration_ms": round(float(average_queue_duration_ms), 2) if average_queue_duration_ms is not None else None,
-        "average_run_duration_ms": round(float(average_run_duration_ms), 2) if average_run_duration_ms is not None else None,
+        "average_queue_duration_ms": round(float(average_queue_duration_ms), 2)
+        if average_queue_duration_ms is not None
+        else None,
+        "average_run_duration_ms": round(float(average_run_duration_ms), 2)
+        if average_run_duration_ms is not None
+        else None,
         "oldest_queued_at": oldest_queued_at.isoformat() if oldest_queued_at else None,
     }
 
@@ -243,12 +251,11 @@ async def _execute_run(run_id: str, request: dict) -> None:
     from app.services.ingest.community_router import route_query
     from app.services.ingest.ingest_service import (
         _dispatch_workers,
-        build_source_family_candidates,
-        get_learned_sources,
-        _generate_github_urls,
         _navigate_seed_urls,
         _save_discovered_sources,
         _to_raw_document,
+        build_source_family_candidates,
+        get_learned_sources,
     )
     from app.services.ingest.query_analyzer import analyze_query
     from app.services.ingest.query_translator import is_conversational, translate_query
@@ -272,13 +279,23 @@ async def _execute_run(run_id: str, request: dict) -> None:
         # translate conversational queries into research queries
         translation = None
         if is_conversational(query) and not minimal_tinyfish_only:
-            await _update_run(run_id, status="translating", progress=3, current_step="translating", message="Understanding your request")
+            await _update_run(
+                run_id,
+                status="translating",
+                progress=3,
+                current_step="translating",
+                message="Understanding your request",
+            )
             translation = await translate_query(query)
-            await _append_run_event(run_id, "run.query_translated", {
-                "original": query,
-                "intent": translation.get("intent", {}),
-                "research_queries": translation.get("research_queries", []),
-            })
+            await _append_run_event(
+                run_id,
+                "run.query_translated",
+                {
+                    "original": query,
+                    "intent": translation.get("intent", {}),
+                    "research_queries": translation.get("research_queries", []),
+                },
+            )
             # use the first research query as the primary pipeline query
             research_queries = translation.get("research_queries", [])
             if research_queries:
@@ -305,9 +322,15 @@ async def _execute_run(run_id: str, request: dict) -> None:
                 "strategy": "tinyfish_search_only",
             }
         debug_query_first = bool(config.get("debug_query_first"))
-        memory_seed = None if (debug_query_first or minimal_tinyfish_only) else await get_query_memory_seed(query, routing_plan.get("resolved_vertical"))
+        memory_seed = (
+            None
+            if (debug_query_first or minimal_tinyfish_only)
+            else await get_query_memory_seed(query, routing_plan.get("resolved_vertical"))
+        )
         if memory_seed:
-            config["memory_search_queries"] = [str(item) for item in (memory_seed.get("search_queries", []) or [])[:5] if item]
+            config["memory_search_queries"] = [
+                str(item) for item in (memory_seed.get("search_queries", []) or [])[:5] if item
+            ]
         discovery_plan = _build_discovery_plan(query, routing_plan, config)
         if memory_seed:
             prior_workers = set(memory_seed.get("source_families", []))
@@ -316,10 +339,12 @@ async def _execute_run(run_id: str, request: dict) -> None:
                 "priority_score": memory_seed.get("priority_score", 0.0),
             }
             discovery_plan["workers"] = [
-                worker for worker in discovery_plan["workers"]
+                worker
+                for worker in discovery_plan["workers"]
                 if worker.get("worker") in prior_workers or worker.get("worker") == "learned_sources"
             ] + [
-                worker for worker in discovery_plan["workers"]
+                worker
+                for worker in discovery_plan["workers"]
                 if worker.get("worker") not in prior_workers and worker.get("worker") != "learned_sources"
             ]
         worker_names = [worker["worker"] for worker in discovery_plan["workers"]]
@@ -329,27 +354,49 @@ async def _execute_run(run_id: str, request: dict) -> None:
             discovery_plan=discovery_plan,
             workers=[_worker_state(name, "pending") for name in worker_names],
         )
-        await _append_run_event(run_id, "run.routing.completed", {"routing_plan": routing_plan, "discovery_plan": discovery_plan})
+        await _append_run_event(
+            run_id, "run.routing.completed", {"routing_plan": routing_plan, "discovery_plan": discovery_plan}
+        )
         if memory_seed:
-            await _append_run_event(run_id, "run.query_memory.reused", {
-                "query_memory_id": memory_seed.get("query_memory_id"),
-                "search_query_count": len(memory_seed.get("search_queries", [])),
-                "source_family_count": len(memory_seed.get("source_families", [])),
-            })
+            await _append_run_event(
+                run_id,
+                "run.query_memory.reused",
+                {
+                    "query_memory_id": memory_seed.get("query_memory_id"),
+                    "search_query_count": len(memory_seed.get("search_queries", [])),
+                    "source_family_count": len(memory_seed.get("source_families", [])),
+                },
+            )
         if minimal_tinyfish_only:
             logger.info("Minimal TinyFish-only raw mode enabled for query: %s", query)
-            await _append_run_event(run_id, "run.minimal_tinyfish_only", {
-                "query": query,
-                "raw_mode": True,
-            })
+            await _append_run_event(
+                run_id,
+                "run.minimal_tinyfish_only",
+                {
+                    "query": query,
+                    "raw_mode": True,
+                },
+            )
 
-        await _update_run(run_id, status="discovering_sources", progress=20, current_step="discovering_sources", message="Finding sources")
+        await _update_run(
+            run_id,
+            status="discovering_sources",
+            progress=20,
+            current_step="discovering_sources",
+            message="Finding sources",
+        )
 
         # ─── Focused Extraction Flow (default) ───
         use_focused = not minimal_tinyfish_only and not debug_query_first
         if use_focused:
             extraction_budget = int(config.get("max_extractions", 6))
-            await _update_run(run_id, status="extracting", progress=30, current_step="extracting", message="Extracting signals from sources")
+            await _update_run(
+                run_id,
+                status="extracting",
+                progress=30,
+                current_step="extracting",
+                message="Extracting signals from sources",
+            )
             raw_docs = await _focused_extraction_flow(
                 run_id=run_id,
                 query=query,
@@ -358,10 +405,21 @@ async def _execute_run(run_id: str, request: dict) -> None:
                 event_callback=lambda event_type, payload: _append_run_event(run_id, event_type, payload),
             )
             if not raw_docs:
-                await _complete_run(run_id, status="partial_success", progress=100, result={"query": query, "results": [], "reason": "no_signals_extracted"})
+                await _complete_run(
+                    run_id,
+                    status="partial_success",
+                    progress=100,
+                    result={"query": query, "results": [], "reason": "no_signals_extracted"},
+                )
                 return
 
-            await _update_run(run_id, status="validating", progress=65, current_step="validating", message=f"Analyzing {len(raw_docs)} signals")
+            await _update_run(
+                run_id,
+                status="validating",
+                progress=65,
+                current_step="validating",
+                message=f"Analyzing {len(raw_docs)} signals",
+            )
             # Persist signals to disk before pipeline — recovery point if pipeline crashes
             _persist_raw_signals(run_id, query, raw_docs)
             report = await run_pipeline_v2_from_documents(
@@ -381,7 +439,9 @@ async def _execute_run(run_id: str, request: dict) -> None:
         if minimal_tinyfish_only:
             max_results_per = int(config.get("max_results_per_query", config.get("max_discovered_urls", 10)))
             search_results = await search_multiple_queries([query], max_results_per=max_results_per)
-            discovered = [_to_resource_candidate_input(item, "tinyfish_search", routing_plan) for item in search_results]
+            discovered = [
+                _to_resource_candidate_input(item, "tinyfish_search", routing_plan) for item in search_results
+            ]
             await _replace_resources(run_id, discovered)
             await _append_run_event(run_id, "resources.discovered", {"count": len(discovered)})
             await _complete_run(
@@ -409,7 +469,9 @@ async def _execute_run(run_id: str, request: dict) -> None:
         vertical = routing_plan.get("resolved_vertical")
         profile = analyze_query(query)
         learned_sources = [] if debug_query_first else await get_learned_sources(query, vertical, limit=8)
-        family_candidates = {} if debug_query_first else build_source_family_candidates(query, routing_plan, profile, vertical)
+        family_candidates = (
+            {} if debug_query_first else build_source_family_candidates(query, routing_plan, profile, vertical)
+        )
         tasks = {}
         if learned_sources:
             tasks["learned_sources"] = asyncio.create_task(_wrap_sync(learned_sources))
@@ -418,16 +480,28 @@ async def _execute_run(run_id: str, request: dict) -> None:
                 tasks[f"{family_name}_family"] = asyncio.create_task(_wrap_sync(family_items))
         if discovery_plan.get("seed_urls") and vertical:
             tasks["seed_navigation"] = asyncio.create_task(_navigate_seed_urls(query, vertical))
-        if discovery_plan.get("enable_web_search") and _should_use_broad_search(learned_sources, family_candidates, discovery_plan):
-            tasks["web_search"] = asyncio.create_task(search_multiple_queries(profile.get("evidence_queries", []) or profile.get("search_queries", []), max_results_per=6))
-        if discovery_plan.get("expanded_queries") and _should_use_broad_search(learned_sources, family_candidates, discovery_plan):
-            tasks["source_expansion"] = asyncio.create_task(search_multiple_queries(discovery_plan["expanded_queries"], max_results_per=5))
+        if discovery_plan.get("enable_web_search") and _should_use_broad_search(
+            learned_sources, family_candidates, discovery_plan
+        ):
+            tasks["web_search"] = asyncio.create_task(
+                search_multiple_queries(
+                    profile.get("evidence_queries", []) or profile.get("search_queries", []), max_results_per=6
+                )
+            )
+        if discovery_plan.get("expanded_queries") and _should_use_broad_search(
+            learned_sources, family_candidates, discovery_plan
+        ):
+            tasks["source_expansion"] = asyncio.create_task(
+                search_multiple_queries(discovery_plan["expanded_queries"], max_results_per=5)
+            )
         # translated query expansion: search additional research queries from conversational translation
         translated_queries = [str(item) for item in (config.get("expanded_queries", []) or []) if item]
         memory_queries = [str(item) for item in (config.get("memory_search_queries", []) or []) if item]
         combined_queries = list(dict.fromkeys(translated_queries + memory_queries))
         if combined_queries and "translated_search" not in tasks:
-            tasks["translated_search"] = asyncio.create_task(search_multiple_queries(combined_queries, max_results_per=5))
+            tasks["translated_search"] = asyncio.create_task(
+                search_multiple_queries(combined_queries, max_results_per=5)
+            )
 
         await _update_run(run_id, workers=[_worker_state(name, "running") for name in tasks.keys()])
         for name in tasks.keys():
@@ -469,7 +543,12 @@ async def _execute_run(run_id: str, request: dict) -> None:
         )
 
         if not selected_resources:
-            await _complete_run(run_id, status="partial_success", progress=100, result={"query": query, "results": [], "reason": "no_resources_selected"})
+            await _complete_run(
+                run_id,
+                status="partial_success",
+                progress=100,
+                result={"query": query, "results": [], "reason": "no_resources_selected"},
+            )
             return
 
         extraction_budget = min(discovery_plan["max_extractions"], len(selected_resources))
@@ -507,7 +586,9 @@ async def _execute_run(run_id: str, request: dict) -> None:
             )
             return
 
-        await _update_run(run_id, status="validating", progress=65, current_step="validating", message="Running downstream pipeline")
+        await _update_run(
+            run_id, status="validating", progress=65, current_step="validating", message="Running downstream pipeline"
+        )
         raw_docs = [_to_raw_document(doc, "tinyfish", query) for doc in extracted]
         _persist_raw_signals(run_id, query, raw_docs)
         report = await run_pipeline_v2_from_documents(
@@ -523,7 +604,9 @@ async def _execute_run(run_id: str, request: dict) -> None:
         await _complete_run(run_id, status="completed", progress=100, result=report)
     except Exception as exc:
         logger.exception("Async run failed: %s", exc)
-        await _complete_run(run_id, status="failed", progress=100, error_message=str(exc), result={"query": query, "results": []})
+        await _complete_run(
+            run_id, status="failed", progress=100, error_message=str(exc), result={"query": query, "results": []}
+        )
 
 
 async def _focused_extraction_flow(
@@ -537,16 +620,20 @@ async def _focused_extraction_flow(
 
     Uses client.agent.run() (blocking) with short, single-purpose prompts.
     Returns raw documents ready for the pipeline."""
+    from app.services.ingest.extraction_parser import signals_to_raw_documents
+    from app.services.ingest.extraction_prompts import get_prompts_for_source
     from app.services.ingest.source_targets import get_source_targets
     from app.services.ingest.tinyfish_adapter import run_focused_extraction
-    from app.services.ingest.extraction_prompts import get_prompts_for_source
-    from app.services.ingest.extraction_parser import signals_to_raw_documents
 
     targets = get_source_targets(query, vertical, budget=budget)
-    await _append_run_event(run_id, "focused.targets_generated", {
-        "count": len(targets),
-        "sources": [t["source_type"] for t in targets],
-    })
+    await _append_run_event(
+        run_id,
+        "focused.targets_generated",
+        {
+            "count": len(targets),
+            "sources": [t["source_type"] for t in targets],
+        },
+    )
 
     all_docs = []
     calls_made = 0
@@ -562,9 +649,15 @@ async def _focused_extraction_flow(
 
         # run first prompt for this target
         primary_prompt = prompt_names[0] if prompt_names else "pain"
-        await _append_run_event(run_id, "focused.extracting", {
-            "url": url, "prompt": primary_prompt, "source_type": source_type,
-        })
+        await _append_run_event(
+            run_id,
+            "focused.extracting",
+            {
+                "url": url,
+                "prompt": primary_prompt,
+                "source_type": source_type,
+            },
+        )
 
         items = await run_focused_extraction(
             url=url,
@@ -578,9 +671,15 @@ async def _focused_extraction_flow(
         if items:
             docs = signals_to_raw_documents(items, query, source_type)
             all_docs.extend(docs)
-            await _append_run_event(run_id, "focused.extracted", {
-                "url": url, "prompt": primary_prompt, "items": len(items),
-            })
+            await _append_run_event(
+                run_id,
+                "focused.extracted",
+                {
+                    "url": url,
+                    "prompt": primary_prompt,
+                    "items": len(items),
+                },
+            )
 
             # if first prompt yielded results and budget allows, run secondary prompts
             for secondary_prompt in prompt_names[1:]:
@@ -598,12 +697,19 @@ async def _focused_extraction_flow(
                     secondary_docs = signals_to_raw_documents(secondary_items, query, source_type)
                     all_docs.extend(secondary_docs)
         else:
-            await _append_run_event(run_id, "focused.empty", {
-                "url": url, "prompt": primary_prompt, "source_type": source_type,
-            })
+            await _append_run_event(
+                run_id,
+                "focused.empty",
+                {
+                    "url": url,
+                    "prompt": primary_prompt,
+                    "source_type": source_type,
+                },
+            )
 
-    logger.info("Focused extraction: %d docs from %d TinyFish calls across %d targets",
-                len(all_docs), calls_made, len(targets))
+    logger.info(
+        "Focused extraction: %d docs from %d TinyFish calls across %d targets", len(all_docs), calls_made, len(targets)
+    )
     return all_docs
 
 
@@ -625,10 +731,12 @@ def _build_discovery_plan(query: str, routing_plan: dict, config: dict) -> dict:
         {"query": f"{query} alternatives migration switch", "evidence_class": "migration"},
     ]
     if communities:
-        expanded_queries.append({
-            "query": f"{query} {' '.join(communities[:2])} what do teams use",
-            "evidence_class": "market_pull",
-        })
+        expanded_queries.append(
+            {
+                "query": f"{query} {' '.join(communities[:2])} what do teams use",
+                "evidence_class": "market_pull",
+            }
+        )
     workers = (
         [
             {"worker": "web_search"},
@@ -666,13 +774,15 @@ def _build_community_resources(query: str, routing_plan: dict) -> list[dict]:
         slug = community.strip().replace(" ", "")
         if not slug:
             continue
-        pages.append({
-            "url": f"https://www.reddit.com/r/{slug}/search/?q={query.replace(' ', '%20')}&restrict_sr=1&sort=top",
-            "title": f"Reddit community search: {community}",
-            "page_type": "reddit",
-            "reason": f"Community-targeted search for {community}",
-            "source": "community_router",
-        })
+        pages.append(
+            {
+                "url": f"https://www.reddit.com/r/{slug}/search/?q={query.replace(' ', '%20')}&restrict_sr=1&sort=top",
+                "title": f"Reddit community search: {community}",
+                "page_type": "reddit",
+                "reason": f"Community-targeted search for {community}",
+                "source": "community_router",
+            }
+        )
     return pages
 
 
@@ -788,7 +898,7 @@ def _normalize_url(url: str) -> str:
 
 
 def _event(run_id: str, event_type: str, payload: dict, timestamp: datetime | None = None) -> dict:
-    ts = timestamp or datetime.now(timezone.utc)
+    ts = timestamp or datetime.now(UTC)
     return {
         "event_id": f"evt_{uuid.uuid4().hex[:10]}",
         "event_type": event_type,
@@ -803,16 +913,18 @@ def _build_build_plans(results: list[dict]) -> list[dict]:
     for index, opp in enumerate(results):
         guidance = opp.get("implementation_guidance") or {}
         risks = list(guidance.get("technical_risks", [])) + list(guidance.get("product_risks", []))
-        plans.append({
-            "plan_id": f"plan_{index + 1}",
-            "opportunity_title": opp.get("title", ""),
-            "wedge": opp.get("build_wedge", ""),
-            "workflow": opp.get("workflow", ""),
-            "target_personas": opp.get("persona", []),
-            "mvp_scope": opp.get("mvp_plan", []),
-            "build_order": guidance.get("recommended_build_order", []) or opp.get("mvp_plan", []),
-            "risks": risks[:8],
-        })
+        plans.append(
+            {
+                "plan_id": f"plan_{index + 1}",
+                "opportunity_title": opp.get("title", ""),
+                "wedge": opp.get("build_wedge", ""),
+                "workflow": opp.get("workflow", ""),
+                "target_personas": opp.get("persona", []),
+                "mvp_scope": opp.get("mvp_plan", []),
+                "build_order": guidance.get("recommended_build_order", []) or opp.get("mvp_plan", []),
+                "risks": risks[:8],
+            }
+        )
     return plans
 
 
@@ -859,8 +971,8 @@ def _coerce_utc(dt: datetime | None) -> datetime | None:
     if dt is None:
         return None
     if dt.tzinfo is None:
-        return dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(timezone.utc)
+        return dt.replace(tzinfo=UTC)
+    return dt.astimezone(UTC)
 
 
 def _load_json(value: str | None, default):
@@ -876,12 +988,14 @@ def _step(step: str, status: str, message: str | None = None) -> dict:
     return {
         "step": step,
         "status": status,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "message": message,
     }
 
 
-def _worker_state(worker: str, status: str, discovered_count: int = 0, selected_count: int = 0, message: str | None = None) -> dict:
+def _worker_state(
+    worker: str, status: str, discovered_count: int = 0, selected_count: int = 0, message: str | None = None
+) -> dict:
     return {
         "worker": worker,
         "status": status,
@@ -950,7 +1064,8 @@ async def _update_run(
         if current_step in NOTIFICATION_MILESTONE_STEPS:
             events = _load_json(row.events_json, [])
             seen_step = any(
-                event.get("event_type") == "run.milestone" and (event.get("payload", {}) or {}).get("step") == current_step
+                event.get("event_type") == "run.milestone"
+                and (event.get("payload", {}) or {}).get("step") == current_step
                 for event in events
             )
             if not seen_step:
@@ -1003,7 +1118,7 @@ async def _complete_run(
         row.status = status
         row.progress_percent = progress
         row.current_step = status
-        row.completed_at = datetime.now(timezone.utc)
+        row.completed_at = datetime.now(UTC)
         row.error_message = error_message
         if result is not None:
             row.result_json = json.dumps(result, default=str)
@@ -1012,11 +1127,17 @@ async def _complete_run(
         steps.append(_step(status, "completed" if status == "completed" else status, error_message))
         row.steps_json = json.dumps(steps)
         events = _load_json(row.events_json, [])
-        events.append(_event(run_id, "run.completed" if status in {"completed", "partial_success"} else "run.failed", {
-            "status": status,
-            "error_message": error_message,
-            "output": output,
-        }))
+        events.append(
+            _event(
+                run_id,
+                "run.completed" if status in {"completed", "partial_success"} else "run.failed",
+                {
+                    "status": status,
+                    "error_message": error_message,
+                    "output": output,
+                },
+            )
+        )
         row.events_json = json.dumps(events, default=str)
         await session.commit()
     if status in {"completed", "partial_success"}:
@@ -1060,7 +1181,8 @@ async def _append_run_event(run_id: str, event_type: str, payload: dict) -> None
         events = _load_json(row.events_json, [])
         if event_type == "run.milestone":
             is_first_of_type = not any(
-                event.get("event_type") == event_type and (event.get("payload", {}) or {}).get("step") == payload.get("step")
+                event.get("event_type") == event_type
+                and (event.get("payload", {}) or {}).get("step") == payload.get("step")
                 for event in events
             )
         else:
@@ -1077,7 +1199,9 @@ async def _append_run_event(run_id: str, event_type: str, payload: dict) -> None
         elif event_type in {"opportunity.created", "build_plan.created"}:
             should_notify = existing_count < 3
     if should_notify and any(bool(notify_config.get(channel)) for channel in ("discord", "slack", "sms")):
-        await _deliver_and_record_notifications(run_id, query, event_type, notify_config, notification_destinations, payload, None)
+        await _deliver_and_record_notifications(
+            run_id, query, event_type, notify_config, notification_destinations, payload, None
+        )
 
 
 async def _append_pipeline_events(run_id: str, report: dict, skip_existing: bool = False) -> None:
@@ -1157,22 +1281,28 @@ async def _deliver_and_record_notifications(
             if state.get("status") == "failed":
                 notification_event_type = "notification.failed"
             delivery_id = f"nd_{uuid.uuid4().hex[:10]}"
-            session.add(NotificationDelivery(
-                id=delivery_id,
-                run_id=run_id,
-                channel=channel,
-                source_event=source_event,
-                status=state.get("status", "unknown"),
-                message=state.get("message"),
-                http_status=state.get("http_status"),
-            ))
-            events.append(_event(run_id, notification_event_type, {"channel": channel, "source_event": source_event, **state}))
+            session.add(
+                NotificationDelivery(
+                    id=delivery_id,
+                    run_id=run_id,
+                    channel=channel,
+                    source_event=source_event,
+                    status=state.get("status", "unknown"),
+                    message=state.get("message"),
+                    http_status=state.get("http_status"),
+                )
+            )
+            events.append(
+                _event(run_id, notification_event_type, {"channel": channel, "source_event": source_event, **state})
+            )
             if is_retryable_notification_failure(state):
-                retry_attempts.append({
-                    "channel": channel,
-                    "retry_of_delivery_id": delivery_id,
-                    "attempt_number": 2,
-                })
+                retry_attempts.append(
+                    {
+                        "channel": channel,
+                        "retry_of_delivery_id": delivery_id,
+                        "attempt_number": 2,
+                    }
+                )
         row.notification_status_json = json.dumps(final_state)
         row.events_json = json.dumps(events, default=str)
         await session.commit()
@@ -1217,24 +1347,32 @@ async def _deliver_and_record_notifications(
             retry_event_type = "notification.sent" if state.get("status") == "sent" else "notification.failed"
             if state.get("status") == "skipped":
                 retry_event_type = "notification.skipped"
-            session.add(NotificationDelivery(
-                id=f"nd_{uuid.uuid4().hex[:10]}",
-                run_id=run_id,
-                channel=channel,
-                source_event=source_event,
-                status=state.get("status", "unknown"),
-                retry_of_delivery_id=attempt["retry_of_delivery_id"],
-                attempt_number=attempt["attempt_number"],
-                message=state.get("message"),
-                http_status=state.get("http_status"),
-            ))
-            events.append(_event(run_id, retry_event_type, {
-                "channel": channel,
-                "source_event": source_event,
-                "auto_retry": True,
-                "attempt_number": attempt["attempt_number"],
-                **state,
-            }))
+            session.add(
+                NotificationDelivery(
+                    id=f"nd_{uuid.uuid4().hex[:10]}",
+                    run_id=run_id,
+                    channel=channel,
+                    source_event=source_event,
+                    status=state.get("status", "unknown"),
+                    retry_of_delivery_id=attempt["retry_of_delivery_id"],
+                    attempt_number=attempt["attempt_number"],
+                    message=state.get("message"),
+                    http_status=state.get("http_status"),
+                )
+            )
+            events.append(
+                _event(
+                    run_id,
+                    retry_event_type,
+                    {
+                        "channel": channel,
+                        "source_event": source_event,
+                        "auto_retry": True,
+                        "attempt_number": attempt["attempt_number"],
+                        **state,
+                    },
+                )
+            )
         row.notification_status_json = json.dumps(existing_status)
         row.events_json = json.dumps(events, default=str)
         await session.commit()
@@ -1265,7 +1403,9 @@ def _merge_direct_notification_destinations(base: dict, direct: dict) -> dict:
     merged = dict(base or {})
     if direct.get("discord_webhook_url"):
         merged["discord_webhook_url"] = direct["discord_webhook_url"]
-        merged["discord_audience_type"] = direct.get("discord_audience_type", merged.get("discord_audience_type", "human"))
+        merged["discord_audience_type"] = direct.get(
+            "discord_audience_type", merged.get("discord_audience_type", "human")
+        )
         merged["discord_event_types"] = list(direct.get("discord_event_types") or merged.get("discord_event_types", []))
     if direct.get("slack_webhook_url"):
         merged["slack_webhook_url"] = direct["slack_webhook_url"]
@@ -1343,7 +1483,7 @@ async def claim_next_job(
     lease_seconds: int = 120,
     run_id: str | None = None,
 ) -> tuple[str, str, str, dict] | None:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     lease_expires_at = now.timestamp() + lease_seconds
     async with async_session() as session:
         stmt = (
@@ -1374,7 +1514,7 @@ async def claim_next_job(
         job.status = "running"
         job.attempts += 1
         job.lease_owner = worker_id
-        job.lease_expires_at = datetime.fromtimestamp(lease_expires_at, tz=timezone.utc)
+        job.lease_expires_at = datetime.fromtimestamp(lease_expires_at, tz=UTC)
         created_at = _coerce_utc(job.created_at) or now
         job.queued_duration_ms = max((now - created_at).total_seconds() * 1000, 0)
         job.updated_at = now
@@ -1388,9 +1528,14 @@ async def _execute_job(job_id: str, run_id: str, job_type: str, payload: dict) -
 
     # --- Foxhound scheduling jobs ---
     foxhound_job_types = {
-        "job_discovery", "autopilot_apply", "single_apply",
-        "daily_digest", "stale_cleanup", "followup_check",
-        "watchdog_sweep", "tinyfish_discovery",
+        "job_discovery",
+        "autopilot_apply",
+        "single_apply",
+        "daily_digest",
+        "stale_cleanup",
+        "followup_check",
+        "watchdog_sweep",
+        "tinyfish_discovery",
     }
     if normalized_job_type in foxhound_job_types:
         from app.services.scheduling.executors import (
@@ -1430,7 +1575,7 @@ async def _execute_job(job_id: str, run_id: str, job_type: str, payload: dict) -
 
 
 async def renew_job_lease(job_id: str, worker_id: str, lease_seconds: int = 120) -> bool:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     async with async_session() as session:
         job = await session.get(FoxhoundJob, job_id)
         if not job or job.status != "running" or job.lease_owner != worker_id:
@@ -1442,7 +1587,7 @@ async def renew_job_lease(job_id: str, worker_id: str, lease_seconds: int = 120)
 
 
 async def complete_job(job_id: str, worker_id: str) -> None:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     async with async_session() as session:
         job = await session.get(FoxhoundJob, job_id)
         if not job or job.lease_owner != worker_id:
@@ -1461,7 +1606,7 @@ async def complete_job(job_id: str, worker_id: str) -> None:
 
 
 async def fail_job(job_id: str, worker_id: str, error_message: str) -> None:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     async with async_session() as session:
         job = await session.get(FoxhoundJob, job_id)
         if not job or job.lease_owner != worker_id:
@@ -1485,11 +1630,9 @@ async def fail_job(job_id: str, worker_id: str, error_message: str) -> None:
 
 
 async def requeue_stale_jobs() -> int:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     async with async_session() as session:
-        stmt = select(FoxhoundJob).where(
-            (FoxhoundJob.status == "running") & (FoxhoundJob.lease_expires_at < now)
-        )
+        stmt = select(FoxhoundJob).where((FoxhoundJob.status == "running") & (FoxhoundJob.lease_expires_at < now))
         result = await session.execute(stmt)
         rows = result.scalars().all()
         for job in rows:
@@ -1510,28 +1653,30 @@ async def requeue_stale_jobs() -> int:
 
 
 async def _replace_resources(run_id: str, resources: list[dict]) -> None:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     async with async_session() as session:
         await session.execute(ResourceCandidate.__table__.delete().where(ResourceCandidate.run_id == run_id))
         for item in resources:
-            session.add(ResourceCandidate(
-                id=f"res_{uuid.uuid4().hex[:10]}",
-                run_id=run_id,
-                url=item["url"],
-                normalized_url=item["normalized_url"],
-                source_class=item["source_class"],
-                page_type=item["page_type"],
-                discovery_reason=item.get("discovery_reason", ""),
-                discovered_by=item["discovered_by"],
-                routing_tags_json=json.dumps(item.get("routing_tags", [])),
-                confidence=item["confidence"],
-                priority=item["priority"],
-                status="discovered",
-                provenance_json=json.dumps(item.get("provenance", {})),
-                raw_metadata_json=json.dumps(item.get("raw_metadata", {}), default=str),
-                created_at=now,
-                updated_at=now,
-            ))
+            session.add(
+                ResourceCandidate(
+                    id=f"res_{uuid.uuid4().hex[:10]}",
+                    run_id=run_id,
+                    url=item["url"],
+                    normalized_url=item["normalized_url"],
+                    source_class=item["source_class"],
+                    page_type=item["page_type"],
+                    discovery_reason=item.get("discovery_reason", ""),
+                    discovered_by=item["discovered_by"],
+                    routing_tags_json=json.dumps(item.get("routing_tags", [])),
+                    confidence=item["confidence"],
+                    priority=item["priority"],
+                    status="discovered",
+                    provenance_json=json.dumps(item.get("provenance", {})),
+                    raw_metadata_json=json.dumps(item.get("raw_metadata", {}), default=str),
+                    created_at=now,
+                    updated_at=now,
+                )
+            )
         await session.commit()
 
 
@@ -1619,7 +1764,7 @@ def _persist_raw_signals(run_id: str, topic: str, raw_docs: list[dict]) -> _path
         "run_id": run_id,
         "topic": topic,
         "signal_count": len(raw_docs),
-        "saved_at": datetime.now(timezone.utc).isoformat(),
+        "saved_at": datetime.now(UTC).isoformat(),
         "signals": raw_docs,
     }
     path.write_text(json.dumps(payload, default=str))
