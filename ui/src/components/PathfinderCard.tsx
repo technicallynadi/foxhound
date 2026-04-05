@@ -94,10 +94,10 @@ function Divider() {
 function SectionLabel({ index, children }: { index: string; children: React.ReactNode }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 600, color: 'var(--vl)', letterSpacing: '0.08em', opacity: 0.6 }}>
+      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 600, color: 'var(--t3)', letterSpacing: '0.08em', opacity: 0.6 }}>
         {index.padStart(2, '0')}
       </span>
-      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 500, color: 'var(--vl)', letterSpacing: '0.15em', textTransform: 'uppercase' }}>
+      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 500, color: 'var(--t3)', letterSpacing: '0.15em', textTransform: 'uppercase' }}>
         {children}
       </span>
     </div>
@@ -121,7 +121,7 @@ function ConfidenceBadge({ level }: { level: string }) {
 function OverlapBar({ score }: { score: number }) {
   const pct = Math.min(100, Math.max(0, score));
   const barColor = pct >= 70 ? 'var(--g)' : 'linear-gradient(90deg, var(--v), var(--vl))';
-  const textColor = pct >= 70 ? 'var(--g)' : pct >= 40 ? 'var(--vl)' : 'var(--t3)';
+  const textColor = pct >= 70 ? 'var(--g)' : pct >= 40 ? 'var(--t2)' : 'var(--t3)';
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
       <div style={{ flex: 1, height: 3, borderRadius: 2, background: 'var(--b)', overflow: 'hidden' }}>
@@ -157,19 +157,13 @@ function CopyButton({ text }: { text: string }) {
     } catch { }
   }, [text]);
   return (
-    <button
-      onClick={handleCopy}
-      aria-label={copied ? 'Copied' : 'Copy to clipboard'}
+    <button onClick={handleCopy} aria-label={copied ? 'Copied' : 'Copy to clipboard'}
       style={{
-        fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase',
-        padding: '4px 10px', borderRadius: 4, cursor: 'pointer',
-        border: `1px solid ${copied ? 'rgba(52,211,153,0.3)' : 'var(--b)'}`,
-        background: copied ? 'rgba(52,211,153,0.08)' : 'transparent',
-        color: copied ? 'var(--g)' : 'var(--t3)',
-        transition: 'all 0.2s', minHeight: 28, flexShrink: 0,
+        background: 'none', border: 'none', cursor: 'pointer',
+        fontFamily: 'var(--font-mono)', fontSize: 10, textTransform: 'uppercase',
+        letterSpacing: '0.04em', color: copied ? 'var(--g)' : 'var(--t3)',
+        padding: '4px 0',
       }}
-      onMouseEnter={(e) => { if (!copied) { e.currentTarget.style.borderColor = 'var(--bv)'; e.currentTarget.style.color = 'var(--vl)'; } }}
-      onMouseLeave={(e) => { if (!copied) { e.currentTarget.style.borderColor = 'var(--b)'; e.currentTarget.style.color = 'var(--t3)'; } }}
     >
       {copied ? 'Copied' : 'Copy'}
     </button>
@@ -301,11 +295,11 @@ export default function PathfinderCard({ jobId, initialData, companyName, jobTit
             <>
               <SectionLabel index="1">Hiring Manager</SectionLabel>
               {confirmed?.name ? (
-                <div style={{ background: 'rgba(52,211,153,0.04)', border: '1px solid rgba(52,211,153,0.15)', borderRadius: 8, padding: '12px 14px', marginBottom: 12 }}>
+                <div style={{ borderLeft: '2px solid var(--g)', paddingLeft: 12, background: 'none', border: 'none' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
                     <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--g)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Confirmed</span>
                   </div>
-                  <div style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 700, color: 'var(--t)', letterSpacing: '-0.01em' }}>{confirmed.name}</div>
+                  <div style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 700, color: 'var(--t)', letterSpacing: '-0.01em', marginBottom: 10 }}>{confirmed.name}</div>
                   <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--t3)', marginTop: 3, letterSpacing: '0.02em' }}>
                     {confirmed.title}{confirmed.team ? ` · ${confirmed.team}` : ''}
                   </div>
@@ -321,7 +315,7 @@ export default function PathfinderCard({ jobId, initialData, companyName, jobTit
                   )}
                 </div>
               ) : (
-                <div style={{ background: 'var(--vf)', border: '1px solid var(--bv)', borderRadius: 8, padding: '12px 14px', marginBottom: 12 }}>
+                <div style={{ borderLeft: '2px solid var(--bv)', paddingLeft: 12, background: 'none', border: 'none' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
                     <div>
                       <div style={{ fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 600, color: 'var(--t)', letterSpacing: '-0.01em' }}>{manager?.likely_title || 'Unknown Title'}</div>
