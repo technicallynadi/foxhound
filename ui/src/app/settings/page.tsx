@@ -6,7 +6,7 @@ import AuthGuard from '@/components/AuthGuard';
 import AppNav from '@/components/AppNav';
 import PageSkeleton from '@/components/PageSkeleton';
 import ScrollReveal from '@/components/landing/ScrollReveal';
-import { getProfile, getSettings, updateProfile, updatePreferences, updateAutopilot, updateNotifications, updateBlocklist } from '@/lib/api';
+import { getProfile, getEeoProfile, getSettings, updateProfile, updateEeoProfile, updatePreferences, updateAutopilot, updateNotifications, updateBlocklist } from '@/lib/api';
 
 function SettingsSection({ num, title, defaultOpen = false, children }: { num: string; title: string; defaultOpen?: boolean; children: React.ReactNode }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -207,7 +207,7 @@ export default function SettingsPage() {
     let cancelled = false;
     async function load() {
       try {
-        const [profile, settings] = await Promise.allSettled([getProfile(), getSettings()]);
+        const [profile, eeo, settings] = await Promise.allSettled([getProfile(), getEeoProfile(), getSettings()]);
 
         if (!cancelled && profile.status === 'fulfilled') {
           const p = profile.value;
@@ -223,11 +223,6 @@ export default function SettingsPage() {
           setNoticePeriod((p.notice_period as string) || '');
           setWorkPreference((p.work_preference as string) || '');
           setWillingToRelocate(Boolean(p.willing_to_relocate));
-          setGender((p.gender as string) || '');
-          setRace((p.race as string) || '');
-          setHispanicLatino(p.hispanic_latino === true ? 'yes' : p.hispanic_latino === false ? 'no' : '');
-          setVeteranStatus((p.veteran_status as string) || '');
-          setDisabilityStatus((p.disability_status as string) || '');
           setHowDidYouHear((p.how_did_you_hear as string) || '');
           setResumeFilename((p.resume_filename as string | null) || null);
           setProfileName((p.first_name as string) || '');
@@ -236,6 +231,15 @@ export default function SettingsPage() {
           setProfileLinkedin((p.linkedin_url as string) || '');
           setProfileLocation((p.location as string) || '');
           setProfileTier((p.tier as string) || 'free');
+        }
+
+        if (!cancelled && eeo.status === 'fulfilled') {
+          const e = eeo.value;
+          setGender(e.gender || '');
+          setRace(e.race || '');
+          setHispanicLatino(e.hispanic_latino === true ? 'yes' : e.hispanic_latino === false ? 'no' : '');
+          setVeteranStatus(e.veteran_status || '');
+          setDisabilityStatus(e.disability_status || '');
         }
 
         if (!cancelled && settings.status === 'fulfilled') {
@@ -333,26 +337,33 @@ export default function SettingsPage() {
     const np = (overrides.notice_period as string | undefined) ?? noticePeriod;
     const wp = (overrides.work_preference as string | undefined) ?? workPreference;
     const wr = (overrides.willing_to_relocate as boolean | undefined) ?? willingToRelocate;
-    const gn = (overrides.gender as string | undefined) ?? gender;
-    const rc = (overrides.race as string | undefined) ?? race;
-    const hl = (overrides.hispanic_latino as string | undefined) ?? hispanicLatino;
+    const hdyh = (overrides.how_did_you_hear as string | undefined) ?? howDidYouHear;
 
     if (vs) payload.visa_status = vs;
     if (se) payload.salary_expectation = se;
     if (np) payload.notice_period = np;
     if (wp) payload.work_preference = wp;
     payload.willing_to_relocate = wr;
-    if (gn) payload.gender = gn;
-    if (rc) payload.race = rc;
-    if (hl) payload.hispanic_latino = hl === 'yes' ? true : hl === 'no' ? false : null;
-    const vs2 = (overrides.veteran_status as string | undefined) ?? veteranStatus;
-    const ds = (overrides.disability_status as string | undefined) ?? disabilityStatus;
-    const hdyh = (overrides.how_did_you_hear as string | undefined) ?? howDidYouHear;
-    if (vs2) payload.veteran_status = vs2;
-    if (ds) payload.disability_status = ds;
     if (hdyh) payload.how_did_you_hear = hdyh;
 
     debouncedSave(() => updateProfile(payload));
+  }
+
+  function saveEeoProfile(overrides: Record<string, unknown> = {}) {
+    const gn = (overrides.gender as string | undefined) ?? gender;
+    const rc = (overrides.race as string | undefined) ?? race;
+    const hl = (overrides.hispanic_latino as string | undefined) ?? hispanicLatino;
+    const vs2 = (overrides.veteran_status as string | undefined) ?? veteranStatus;
+    const ds = (overrides.disability_status as string | undefined) ?? disabilityStatus;
+
+    const payload: Record<string, unknown> = {};
+    if (gn) payload.gender = gn;
+    if (rc) payload.race = rc;
+    if (hl !== '') payload.hispanic_latino = hl === 'yes' ? true : hl === 'no' ? false : null;
+    if (vs2) payload.veteran_status = vs2;
+    if (ds) payload.disability_status = ds;
+
+    debouncedSave(() => updateEeoProfile(payload));
   }
 
   if (loading) {
@@ -499,7 +510,7 @@ export default function SettingsPage() {
             <SettingSelect
               label="Gender"
               value={gender}
-              onChange={(v) => { setGender(v); saveApplicationProfile({ gender: v }); }}
+              onChange={(v) => { setGender(v); saveEeoProfile({ gender: v }); }}
               options={[
                 { value: 'male', label: 'Male' },
                 { value: 'female', label: 'Female' },
@@ -511,7 +522,7 @@ export default function SettingsPage() {
             <SettingSelect
               label="Race / Ethnicity"
               value={race}
-              onChange={(v) => { setRace(v); saveApplicationProfile({ race: v }); }}
+              onChange={(v) => { setRace(v); saveEeoProfile({ race: v }); }}
               options={[
                 { value: 'white', label: 'White' },
                 { value: 'black', label: 'Black or African American' },
@@ -526,7 +537,7 @@ export default function SettingsPage() {
             <SettingSelect
               label="Hispanic or Latino?"
               value={hispanicLatino}
-              onChange={(v) => { setHispanicLatino(v); saveApplicationProfile({ hispanic_latino: v }); }}
+              onChange={(v) => { setHispanicLatino(v); saveEeoProfile({ hispanic_latino: v }); }}
               options={[
                 { value: 'yes', label: 'Yes' },
                 { value: 'no', label: 'No' },
@@ -575,7 +586,7 @@ export default function SettingsPage() {
             <SettingSelect
               label="Veteran status"
               value={veteranStatus}
-              onChange={(v) => { setVeteranStatus(v); saveApplicationProfile({ veteran_status: v }); }}
+              onChange={(v) => { setVeteranStatus(v); saveEeoProfile({ veteran_status: v }); }}
               options={[
                 { value: 'not_veteran', label: 'I am not a protected veteran' },
                 { value: 'veteran', label: 'I am a protected veteran' },
@@ -586,7 +597,7 @@ export default function SettingsPage() {
             <SettingSelect
               label="Disability status"
               value={disabilityStatus}
-              onChange={(v) => { setDisabilityStatus(v); saveApplicationProfile({ disability_status: v }); }}
+              onChange={(v) => { setDisabilityStatus(v); saveEeoProfile({ disability_status: v }); }}
               options={[
                 { value: 'no', label: 'No, I do not have a disability' },
                 { value: 'yes', label: 'Yes, I have a disability' },
