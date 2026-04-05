@@ -35,27 +35,29 @@ export default function AppNavbar() {
           </div>
         </Link>
 
-        <div style={{ display: 'flex', gap: 4, fontSize: 13 }}>
-          {NAV_LINKS.map((link) => {
-            const isActive = pathname === link.href || pathname.startsWith(link.href + '/');
-            return (
-              <Link
-                key={link.href}
-                href={link.href}
-                style={{
-                  padding: '6px 14px',
-                  borderRadius: 8,
-                  color: isActive ? '#fff' : 'var(--text-muted)',
-                  fontWeight: isActive ? 500 : 400,
-                  background: isActive ? 'rgba(255,255,255,0.06)' : 'transparent',
-                  transition: 'background 150ms ease-out, color 150ms ease-out',
-                }}
-              >
-                {link.label}
-              </Link>
-            );
-          })}
-        </div>
+        {user && (
+          <div style={{ display: 'flex', gap: 4, fontSize: 13 }}>
+            {NAV_LINKS.map((link) => {
+              const isActive = pathname === link.href || pathname.startsWith(link.href + '/');
+              return (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  style={{
+                    padding: '6px 14px',
+                    borderRadius: 8,
+                    color: isActive ? '#fff' : 'var(--text-muted)',
+                    fontWeight: isActive ? 500 : 400,
+                    background: isActive ? 'rgba(255,255,255,0.06)' : 'transparent',
+                    transition: 'background 150ms ease-out, color 150ms ease-out',
+                  }}
+                >
+                  {link.label}
+                </Link>
+              );
+            })}
+          </div>
+        )}
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 100, justifyContent: 'flex-end' }}>
           {isAuthConfigured && user ? (
