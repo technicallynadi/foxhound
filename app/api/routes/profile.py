@@ -48,6 +48,14 @@ class ProfileUpdate(BaseModel):
     how_did_you_hear: str | None = None
 
 
+class EEOUpdate(BaseModel):
+    gender: Literal["male", "female", "non_binary", "decline"] | None = None
+    race: Literal["white", "black", "asian", "native", "pacific", "two_or_more", "decline"] | None = None
+    hispanic_latino: bool | None = None
+    veteran_status: Literal["not_veteran", "veteran", "decline"] | None = None
+    disability_status: Literal["no", "yes", "decline"] | None = None
+
+
 class PreferencesUpdate(BaseModel):
     target_titles: list[str] | None = Field(None, max_length=20)
     target_locations: list[str] | None = Field(None, max_length=10)
@@ -326,16 +334,6 @@ async def update_profile(
         profile.work_preference = body.work_preference
     if body.willing_to_relocate is not None:
         profile.willing_to_relocate = body.willing_to_relocate
-    if body.gender is not None:
-        profile.gender = body.gender
-    if body.race is not None:
-        profile.race = body.race
-    if body.hispanic_latino is not None:
-        profile.hispanic_latino = body.hispanic_latino
-    if body.veteran_status is not None:
-        profile.veteran_status = body.veteran_status
-    if body.disability_status is not None:
-        profile.disability_status = body.disability_status
     if body.how_did_you_hear is not None:
         profile.how_did_you_hear = body.how_did_you_hear
 
@@ -405,6 +403,65 @@ async def update_preferences(
     return _serialize_profile(profile)
 
 
+@router.get("/eeo")
+async def get_eeo_profile(
+    user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get EEO/demographic data for the authenticated user (separate from core profile)."""
+    user_id = user["user_id"]
+    result = await db.execute(
+        select(UserProfile).where(UserProfile.user_id == user_id)
+    )
+    profile = result.scalar_one_or_none()
+    if not profile:
+        raise HTTPException(404, "Profile not found.")
+
+    return {
+        "gender": profile.gender,
+        "race": profile.race,
+        "hispanic_latino": profile.hispanic_latino,
+        "veteran_status": profile.veteran_status,
+        "disability_status": profile.disability_status,
+    }
+
+
+@router.put("/eeo")
+async def update_eeo_profile(
+    body: EEOUpdate,
+    user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Update EEO/demographic fields for the authenticated user."""
+    user_id = user["user_id"]
+    result = await db.execute(
+        select(UserProfile).where(UserProfile.user_id == user_id)
+    )
+    profile = result.scalar_one_or_none()
+    if not profile:
+        raise HTTPException(404, "Profile not found.")
+
+    if body.gender is not None:
+        profile.gender = body.gender
+    if body.race is not None:
+        profile.race = body.race
+    if body.hispanic_latino is not None:
+        profile.hispanic_latino = body.hispanic_latino
+    if body.veteran_status is not None:
+        profile.veteran_status = body.veteran_status
+    if body.disability_status is not None:
+        profile.disability_status = body.disability_status
+
+    await db.commit()
+    return {
+        "gender": profile.gender,
+        "race": profile.race,
+        "hispanic_latino": profile.hispanic_latino,
+        "veteran_status": profile.veteran_status,
+        "disability_status": profile.disability_status,
+    }
+
+
 def _serialize_profile(profile: UserProfile) -> dict:
     return {
         "id": profile.id,
@@ -437,11 +494,6 @@ def _serialize_profile(profile: UserProfile) -> dict:
         "notice_period": profile.notice_period,
         "work_preference": profile.work_preference,
         "willing_to_relocate": profile.willing_to_relocate,
-        "gender": profile.gender,
-        "race": profile.race,
-        "hispanic_latino": profile.hispanic_latino,
-        "veteran_status": profile.veteran_status,
-        "disability_status": profile.disability_status,
         "how_did_you_hear": profile.how_did_you_hear,
     }
 
