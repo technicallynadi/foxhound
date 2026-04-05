@@ -3,7 +3,7 @@ import contextlib
 import json
 import logging
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from urllib.parse import urlparse
 
 from sqlalchemy import func, or_, select
@@ -42,7 +42,7 @@ EVIDENCE_CLASS_TO_SOURCE_CLASS = {
 async def create_run(request: dict) -> str:
     run_id = f"run_{uuid.uuid4().hex[:10]}"
     job_id = f"job_{uuid.uuid4().hex[:10]}"
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     created_event = _event(run_id, "run.created", {"query": request["query"], "mode": request.get("mode", "pipeline_run")}, timestamp=now)
     destination_ids = request.get("notification_destination_ids", [])
     destination_config = await resolve_notification_destinations(destination_ids)
@@ -130,7 +130,7 @@ async def get_job(job_id: str) -> dict | None:
 
 
 async def cancel_run(run_id: str) -> bool:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     async with async_session() as session:
         run = await session.get(FoxhoundRun, run_id)
         if not run:
@@ -159,7 +159,7 @@ async def cancel_run(run_id: str) -> bool:
 
 
 async def get_queue_health() -> dict:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     async with async_session() as session:
         result = await session.execute(
             select(FoxhoundJob.status, func.count(FoxhoundJob.id)).group_by(FoxhoundJob.status)
@@ -243,12 +243,11 @@ async def _execute_run(run_id: str, request: dict) -> None:
     from app.services.ingest.community_router import route_query
     from app.services.ingest.ingest_service import (
         _dispatch_workers,
-        build_source_family_candidates,
-        get_learned_sources,
-        _generate_github_urls,
         _navigate_seed_urls,
         _save_discovered_sources,
         _to_raw_document,
+        build_source_family_candidates,
+        get_learned_sources,
     )
     from app.services.ingest.query_analyzer import analyze_query
     from app.services.ingest.query_translator import is_conversational, translate_query
@@ -537,10 +536,10 @@ async def _focused_extraction_flow(
 
     Uses client.agent.run() (blocking) with short, single-purpose prompts.
     Returns raw documents ready for the pipeline."""
+    from app.services.ingest.extraction_parser import signals_to_raw_documents
+    from app.services.ingest.extraction_prompts import get_prompts_for_source
     from app.services.ingest.source_targets import get_source_targets
     from app.services.ingest.tinyfish_adapter import run_focused_extraction
-    from app.services.ingest.extraction_prompts import get_prompts_for_source
-    from app.services.ingest.extraction_parser import signals_to_raw_documents
 
     targets = get_source_targets(query, vertical, budget=budget)
     await _append_run_event(run_id, "focused.targets_generated", {
@@ -788,7 +787,7 @@ def _normalize_url(url: str) -> str:
 
 
 def _event(run_id: str, event_type: str, payload: dict, timestamp: datetime | None = None) -> dict:
-    ts = timestamp or datetime.now(timezone.utc)
+    ts = timestamp or datetime.now(UTC)
     return {
         "event_id": f"evt_{uuid.uuid4().hex[:10]}",
         "event_type": event_type,
@@ -859,8 +858,8 @@ def _coerce_utc(dt: datetime | None) -> datetime | None:
     if dt is None:
         return None
     if dt.tzinfo is None:
-        return dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(timezone.utc)
+        return dt.replace(tzinfo=UTC)
+    return dt.astimezone(UTC)
 
 
 def _load_json(value: str | None, default):
@@ -876,7 +875,7 @@ def _step(step: str, status: str, message: str | None = None) -> dict:
     return {
         "step": step,
         "status": status,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "message": message,
     }
 
@@ -1003,7 +1002,7 @@ async def _complete_run(
         row.status = status
         row.progress_percent = progress
         row.current_step = status
-        row.completed_at = datetime.now(timezone.utc)
+        row.completed_at = datetime.now(UTC)
         row.error_message = error_message
         if result is not None:
             row.result_json = json.dumps(result, default=str)
@@ -1343,7 +1342,7 @@ async def claim_next_job(
     lease_seconds: int = 120,
     run_id: str | None = None,
 ) -> tuple[str, str, str, dict] | None:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     lease_expires_at = now.timestamp() + lease_seconds
     async with async_session() as session:
         stmt = (
@@ -1374,7 +1373,7 @@ async def claim_next_job(
         job.status = "running"
         job.attempts += 1
         job.lease_owner = worker_id
-        job.lease_expires_at = datetime.fromtimestamp(lease_expires_at, tz=timezone.utc)
+        job.lease_expires_at = datetime.fromtimestamp(lease_expires_at, tz=UTC)
         created_at = _coerce_utc(job.created_at) or now
         job.queued_duration_ms = max((now - created_at).total_seconds() * 1000, 0)
         job.updated_at = now
@@ -1430,7 +1429,7 @@ async def _execute_job(job_id: str, run_id: str, job_type: str, payload: dict) -
 
 
 async def renew_job_lease(job_id: str, worker_id: str, lease_seconds: int = 120) -> bool:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     async with async_session() as session:
         job = await session.get(FoxhoundJob, job_id)
         if not job or job.status != "running" or job.lease_owner != worker_id:
@@ -1442,7 +1441,7 @@ async def renew_job_lease(job_id: str, worker_id: str, lease_seconds: int = 120)
 
 
 async def complete_job(job_id: str, worker_id: str) -> None:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     async with async_session() as session:
         job = await session.get(FoxhoundJob, job_id)
         if not job or job.lease_owner != worker_id:
@@ -1461,7 +1460,7 @@ async def complete_job(job_id: str, worker_id: str) -> None:
 
 
 async def fail_job(job_id: str, worker_id: str, error_message: str) -> None:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     async with async_session() as session:
         job = await session.get(FoxhoundJob, job_id)
         if not job or job.lease_owner != worker_id:
@@ -1485,7 +1484,7 @@ async def fail_job(job_id: str, worker_id: str, error_message: str) -> None:
 
 
 async def requeue_stale_jobs() -> int:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     async with async_session() as session:
         stmt = select(FoxhoundJob).where(
             (FoxhoundJob.status == "running") & (FoxhoundJob.lease_expires_at < now)
@@ -1510,7 +1509,7 @@ async def requeue_stale_jobs() -> int:
 
 
 async def _replace_resources(run_id: str, resources: list[dict]) -> None:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     async with async_session() as session:
         await session.execute(ResourceCandidate.__table__.delete().where(ResourceCandidate.run_id == run_id))
         for item in resources:
@@ -1619,7 +1618,7 @@ def _persist_raw_signals(run_id: str, topic: str, raw_docs: list[dict]) -> _path
         "run_id": run_id,
         "topic": topic,
         "signal_count": len(raw_docs),
-        "saved_at": datetime.now(timezone.utc).isoformat(),
+        "saved_at": datetime.now(UTC).isoformat(),
         "signals": raw_docs,
     }
     path.write_text(json.dumps(payload, default=str))

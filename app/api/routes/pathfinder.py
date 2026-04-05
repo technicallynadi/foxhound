@@ -5,7 +5,6 @@ POST /api/v1/pathfinder/{job_id} — hiring manager discovery + outreach draftin
 
 from __future__ import annotations
 
-import json
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -53,8 +52,8 @@ async def pathfinder_discover(
 
     # Lazy imports to keep startup fast
     from app.services.pathfinder.extractor import extract_manager_signals
-    from app.services.pathfinder.overlap import find_overlap
     from app.services.pathfinder.outreach import draft_outreach
+    from app.services.pathfinder.overlap import find_overlap
     from app.services.pathfinder.search_url import build_search_urls
 
     # 1. Extract hiring manager signals from job description
@@ -71,8 +70,9 @@ async def pathfinder_discover(
     search_urls = build_search_urls(company=job.company, title=likely_title)
 
     # 2b. TinyFish background enrichment — search company team page for actual name
-    from app.services.pathfinder.team_lookup import lookup_team_page
     import asyncio
+
+    from app.services.pathfinder.team_lookup import lookup_team_page
     team_lookup_task = asyncio.create_task(
         lookup_team_page(
             company_name=job.company,
@@ -115,7 +115,7 @@ async def pathfinder_discover(
     team_result = None
     try:
         team_result = await asyncio.wait_for(team_lookup_task, timeout=2.0)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         # TinyFish still running — return without it, it'll be available on next call via cache
         logger.info("Pathfinder: TinyFish still running for %s, returning without enrichment", job.company)
     except Exception:

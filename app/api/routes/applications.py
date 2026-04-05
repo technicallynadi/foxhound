@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -11,11 +11,11 @@ from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.rate_limit import rate_limit
 from app.db.models.application import Application
 from app.db.models.foxhound_brief import FoxhoundBrief
 from app.db.models.job_listing import JobListing
 from app.db.session import get_db
-from app.api.rate_limit import rate_limit
 from app.services.apply.orchestrator import ApplicationOrchestrator
 from app.services.auth_service import get_current_user
 from app.services.discovery.ats_detector import detect_ats
@@ -142,7 +142,7 @@ async def create_manual_tracked_application(
     if existing_app:
         raise HTTPException(400, "This application is already being tracked")
 
-    submitted_at = body.submitted_at or datetime.now(timezone.utc)
+    submitted_at = body.submitted_at or datetime.now(UTC)
     app = Application(
         id=str(uuid4()),
         user_id=user_id,
@@ -449,6 +449,7 @@ async def submit_answers(
 ):
     """Submit answers and kick off Phase 2 in the background. Returns immediately."""
     import asyncio
+
     from app.db.models.application_question import ApplicationQuestion
     from app.db.models.user_profile import UserProfile
     from app.services.agent.utils.profile_filler import update_answer_bank

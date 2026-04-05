@@ -9,7 +9,7 @@ Only fires on meaningful status transitions (active->removed, etc.).
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 
@@ -181,5 +181,5 @@ def _days_since_applied(application: Application) -> int:
     ref = application.submitted_at or application.created_at
     if not ref:
         return 0
-    delta = datetime.now(timezone.utc) - ref
+    delta = datetime.now(UTC) - ref
     return max(0, delta.days)

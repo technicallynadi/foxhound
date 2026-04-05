@@ -14,8 +14,6 @@ import json
 import logging
 from typing import Any
 
-from app.core.config import settings
-
 logger = logging.getLogger(__name__)
 
 # 45-second timeout — shorter than Recon since this is enrichment, not primary
@@ -33,6 +31,7 @@ async def lookup_team_page(
     Returns dict with {name, title, team, source_url} or None if not found.
     """
     from tinyfish import BrowserProfile
+
     from app.services.ingest.tinyfish_adapter import _get_client
 
     if not company_url:
@@ -93,7 +92,7 @@ async def lookup_team_page(
 
         return None
 
-    except asyncio.TimeoutError:
+    except TimeoutError:
         logger.warning("Pathfinder team lookup timed out for %s (%ds)", company_name, _TIMEOUT_S)
         return None
     except Exception as e:

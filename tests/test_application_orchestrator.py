@@ -1,12 +1,10 @@
 """Tests for application orchestrator: two-phase apply flow, error states."""
 
-import json
+from unittest.mock import AsyncMock, patch
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-from uuid import uuid4
 
 from app.services.apply.orchestrator import ApplicationOrchestrator
-
 
 # ---------------------------------------------------------------------------
 # Pre-flight checks
@@ -22,6 +20,7 @@ async def test_apply_no_profile(db):
 @pytest.mark.asyncio
 async def test_apply_free_tier_blocked(db, sample_profile, sample_jobs):
     from sqlalchemy import select
+
     from app.db.models.user_profile import UserProfile
 
     result = await db.execute(select(UserProfile).where(UserProfile.user_id == sample_profile.user_id))
@@ -37,6 +36,7 @@ async def test_apply_free_tier_blocked(db, sample_profile, sample_jobs):
 @pytest.mark.asyncio
 async def test_apply_monthly_limit(db, sample_profile, sample_jobs):
     from sqlalchemy import select
+
     from app.db.models.user_profile import UserProfile
 
     result = await db.execute(select(UserProfile).where(UserProfile.user_id == sample_profile.user_id))
@@ -89,7 +89,7 @@ def test_playwright_filler_field_result_types():
 
 def test_playwright_filler_fill_result():
     """FillResult captures overall status + per-field results."""
-    from app.services.apply.playwright_filler import FillResult, FieldFillResult
+    from app.services.apply.playwright_filler import FieldFillResult, FillResult
     result = FillResult(
         status="submitted",
         fields=[
@@ -123,8 +123,8 @@ def test_playwright_filler_profile_data():
 
 def test_playwright_filler_resolve_value():
     """_resolve_field_value picks custom answers over profile data."""
-    from app.services.apply.playwright_filler import _resolve_field_value
     from app.services.apply.form_scanner import FormField
+    from app.services.apply.playwright_filler import _resolve_field_value
     field = FormField(label="Email", field_type="email", required=True)
     # Custom answer takes priority
     val = _resolve_field_value(field, {"email": "profile@x.com"}, {"Email": "custom@x.com"})
@@ -181,8 +181,9 @@ async def test_apply_scan_error(db, sample_profile, sample_jobs):
 
 @pytest.mark.asyncio
 async def test_apply_cdp_disconnect_returns_error(db, sample_profile, sample_jobs):
-    from app.services.apply.form_scanner import ScanResult, FormField
     import httpx
+
+    from app.services.apply.form_scanner import FormField, ScanResult
     orch = ApplicationOrchestrator()
     with patch("app.services.apply.form_scanner.scan_form", new_callable=AsyncMock) as ms, patch("app.services.apply.agentql_filler.fill_from_profile", new_callable=AsyncMock) as mf, patch("app.services.apply.ats_url_parser.parse_ats_url", return_value=None):
         ms.return_value = ScanResult(status="scannable", fields=[FormField(label="Email", field_type="email", required=True)])
@@ -193,7 +194,7 @@ async def test_apply_cdp_disconnect_returns_error(db, sample_profile, sample_job
 
 @pytest.mark.asyncio
 async def test_apply_cdp_disconnect_mid_fill_returns_error(db, sample_profile, sample_jobs):
-    from app.services.apply.form_scanner import ScanResult, FormField
+    from app.services.apply.form_scanner import FormField, ScanResult
     orch = ApplicationOrchestrator()
     with patch("app.services.apply.form_scanner.scan_form", new_callable=AsyncMock) as ms, patch("app.services.apply.agentql_filler.fill_from_profile", new_callable=AsyncMock) as mf, patch("app.services.apply.ats_url_parser.parse_ats_url", return_value=None):
         ms.return_value = ScanResult(status="scannable", fields=[FormField(label="Email", field_type="email", required=True)])
@@ -204,7 +205,7 @@ async def test_apply_cdp_disconnect_mid_fill_returns_error(db, sample_profile, s
 
 @pytest.mark.asyncio
 async def test_apply_fill_status_error_sets_failed(db, sample_profile, sample_jobs):
-    from app.services.apply.form_scanner import ScanResult, FormField
+    from app.services.apply.form_scanner import FormField, ScanResult
     from app.services.apply.playwright_filler import FillResult
     orch = ApplicationOrchestrator()
     with patch("app.services.apply.form_scanner.scan_form", new_callable=AsyncMock) as ms, patch("app.services.apply.agentql_filler.fill_from_profile", new_callable=AsyncMock) as mf, patch("app.services.apply.ats_url_parser.parse_ats_url", return_value=None):
@@ -216,7 +217,7 @@ async def test_apply_fill_status_error_sets_failed(db, sample_profile, sample_jo
 
 @pytest.mark.asyncio
 async def test_apply_fill_status_captcha_sets_needs_manual(db, sample_profile, sample_jobs):
-    from app.services.apply.form_scanner import ScanResult, FormField
+    from app.services.apply.form_scanner import FormField, ScanResult
     from app.services.apply.playwright_filler import FillResult
     orch = ApplicationOrchestrator()
     with patch("app.services.apply.form_scanner.scan_form", new_callable=AsyncMock) as ms, patch("app.services.apply.agentql_filler.fill_from_profile", new_callable=AsyncMock) as mf, patch("app.services.apply.ats_url_parser.parse_ats_url", return_value=None):
@@ -229,8 +230,8 @@ async def test_apply_fill_status_captcha_sets_needs_manual(db, sample_profile, s
 
 @pytest.mark.asyncio
 async def test_apply_fill_submitted_sets_submitted(db, sample_profile, sample_jobs):
-    from app.services.apply.form_scanner import ScanResult, FormField
-    from app.services.apply.playwright_filler import FillResult, FieldFillResult
+    from app.services.apply.form_scanner import FormField, ScanResult
+    from app.services.apply.playwright_filler import FieldFillResult, FillResult
     orch = ApplicationOrchestrator()
     with patch("app.services.apply.form_scanner.scan_form", new_callable=AsyncMock) as ms, patch("app.services.apply.agentql_filler.fill_from_profile", new_callable=AsyncMock) as mf, patch("app.services.apply.ats_url_parser.parse_ats_url", return_value=None), patch("app.services.apply.notifications.send_application_receipt", new_callable=AsyncMock), patch("app.services.storage.supabase_storage.upload_file", new_callable=AsyncMock), patch("app.services.events.emit", new_callable=AsyncMock):
         ms.return_value = ScanResult(status="scannable", fields=[FormField(label="Email", field_type="email", required=True)])
@@ -243,7 +244,7 @@ async def test_apply_fill_submitted_sets_submitted(db, sample_profile, sample_jo
 
 @pytest.mark.asyncio
 async def test_apply_waiting_user_input_when_sensitive_fields(db, sample_profile, sample_jobs):
-    from app.services.apply.form_scanner import ScanResult, FormField
+    from app.services.apply.form_scanner import FormField, ScanResult
     orch = ApplicationOrchestrator()
     with patch("app.services.apply.form_scanner.scan_form", new_callable=AsyncMock) as ms, patch("app.services.apply.notifications.send_conversation_question", new_callable=AsyncMock), patch("app.services.apply.ats_url_parser.parse_ats_url", return_value=None):
         ms.return_value = ScanResult(status="scannable", fields=[FormField(label="Email", field_type="email", required=True), FormField(label="Expected salary", field_type="text", required=True)])
@@ -254,8 +255,9 @@ async def test_apply_waiting_user_input_when_sensitive_fields(db, sample_profile
 @pytest.mark.asyncio
 async def test_apply_question_records_created_for_sensitive_fields(db, sample_profile, sample_jobs):
     from sqlalchemy import select
-    from app.services.apply.form_scanner import ScanResult, FormField
+
     from app.db.models.application_question import ApplicationQuestion
+    from app.services.apply.form_scanner import FormField, ScanResult
     orch = ApplicationOrchestrator()
     with patch("app.services.apply.form_scanner.scan_form", new_callable=AsyncMock) as ms, patch("app.services.apply.notifications.send_conversation_question", new_callable=AsyncMock), patch("app.services.apply.ats_url_parser.parse_ats_url", return_value=None):
         ms.return_value = ScanResult(status="scannable", fields=[FormField(label="Email", field_type="email", required=True), FormField(label="Desired salary", field_type="text", required=True)])
@@ -270,13 +272,13 @@ async def test_apply_question_records_created_for_sensitive_fields(db, sample_pr
 
 @pytest.mark.asyncio
 async def test_apply_no_user_input_needed_proceeds_to_fill(db, sample_profile, sample_jobs):
-    from app.services.apply.form_scanner import ScanResult, FormField
+    from app.services.apply.form_scanner import FormField, ScanResult
     from app.services.apply.playwright_filler import FillResult
     orch = ApplicationOrchestrator()
     with patch("app.services.apply.form_scanner.scan_form", new_callable=AsyncMock) as ms, patch("app.services.apply.agentql_filler.fill_from_profile", new_callable=AsyncMock) as mf, patch("app.services.apply.notifications.send_conversation_question", new_callable=AsyncMock) as mc, patch("app.services.apply.ats_url_parser.parse_ats_url", return_value=None):
         ms.return_value = ScanResult(status="scannable", fields=[FormField(label="Email", field_type="email", required=True), FormField(label="First name", field_type="text", required=True)])
         mf.return_value = FillResult(status="needs_manual", error="No submit", duration_ms=2000)
-        app = await orch.apply(db, user_id=sample_profile.user_id, job_id=sample_jobs[0].id)
+        await orch.apply(db, user_id=sample_profile.user_id, job_id=sample_jobs[0].id)
     mc.assert_not_called()
     mf.assert_called_once()
 
@@ -300,9 +302,10 @@ async def test_duplicate_application_rejected(db, sample_profile, sample_jobs):
 @pytest.mark.asyncio
 async def test_apply_fill_needs_manual_preserves_fields_filled(db, sample_profile, sample_jobs):
     import json as _json
-    from app.services.apply.form_scanner import ScanResult, FormField
-    from app.services.apply.playwright_filler import FillResult, FieldFillResult
+
     from app.db.models.application import Application as AppModel
+    from app.services.apply.form_scanner import FormField, ScanResult
+    from app.services.apply.playwright_filler import FieldFillResult, FillResult
     orch = ApplicationOrchestrator()
     with patch("app.services.apply.form_scanner.scan_form", new_callable=AsyncMock) as ms, patch("app.services.apply.agentql_filler.fill_from_profile", new_callable=AsyncMock) as mf, patch("app.services.apply.ats_url_parser.parse_ats_url", return_value=None):
         ms.return_value = ScanResult(status="scannable", fields=[FormField(label="Email", field_type="email", required=True), FormField(label="First name", field_type="text", required=True)])

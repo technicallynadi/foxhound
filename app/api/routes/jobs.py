@@ -43,7 +43,7 @@ async def list_jobs(
         .join(JobListing, JobMatch.job_id == JobListing.id)
         .where(
             JobMatch.user_id == user_id,
-            JobMatch.disqualified == False,
+            JobMatch.disqualified is False,
             JobMatch.match_score >= min_score,
             JobListing.status == "active",
         )
@@ -62,7 +62,7 @@ async def list_jobs(
         .join(JobListing, JobMatch.job_id == JobListing.id)
         .where(
             JobMatch.user_id == user_id,
-            JobMatch.disqualified == False,
+            JobMatch.disqualified is False,
             JobMatch.match_score >= min_score,
             JobListing.status == "active",
         )
@@ -129,7 +129,7 @@ async def public_job_feed(
                 .join(JobListing, JobMatch.job_id == JobListing.id)
                 .where(
                     JobMatch.user_id == user_id,
-                    JobMatch.disqualified == False,
+                    JobMatch.disqualified is False,
                     JobListing.status == "active",
                 )
             )
@@ -150,7 +150,7 @@ async def public_job_feed(
                     .join(JobListing, JobMatch.job_id == JobListing.id)
                     .where(
                         JobMatch.user_id == user_id,
-                        JobMatch.disqualified == False,
+                        JobMatch.disqualified is False,
                         JobListing.status == "active",
                     )
                 )

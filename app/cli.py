@@ -4,12 +4,10 @@
 import argparse
 import asyncio
 import json
+import logging
 import sys
 import time
-from datetime import datetime, timezone
 from pathlib import Path
-
-import logging
 
 from dotenv import load_dotenv
 
@@ -30,7 +28,6 @@ for _name in ("httpx", "httpcore", "sqlalchemy", "asyncio"):
     logging.getLogger(_name).setLevel(logging.WARNING)
 
 from app.core.config import settings
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -106,7 +103,7 @@ def _print_opportunity(i, opp):
     # Wedge
     w = opp.get("wedge")
     if w:
-        print(f"\n      --- WEDGE (narrow entry point) ---")
+        print("\n      --- WEDGE (narrow entry point) ---")
         if w.get("what_it_does"):
             print(f"      {w['what_it_does']}")
         if w.get("broken_step"):
@@ -126,7 +123,7 @@ def _print_opportunity(i, opp):
     # System Design
     sd = opp.get("system_design")
     if sd:
-        print(f"\n      --- SYSTEM DESIGN (full product) ---")
+        print("\n      --- SYSTEM DESIGN (full product) ---")
         if sd.get("what_it_becomes"):
             print(f"      {sd['what_it_becomes']}")
         for entity in sd.get("data_model", [])[:6]:
@@ -141,7 +138,7 @@ def _print_opportunity(i, opp):
 
     # MVP Plan
     if opp.get("mvp_plan"):
-        print(f"\n      MVP plan:")
+        print("\n      MVP plan:")
         for step in opp["mvp_plan"][:6]:
             print(f"        - {step}")
 
@@ -217,8 +214,8 @@ async def cmd_search(args):
 
 async def cmd_inspect(args):
     """Inspect the pipeline trace."""
-    from app.services.pipeline import run_pipeline
     from app.db.session import init_db
+    from app.services.pipeline import run_pipeline
     await init_db()
 
     sources = args.sources.split(",") if args.sources else ["reddit", "github"]
@@ -257,7 +254,7 @@ async def cmd_inspect(args):
 
 async def cmd_resolve(args):
     """Resolve a query to a vertical."""
-    from app.core.vertical_config import resolve_vertical, load_verticals
+    from app.core.vertical_config import load_verticals, resolve_vertical
 
     key, match_type, confidence, matched_terms = resolve_vertical(args.query)
 
@@ -273,7 +270,7 @@ async def cmd_resolve(args):
         config = verticals.get(key, {})
         communities = config.get("communities", {})
         if communities:
-            print(f"\n  Communities:")
+            print("\n  Communities:")
             for tier, subs in communities.items():
                 if subs:
                     if isinstance(subs, str):
@@ -309,7 +306,7 @@ async def cmd_analyze(args):
     print(f"  Intent: {profile.get('intent', 'unknown')}")
     print(f"  Tools mentioned: {profile.get('tools_mentioned', [])}")
     print(f"  Domains: {profile.get('domains', [])}")
-    print(f"  Search queries:")
+    print("  Search queries:")
     for q in profile.get("search_queries", []):
         print(f"    - {q}")
 
@@ -319,8 +316,8 @@ async def cmd_analyze(args):
 
 async def cmd_tinyfish_job(args):
     """Run a TinyFish job."""
-    from app.jobs.base import run_job
     from app.db.session import init_db
+    from app.jobs.base import run_job
     await init_db()
 
     _print_header(f"TinyFish Job: {args.job_type}")
@@ -368,6 +365,7 @@ async def cmd_tinyfish_jobs(args):
 async def cmd_tinyfish_runs(args):
     """List TinyFish runs from DB."""
     from sqlalchemy import select
+
     from app.db.models.tinyfish_run import TinyFishRun
     from app.db.session import async_session, init_db
     await init_db()
@@ -404,9 +402,9 @@ async def cmd_tinyfish_runs(args):
 
 async def cmd_preview(args):
     """Generate a preview for an opportunity."""
+    from app.db.session import init_db
     from app.services.pipeline import run_pipeline
     from app.services.preview.preview_service import generate_preview
-    from app.db.session import init_db
     await init_db()
 
     sources = args.sources.split(",") if args.sources else ["reddit", "github"]
@@ -460,8 +458,8 @@ async def cmd_ml_status(args):
 
 async def cmd_ml_train(args):
     """Train an ML model."""
-    from app.ml.training_pipeline import train_relevance_model
     from app.db.session import init_db
+    from app.ml.training_pipeline import train_relevance_model
     await init_db()
 
     _print_header(f"Training: {args.component}")
@@ -477,11 +475,10 @@ async def cmd_ml_train(args):
 
 async def cmd_dataset(args):
     """Generate a training dataset."""
-    from app.services.pipeline import run_pipeline
-    from app.services.dataset.dataset_generator import generate_dataset_from_docs
-    from app.services.normalize.normalize_service import normalize_documents
-    from app.services.ingest.ingest_service import ingest_topic
     from app.db.session import init_db
+    from app.services.dataset.dataset_generator import generate_dataset_from_docs
+    from app.services.ingest.ingest_service import ingest_topic
+    from app.services.normalize.normalize_service import normalize_documents
     await init_db()
 
     sources = args.sources.split(",") if args.sources else ["reddit"]
@@ -515,8 +512,8 @@ async def cmd_server(args):
 async def cmd_reprocess(args):
     """Re-process persisted signals from a failed run through Pipeline V2."""
     from app.db.session import init_db
-    from app.services.run_service import load_persisted_signals
     from app.services.pipeline_v2 import run_pipeline_v2_from_documents
+    from app.services.run_service import load_persisted_signals
 
     await init_db()
     signals = load_persisted_signals(args.run_id)
@@ -528,13 +525,14 @@ async def cmd_reprocess(args):
     print(f"Found {len(signals)} persisted signals for {args.run_id}")
 
     # Extract topic from the saved data
-    import json, pathlib
+    import json
+    import pathlib
     signals_path = pathlib.Path(__file__).resolve().parents[1] / "data" / "signals" / f"{args.run_id}.json"
     data = json.loads(signals_path.read_text())
     topic = data.get("topic", "unknown")
 
     print(f"Topic: {topic}")
-    print(f"Re-processing through Pipeline V2...")
+    print("Re-processing through Pipeline V2...")
 
     report = await run_pipeline_v2_from_documents(
         topic=topic,

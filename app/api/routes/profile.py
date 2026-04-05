@@ -382,10 +382,11 @@ async def update_preferences(
 
     # Re-score jobs when preferences change
     try:
-        from app.services.matching.scorer import MatchScorer
+        from sqlalchemy import delete
+
         # Delete old matches so they get rescored
         from app.db.models.job_match import JobMatch
-        from sqlalchemy import delete
+        from app.services.matching.scorer import MatchScorer
         await db.execute(
             delete(JobMatch).where(JobMatch.user_id == user_id)
         )

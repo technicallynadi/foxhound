@@ -8,17 +8,15 @@ GET  /api/v1/agent/sessions — List sessions
 
 from __future__ import annotations
 
-import json
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
-
-from app.api.rate_limit import rate_limit
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.rate_limit import rate_limit
 from app.db.models.agent_session import AgentMessage, AgentSession
 from app.db.session import get_db
 from app.services.agent.agent import FoxhoundAgent

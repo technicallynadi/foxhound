@@ -93,8 +93,8 @@ class AshbyAdapter:
                 salary_max = comp.get("max")
                 salary_currency = comp.get("currency", "USD")
 
-            department = job.get("department", "")
-            team = job.get("team", "")
+            job.get("department", "")
+            job.get("team", "")
 
             listings.append({
                 "external_id": job.get("id", ""),

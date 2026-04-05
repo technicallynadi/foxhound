@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import uuid4
 
 from sqlalchemy import select
@@ -149,6 +149,7 @@ async def _run_tinyfish_search(goal: dict) -> list[dict]:
     async with TINYFISH_SEMAPHORE:
         try:
             from tinyfish import BrowserProfile, RunStatus
+
             from app.services.ingest.tinyfish_adapter import _get_client
 
             client = _get_client()
@@ -242,7 +243,7 @@ async def _ingest_jobs(db: AsyncSession, jobs: list[dict]) -> int:
             ats_type=ats_type,
             status="active",
             dedup_hash=dedup_hash,
-            discovered_at=datetime.now(timezone.utc),
+            discovered_at=datetime.now(UTC),
         )
         db.add(listing)
         new_count += 1

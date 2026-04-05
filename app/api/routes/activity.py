@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select
@@ -79,7 +79,7 @@ async def get_morning_briefing(
     user_id = user["user_id"]
 
     # Get the start of today (UTC)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
     # Profile for threshold
@@ -157,7 +157,7 @@ async def get_morning_briefing(
         .where(
             JobMatch.user_id == user_id,
             JobMatch.match_score >= threshold,
-            JobMatch.disqualified == False,
+            JobMatch.disqualified is False,
             JobMatch.user_action == "none",
             JobMatch.created_at >= today_start,
         )
@@ -223,7 +223,7 @@ async def get_dashboard_stats(
 
     match_count = await db.execute(
         select(func.count(JobMatch.id)).where(
-            JobMatch.user_id == user_id, JobMatch.disqualified == False
+            JobMatch.user_id == user_id, JobMatch.disqualified is False
         )
     )
     app_count = await db.execute(

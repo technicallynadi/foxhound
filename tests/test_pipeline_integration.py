@@ -1,16 +1,16 @@
 """Tests for pipeline integration: follow-up scheduling, executor dispatch, stale cleanup."""
 
 import json
-import pytest
-from datetime import datetime, timedelta, timezone
-from unittest.mock import AsyncMock, MagicMock, patch
+from datetime import UTC, datetime, timedelta
+from unittest.mock import AsyncMock, patch
 from uuid import uuid4
+
+import pytest
 
 from app.db.models.application import Application
 from app.db.models.foxhound_job import FoxhoundJob
 from app.db.models.job_listing import JobListing
-from app.services.scheduling.followup import schedule_followups, FOLLOWUP_DAYS
-
+from app.services.scheduling.followup import schedule_followups
 
 # ---------------------------------------------------------------------------
 # Follow-up scheduling
@@ -39,7 +39,7 @@ async def test_schedule_followups_creates_three_jobs(db, user_id):
 
 @pytest.mark.asyncio
 async def test_schedule_followups_correct_timing(db, user_id):
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     jobs = await schedule_followups(user_id, str(uuid4()), str(uuid4()), db=db)
     await db.commit()
 
@@ -242,7 +242,7 @@ async def test_stale_cleanup_expires_old_jobs(db):
         source="test",
         source_url="https://old.com",
         status="active",
-        posted_at=datetime.now(timezone.utc) - timedelta(days=45),
+        posted_at=datetime.now(UTC) - timedelta(days=45),
     )
     db.add(old_job)
     await db.commit()
@@ -271,7 +271,7 @@ async def test_stale_cleanup_keeps_recent_jobs(db):
         source="test",
         source_url="https://new.com",
         status="active",
-        posted_at=datetime.now(timezone.utc) - timedelta(days=5),
+        posted_at=datetime.now(UTC) - timedelta(days=5),
     )
     db.add(recent_job)
     await db.commit()
@@ -295,11 +295,14 @@ async def test_stale_cleanup_keeps_recent_jobs(db):
 
 def test_executor_map_includes_followup():
     """The executor map in run_service.py should include followup_check."""
-    expected = {"job_discovery", "autopilot_apply", "single_apply", "daily_digest", "stale_cleanup", "followup_check"}
     # Read from the source
     from app.services.scheduling.executors import (
-        execute_job_discovery, execute_autopilot_apply, execute_single_apply,
-        execute_daily_digest, execute_stale_cleanup, execute_followup,
+        execute_autopilot_apply,
+        execute_daily_digest,
+        execute_followup,
+        execute_job_discovery,
+        execute_single_apply,
+        execute_stale_cleanup,
     )
     assert all(callable(f) for f in [
         execute_job_discovery, execute_autopilot_apply, execute_single_apply,

@@ -33,8 +33,6 @@ async def fetch_company_page(
     Returns dict with mission, founded, size, locations, funding, products
     or None on failure.
     """
-    from tinyfish import BrowserProfile, RunStatus
-    from app.services.ingest.tinyfish_adapter import _get_client
 
     if company_url:
         start_url = company_url.rstrip("/")
@@ -139,6 +137,7 @@ async def fetch_glassdoor(company_name: str) -> dict[str, Any] | None:
     Returns dict with rating, ceo_approval, pros, cons or None on failure.
     """
     from tinyfish import BrowserProfile, ProxyConfig, ProxyCountryCode, RunStatus
+
     from app.services.ingest.tinyfish_adapter import _get_client
 
     start_url = f"https://www.google.com/search?q={company_name}+glassdoor+reviews"
@@ -285,6 +284,7 @@ async def _run_source(
 ) -> dict[str, Any] | None:
     """Run a TinyFish source with LITE, retry STEALTH+proxy on failure."""
     from tinyfish import BrowserProfile, RunStatus
+
     from app.services.ingest.tinyfish_adapter import _get_client
 
     client = _get_client()

@@ -14,7 +14,7 @@ import json
 import logging
 import time
 from collections.abc import AsyncGenerator
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import uuid4
 
 import anthropic
@@ -29,7 +29,6 @@ from app.services.agent.registry import (
     discover_tools,
     execute_tool,
     get_tool_definitions,
-    get_tool_spec,
 )
 from app.services.agent.system_prompt import build_system_prompt
 
@@ -86,7 +85,7 @@ class FoxhoundAgent:
             role="user", content=message, channel=channel,
         )
         db.add(user_msg)
-        session.last_message_at = datetime.now(timezone.utc)
+        session.last_message_at = datetime.now(UTC)
         await db.flush()
 
         # 3. Load history + build system prompt
@@ -237,7 +236,7 @@ class FoxhoundAgent:
             id=str(uuid4()), session_id=session.id,
             role="user", content=message, channel=channel,
         ))
-        session.last_message_at = datetime.now(timezone.utc)
+        session.last_message_at = datetime.now(UTC)
         await db.flush()
 
         history = await self._load_history(db, session.id)
@@ -377,7 +376,7 @@ class FoxhoundAgent:
                     if history is not None:  # _load_history returns [] on timeout, not None
                         return session
                     logger.warning("Session %s has unloadable history — creating new", session_id)
-            except (asyncio.TimeoutError, Exception) as e:
+            except (TimeoutError, Exception) as e:
                 logger.warning("Session lookup timed out — creating new: %s", e)
 
         # Find most recent session (with timeout)
@@ -396,11 +395,11 @@ class FoxhoundAgent:
             if session:
                 last_msg = session.last_message_at
                 if last_msg.tzinfo is None:
-                    last_msg = last_msg.replace(tzinfo=timezone.utc)
-                age = (datetime.now(timezone.utc) - last_msg).total_seconds()
+                    last_msg = last_msg.replace(tzinfo=UTC)
+                age = (datetime.now(UTC) - last_msg).total_seconds()
                 if age < SESSION_REUSE_SECONDS:
                     return session
-        except (asyncio.TimeoutError, Exception) as e:
+        except (TimeoutError, Exception) as e:
             logger.warning("Session query timed out — creating new: %s", e)
 
         session = AgentSession(
@@ -500,7 +499,7 @@ class FoxhoundAgent:
             messages = list(result.scalars().all())
             messages.reverse()
             return messages
-        except (asyncio.TimeoutError, Exception) as e:
+        except (TimeoutError, Exception) as e:
             logger.warning("History load failed (starting fresh): %s", e)
             return []
 

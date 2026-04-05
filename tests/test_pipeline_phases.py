@@ -11,15 +11,16 @@ Each phase prints its results so you can inspect before spending credits on the 
 
 import asyncio
 import json
+import logging
 import os
 import sys
-import logging
 
 logging.basicConfig(level=logging.INFO, format="%(name)s: %(message)s")
 logger = logging.getLogger("pipeline_test")
 
 # Load env
 from dotenv import load_dotenv
+
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 os.environ.setdefault("AGENTQL_API_KEY", os.environ.get("AGENTQL_KEY", ""))
 

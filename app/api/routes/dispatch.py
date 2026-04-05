@@ -11,7 +11,7 @@ inner query bodies need updating once Phase 0 lands.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -57,7 +57,7 @@ class DAGNode(BaseModel):
     job_type: str
     agent_type: str | None      # PHASE-0-REQUIRED
     status: str
-    children: list["DAGNode"]
+    children: list[DAGNode]
 
 DAGNode.model_rebuild()
 
@@ -187,7 +187,7 @@ async def approve_dispatch_job(
     # PHASE-0-REQUIRED: set job.approval_status = "approved"
     _set_attr(job, "approval_status", "approved")
     job.status = "queued"
-    job.updated_at = datetime.now(timezone.utc)
+    job.updated_at = datetime.now(UTC)
     await db.commit()
     await db.refresh(job)
     return _serialize_job(job)
@@ -217,8 +217,8 @@ async def deny_dispatch_job(
     _set_attr(job, "approval_status", "denied")
     _set_attr(job, "cancelled_by", user["user_id"])
     job.status = "canceled"
-    job.canceled_at = datetime.now(timezone.utc)
-    job.updated_at = datetime.now(timezone.utc)
+    job.canceled_at = datetime.now(UTC)
+    job.updated_at = datetime.now(UTC)
     await db.commit()
     await db.refresh(job)
     return _serialize_job(job)
@@ -246,8 +246,8 @@ async def cancel_dispatch_job(
     # PHASE-0-REQUIRED: set job.cancelled_by = user_id
     _set_attr(job, "cancelled_by", user["user_id"])
     job.status = "canceled"
-    job.canceled_at = datetime.now(timezone.utc)
-    job.updated_at = datetime.now(timezone.utc)
+    job.canceled_at = datetime.now(UTC)
+    job.updated_at = datetime.now(UTC)
     await db.commit()
     await db.refresh(job)
     return _serialize_job(job)

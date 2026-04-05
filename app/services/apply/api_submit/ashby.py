@@ -17,9 +17,9 @@ from typing import Any
 import httpx
 
 from app.services.apply.api_submit.base import (
-    ATSApiSubmitter,
     ApiSubmitFallbackError,
     ApiSubmitResult,
+    ATSApiSubmitter,
 )
 from app.services.apply.ats_url_parser import ATSUrlInfo
 from app.services.apply.form_scanner import FormField, ScanResult

@@ -2,7 +2,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.db.session import init_db
 from app.services.auth_service import get_current_user
-from app.services.notification_history_service import get_notification_delivery, list_notification_deliveries, retry_notification_delivery
+from app.services.notification_history_service import (
+    get_notification_delivery,
+    list_notification_deliveries,
+    retry_notification_delivery,
+)
 
 router = APIRouter(prefix="/v1", tags=["notifications"])
 

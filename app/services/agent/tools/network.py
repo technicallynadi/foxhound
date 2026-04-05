@@ -56,7 +56,7 @@ async def network_map(db: AsyncSession, user_id: str, params: dict) -> dict:
     """Search LinkedIn for connections at a target company via TinyFish."""
     company = params.get("company_name", "").strip()
     department = params.get("department", "engineering")
-    role_context = params.get("role_context", "")
+    params.get("role_context", "")
 
     if not company:
         return {"error": "missing_company", "message": "Please specify a company name."}
@@ -85,7 +85,7 @@ async def network_map(db: AsyncSession, user_id: str, params: dict) -> dict:
     if skills:
         matching_context.append(f"Skills: {', '.join(skills[:10])}")
 
-    context_str = ". ".join(matching_context) if matching_context else "No prior context available."
+    ". ".join(matching_context) if matching_context else "No prior context available."
 
     _CONTACT_SCHEMA = (
         'Return as JSON array: '
@@ -121,6 +121,7 @@ async def network_map(db: AsyncSession, user_id: str, params: dict) -> dict:
         async with TINYFISH_SEMAPHORE:
             try:
                 from tinyfish import BrowserProfile, RunStatus
+
                 from app.services.ingest.tinyfish_adapter import _get_client
 
                 client = _get_client()
@@ -182,11 +183,12 @@ async def network_map(db: AsyncSession, user_id: str, params: dict) -> dict:
     try:
         from app.db.session import async_session as _async_session
         async with _async_session() as cache_db:
-            from app.db.models.agent_activity import AgentActivity
             from uuid import uuid4
+
+            from app.db.models.agent_activity import AgentActivity
             contacts_list = result_data.get("contacts", [])
             names = [c.get("name", "") for c in contacts_list[:4] if c.get("name")]
-            summary = ", ".join(names) + ("..." if len(contacts_list) > 4 else "")
+            ", ".join(names) + ("..." if len(contacts_list) > 4 else "")
             cache_db.add(AgentActivity(
                 id=str(uuid4()),
                 user_id=user_id,

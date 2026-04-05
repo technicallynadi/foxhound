@@ -1,6 +1,6 @@
 import logging
 
-from app.ml import setfit_relevance, lightgbm_ranker
+from app.ml import lightgbm_ranker, setfit_relevance
 
 logger = logging.getLogger(__name__)
 

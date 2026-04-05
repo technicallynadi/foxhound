@@ -1,15 +1,13 @@
 """Tests for applications API routes: create, list, stats, detail."""
 
-import json
-import pytest
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import uuid4
 
+import pytest
 from httpx import ASGITransport, AsyncClient
 
 from app.db.models.application import Application
 from app.main import app
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -26,7 +24,7 @@ async def sample_application(db, sample_profile, sample_jobs):
         trigger="manual",
         tinyfish_status="submitted",
         tinyfish_duration_ms=3500,
-        submitted_at=datetime.now(timezone.utc),
+        submitted_at=datetime.now(UTC),
     )
     db.add(application)
     await db.commit()

@@ -6,7 +6,7 @@ Cache files live under data/cache/extractions/ as JSON keyed by SHA256(url|promp
 
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from hashlib import sha256
 from pathlib import Path
 
@@ -34,7 +34,7 @@ def cache_extraction(
         "prompt_name": prompt_name,
         "topic": topic,
         "items": items,
-        "cached_at": datetime.now(timezone.utc).isoformat(),
+        "cached_at": datetime.now(UTC).isoformat(),
         "item_count": len(items),
     }
     path.write_text(json.dumps(payload, default=str), encoding="utf-8")
@@ -62,7 +62,7 @@ def get_cached_extraction(
         return None
 
     cached_at = datetime.fromisoformat(cached_at_str)
-    age_hours = (datetime.now(timezone.utc) - cached_at).total_seconds() / 3600
+    age_hours = (datetime.now(UTC) - cached_at).total_seconds() / 3600
     if age_hours > ttl_hours:
         logger.debug("Cache miss (stale, %.1fh old) for %s [%s]", age_hours, url, prompt_name)
         return None

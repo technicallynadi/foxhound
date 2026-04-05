@@ -1,8 +1,8 @@
 from app.db.models.agent_activity import AgentActivity
 from app.db.models.agent_session import AgentMessage, AgentSession
 from app.db.models.application import Application
-from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.application_question import ApplicationQuestion
+from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.discovery_run import DiscoveryRun
 from app.db.models.dossier import Dossier
 from app.db.models.foxhound_brief import FoxhoundBrief

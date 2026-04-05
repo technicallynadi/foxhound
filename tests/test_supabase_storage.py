@@ -1,10 +1,10 @@
 """Tests for Supabase Storage client: upload, download, public URL."""
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from app.services.storage.supabase_storage import upload_file, download_file, get_public_url
+import pytest
 
+from app.services.storage.supabase_storage import download_file, get_public_url, upload_file
 
 # ---------------------------------------------------------------------------
 # Upload

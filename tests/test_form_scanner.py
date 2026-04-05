@@ -1,10 +1,14 @@
 """Tests for form scanner: field classification and analysis."""
 
 import pytest
-from app.services.apply.form_scanner import (
-    FormField, ScanResult, classify_field, match_field_to_profile, analyze_scan,
-)
 
+from app.services.apply.form_scanner import (
+    FormField,
+    ScanResult,
+    analyze_scan,
+    classify_field,
+    match_field_to_profile,
+)
 
 # ---------------------------------------------------------------------------
 # Field classification

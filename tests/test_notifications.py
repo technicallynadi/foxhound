@@ -1,16 +1,16 @@
 """Tests for notification service: receipts, digests, follow-ups, match alerts."""
 
-import json
+from unittest.mock import patch
+
 import pytest
-from unittest.mock import AsyncMock, patch
+
 from app.services.apply.notifications import (
     _get_user_channels,
-    send_new_match_alert,
     send_followup_day3,
     send_followup_day7,
     send_followup_day14,
+    send_new_match_alert,
 )
-
 
 # ---------------------------------------------------------------------------
 # Channel resolution

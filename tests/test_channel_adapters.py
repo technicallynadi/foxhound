@@ -2,24 +2,22 @@
 
 import hashlib
 import hmac
-import json
 import time
-import pytest
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
+import pytest
 from httpx import ASGITransport, AsyncClient
 
 from app.main import app
-from app.services.channel.verification import verify_slack, verify_twilio
 from app.services.channel.linking import (
     generate_link_code,
-    redeem_link_code,
-    resolve_user,
-    resolve_by_phone,
     link_identity,
+    redeem_link_code,
+    resolve_by_phone,
+    resolve_user,
 )
-
+from app.services.channel.verification import verify_slack, verify_twilio
 
 # ---------------------------------------------------------------------------
 # Slack signature verification

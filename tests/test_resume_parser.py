@@ -1,11 +1,11 @@
 """Tests for resume parser: PDF text extraction, LLM parsing, edge cases."""
 
 import json
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from app.services.resume.parser import ResumeParser, ParsedProfile
+import pytest
 
+from app.services.resume.parser import ParsedProfile, ResumeParser
 
 # ---------------------------------------------------------------------------
 # ParsedProfile defaults

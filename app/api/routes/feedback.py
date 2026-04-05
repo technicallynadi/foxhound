@@ -37,8 +37,8 @@ async def record_events(batch: BatchEventRequest, user: dict = Depends(get_curre
     Frontend sends these in batches every 5 seconds or on page unload
     via navigator.sendBeacon.
     """
-    from app.db.session import async_session
     from app.db.models.interaction_event import InteractionEvent
+    from app.db.session import async_session
 
     valid_events = [e for e in batch.events if e.event_type in VALID_EVENT_TYPES]
     if not valid_events:

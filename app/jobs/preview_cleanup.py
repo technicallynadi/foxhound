@@ -7,9 +7,9 @@ Prevents cost accumulation from forgotten or abandoned previews.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import select, text
+from sqlalchemy import select
 
 from app.core.config import settings
 from app.db.session import async_session
@@ -28,7 +28,7 @@ async def cleanup_expired_previews() -> dict:
     if not settings.fly_api_token:
         return {"checked": 0, "destroyed": 0, "errors": 0, "details": ["No FLY_API_TOKEN"]}
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     destroyed = 0
     errors = 0
     details = []

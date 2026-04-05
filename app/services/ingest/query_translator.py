@@ -11,7 +11,6 @@ user intent into the kind of queries that produce strong evidence."""
 import asyncio
 import json
 import logging
-import os
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +68,7 @@ async def translate_query(user_input: str) -> dict:
 async def _llm_translate(user_input: str) -> dict:
     """Use Claude to translate the query."""
     import anthropic
+
     from app.core.config import settings
 
     api_key = settings.anthropic_api_key

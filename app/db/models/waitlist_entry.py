@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import Column, DateTime, String
 
@@ -13,4 +13,4 @@ class WaitlistEntry(Base):
     id = Column(String, primary_key=True)
     email = Column(String, nullable=False, unique=True)
     referral_source = Column(String, nullable=True)
-    created_at = Column(TZDateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(TZDateTime, default=lambda: datetime.now(UTC))

@@ -6,9 +6,6 @@ GET /api/v1/dashboard/activity — paginated activity feed
 
 from __future__ import annotations
 
-import json
-from datetime import datetime, timezone
-
 from fastapi import APIRouter, Depends
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -81,7 +78,7 @@ async def get_dashboard(
     match_count_result = await db.execute(
         select(func.count(JobMatch.id)).where(
             JobMatch.user_id == user_id,
-            JobMatch.disqualified == False,
+            JobMatch.disqualified is False,
             JobMatch.match_score >= 65,
             JobMatch.user_action != "dismissed",
         )
@@ -92,7 +89,7 @@ async def get_dashboard(
     top_match_result = await db.execute(
         select(func.max(JobMatch.match_score)).where(
             JobMatch.user_id == user_id,
-            JobMatch.disqualified == False,
+            JobMatch.disqualified is False,
         )
     )
     top_match = top_match_result.scalar()

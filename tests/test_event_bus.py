@@ -1,9 +1,10 @@
 """Tests for the event bus."""
 
 import asyncio
+
 import pytest
 
-from app.services.events.bus import FoxhoundEvent, emit, on_event, _handlers
+from app.services.events.bus import FoxhoundEvent, _handlers, emit, on_event
 
 
 @pytest.fixture(autouse=True)

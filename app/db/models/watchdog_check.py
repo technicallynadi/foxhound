@@ -5,7 +5,7 @@ recording the result (active/removed/check_failed), any text diff,
 and execution metadata.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import Boolean, DateTime, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
@@ -48,5 +48,5 @@ class WatchdogCheck(Base):
     triggered_by: Mapped[str] = mapped_column(String, default="scheduled")
 
     created_at: Mapped[datetime] = mapped_column(
-        TZDateTime, default=lambda: datetime.now(timezone.utc)
+        TZDateTime, default=lambda: datetime.now(UTC)
     )

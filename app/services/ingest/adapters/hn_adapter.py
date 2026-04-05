@@ -5,7 +5,7 @@ https://hn.algolia.com/api
 """
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import httpx
 
@@ -86,7 +86,7 @@ async def fetch_hn_signals(topic: str, limit: int = 30) -> list[dict]:
 def _parse_story(hit: dict) -> dict:
     created = None
     if hit.get("created_at_i"):
-        created = datetime.fromtimestamp(hit["created_at_i"], tz=timezone.utc).isoformat()
+        created = datetime.fromtimestamp(hit["created_at_i"], tz=UTC).isoformat()
 
     return {
         "source_id": f"hn_{hit.get('objectID', '')}",
@@ -107,7 +107,7 @@ def _parse_story(hit: dict) -> dict:
 def _parse_comment(hit: dict) -> dict:
     created = None
     if hit.get("created_at_i"):
-        created = datetime.fromtimestamp(hit["created_at_i"], tz=timezone.utc).isoformat()
+        created = datetime.fromtimestamp(hit["created_at_i"], tz=UTC).isoformat()
 
     # Clean HTML from comment text
     text = hit.get("comment_text", "")

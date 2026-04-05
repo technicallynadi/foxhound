@@ -6,19 +6,19 @@ result as an SSE event as it finishes, then synthesizes with Claude Haiku.
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 import time
-from datetime import datetime, timezone, timedelta
-from typing import Any, AsyncGenerator
+from collections.abc import AsyncGenerator
+from datetime import UTC, datetime, timedelta
+from typing import Any
 from uuid import uuid4
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.recon_dossier import ReconDossier
-from app.services.recon.sources import fetch_about_page, fetch_careers_page, load_posting_data
+from app.services.recon.sources import load_posting_data
 from app.services.recon.synthesizer import synthesize_dossier
 
 logger = logging.getLogger(__name__)
@@ -72,7 +72,7 @@ class ReconEngine:
                 return
 
             company_name = posting_data.get("company", "Unknown")
-            company_url = posting_data.get("company_url")
+            posting_data.get("company_url")
             normalized = _normalize_company(company_name)
 
             # Check cache
@@ -199,7 +199,7 @@ class ReconEngine:
 
     async def _check_cache(self, company_normalized: str) -> ReconDossier | None:
         """Check for a cached dossier within the TTL window."""
-        cutoff = datetime.now(timezone.utc) - _CACHE_TTL
+        cutoff = datetime.now(UTC) - _CACHE_TTL
         result = await self.db.execute(
             select(ReconDossier).where(
                 ReconDossier.company_normalized == company_normalized,

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
 from app.services.application_guidance import (
@@ -13,7 +13,7 @@ from app.services.application_guidance import (
 
 
 def _sample_app(**overrides):
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     base = {
         "id": "app_123",
         "job_id": "job_123",

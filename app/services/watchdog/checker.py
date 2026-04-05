@@ -10,7 +10,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import uuid4
 
 from app.db.models.application import Application
@@ -181,7 +181,7 @@ async def check_application(
 
         app_row = await db.get(Application, application.id)
         app_row.posting_status = new_status
-        app_row.last_watchdog_check_at = datetime.now(timezone.utc)
+        app_row.last_watchdog_check_at = datetime.now(UTC)
         if description_text and check_status == "active":
             app_row.posting_last_text = description_text
         if diff_summary:
@@ -216,7 +216,7 @@ async def check_application(
             },
         )
 
-        from app.services.events import emit, FoxhoundEvent
+        from app.services.events import FoxhoundEvent, emit
         await emit(FoxhoundEvent(
             name="watchdog.change",
             data={
@@ -335,7 +335,7 @@ async def _record_check_failed(
         db.add(check)
 
         app_row = await db.get(Application, application.id)
-        app_row.last_watchdog_check_at = datetime.now(timezone.utc)
+        app_row.last_watchdog_check_at = datetime.now(UTC)
         await db.commit()
 
     return {

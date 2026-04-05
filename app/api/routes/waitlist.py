@@ -1,6 +1,6 @@
 import uuid
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from time import time
 
 from fastapi import APIRouter, HTTPException, Request
@@ -50,7 +50,7 @@ async def join_waitlist(body: WaitlistRequest, req: Request):
             id=f"wl_{uuid.uuid4().hex[:10]}",
             email=body.email,
             referral_source=body.referral_source,
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
         session.add(entry)
         await session.commit()

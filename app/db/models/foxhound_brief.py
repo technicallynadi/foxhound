@@ -4,7 +4,7 @@ Assembled progressively from post-apply research cascade:
 company brief, pathfinder, network map, dossier, watchdog status.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import DateTime, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
@@ -35,9 +35,9 @@ class FoxhoundBrief(Base):
     recommended_next_action: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
-        TZDateTime, default=lambda: datetime.now(timezone.utc),
+        TZDateTime, default=lambda: datetime.now(UTC),
     )
     updated_at: Mapped[datetime] = mapped_column(
-        TZDateTime, default=lambda: datetime.now(timezone.utc),
-        onupdate=lambda: datetime.now(timezone.utc),
+        TZDateTime, default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
     )

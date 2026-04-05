@@ -1,10 +1,8 @@
 """Tests for the match scorer: scoring components and disqualifiers."""
 
-import json
 import pytest
-from unittest.mock import MagicMock
-from app.services.matching.scorer import MatchScorer, SKILL_ALIASES
 
+from app.services.matching.scorer import SKILL_ALIASES, MatchScorer
 
 # ---------------------------------------------------------------------------
 # Skill alias normalization

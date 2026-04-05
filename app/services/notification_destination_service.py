@@ -1,6 +1,6 @@
 import json
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 
@@ -61,8 +61,8 @@ async def create_notification_destination(request: dict) -> dict:
         audience_type=audience_type,
         destination_config_json=json.dumps(config),
         active=bool(request.get("active", True)),
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
     )
     async with async_session() as session:
         session.add(row)

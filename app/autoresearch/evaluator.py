@@ -1,5 +1,4 @@
 import logging
-from collections import Counter
 
 logger = logging.getLogger(__name__)
 

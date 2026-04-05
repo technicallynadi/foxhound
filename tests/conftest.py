@@ -7,17 +7,18 @@ Mocks all external services (TinyFish, Anthropic, Supabase Storage).
 import asyncio
 import json
 import os
+import pathlib as _pathlib
 import sys
-import types
-
-import pytest
 
 # Force SQLite for tests — set BOTH keys before any app imports.
 # FOXHOUND_DATABASE_URL is what pydantic-settings reads (env_prefix="FOXHOUND_").
 # DATABASE_URL is what the default fallback reads via os.environ.get().
 # Also set DOTENV_OVERRIDE to prevent load_dotenv from clobbering these.
 import tempfile as _tempfile
-import pathlib as _pathlib
+import types
+
+import pytest
+
 _TEST_DB_FILE = _pathlib.Path(_tempfile.mkdtemp()) / "foxhound_test.db"
 _TEST_DB = f"sqlite+aiosqlite:///{_TEST_DB_FILE}"
 os.environ["DATABASE_URL"] = _TEST_DB
@@ -26,6 +27,7 @@ os.environ["FOXHOUND_DATABASE_URL"] = _TEST_DB
 # Prevent load_dotenv from overriding test DB URL with production Postgres URL.
 # Patch dotenv BEFORE any app module imports config.py.
 import unittest.mock as _mock
+
 _mock.patch("dotenv.load_dotenv", lambda *a, **kw: None).start()
 
 # Local/CI test environments may not have TinyFish installed.
@@ -82,8 +84,8 @@ def user_id():
     from uuid import uuid4
     uid = str(uuid4())
     # Set on the auth mock so API tests use this user_id
-    from app.services.auth_service import get_current_user
     from app.main import app as fastapi_app
+    from app.services.auth_service import get_current_user
     override_fn = fastapi_app.dependency_overrides.get(get_current_user)
     if override_fn:
         override_fn._test_user_id = uid
@@ -96,6 +98,7 @@ def user_id():
 async def sample_profile(db, user_id):
     """Create a sample user profile."""
     from uuid import uuid4
+
     from app.db.models.user_profile import UserProfile
 
     profile = UserProfile(
@@ -129,6 +132,7 @@ async def sample_profile(db, user_id):
 async def sample_jobs(db):
     """Create sample job listings."""
     from uuid import uuid4
+
     from app.db.models.job_listing import JobListing
 
     jobs = []
@@ -155,6 +159,7 @@ async def sample_jobs(db):
 async def sample_matches(db, user_id, sample_jobs):
     """Create sample job matches."""
     from uuid import uuid4
+
     from app.db.models.job_match import JobMatch
 
     matches = []

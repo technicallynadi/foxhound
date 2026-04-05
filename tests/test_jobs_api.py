@@ -1,13 +1,11 @@
 """Tests for jobs marketplace API routes: feed, detail, actions."""
 
-import json
-import pytest
 from uuid import uuid4
 
+import pytest
 from httpx import ASGITransport, AsyncClient
 
 from app.main import app
-
 
 # ---------------------------------------------------------------------------
 # Public feed (no auth required — these don't need user_id fixture)

@@ -17,7 +17,6 @@ Architecture:
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import re
 import time
@@ -1400,9 +1399,8 @@ async def fill_and_submit(
             logger.info("Field fill summary: %d filled, %d skipped, %d errors out of %d", filled, skipped, errored, len(scan_result.fields))
 
             # 9. Upload resume
-            resume_attached = False
             if resume_bytes and scan_result.has_file_upload:
-                resume_attached = await _upload_file(page, resume_bytes, resume_filename)
+                await _upload_file(page, resume_bytes, resume_filename)
 
             # 10. Screenshot BEFORE submit (shows filled form)
             pre_submit_screenshot = await _safe_screenshot(page)

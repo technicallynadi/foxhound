@@ -3,7 +3,10 @@ from pydantic import BaseModel, Field
 
 from app.db.session import init_db
 from app.services.auth_service import get_current_user
-from app.services.notification_destination_service import create_notification_destination, list_notification_destinations
+from app.services.notification_destination_service import (
+    create_notification_destination,
+    list_notification_destinations,
+)
 
 router = APIRouter(prefix="/v1", tags=["notification-destinations"])
 

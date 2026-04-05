@@ -14,7 +14,7 @@ Usage:
 import asyncio
 import logging
 import re
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +97,7 @@ async def fetch_recent_posts(
         logger.warning("feedparser not installed — skipping engineering blog fetch")
         return []
 
-    cutoff = datetime.now(timezone.utc) - timedelta(days=max_age_days)
+    cutoff = datetime.now(UTC) - timedelta(days=max_age_days)
     topic_lower = topic.lower() if topic else ""
     topic_words = set(re.findall(r"[a-z0-9]+", topic_lower)) if topic_lower else set()
 
@@ -119,7 +119,7 @@ async def fetch_recent_posts(
                     parsed = getattr(entry, date_field, None)
                     if parsed:
                         try:
-                            published = datetime(*parsed[:6], tzinfo=timezone.utc)
+                            published = datetime(*parsed[:6], tzinfo=UTC)
                         except (TypeError, ValueError):
                             pass
                         break

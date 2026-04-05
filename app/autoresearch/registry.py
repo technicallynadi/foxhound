@@ -1,6 +1,6 @@
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -26,7 +26,7 @@ def register_version(
         "metrics": metrics or {},
         "dataset": dataset,
         "notes": notes,
-        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_at": datetime.now(UTC).isoformat(),
         "promoted": False,
     }
 
@@ -79,7 +79,7 @@ def promote_version(component: str, version: str) -> bool:
     with open(filepath) as f:
         data = json.load(f)
     data["promoted"] = True
-    data["promoted_at"] = datetime.now(timezone.utc).isoformat()
+    data["promoted_at"] = datetime.now(UTC).isoformat()
     with open(filepath, "w") as f:
         json.dump(data, f, indent=2)
 

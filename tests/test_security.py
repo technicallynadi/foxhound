@@ -5,7 +5,6 @@ from httpx import ASGITransport, AsyncClient
 
 from app.main import app
 
-
 # ---------------------------------------------------------------------------
 # System prompt anti-injection tags
 # ---------------------------------------------------------------------------
@@ -13,8 +12,9 @@ from app.main import app
 
 def test_system_prompt_has_user_data_tags():
     """System prompt wraps user data in tagged delimiters."""
-    from app.services.agent.system_prompt import _user_context
     from unittest.mock import MagicMock
+
+    from app.services.agent.system_prompt import _user_context
 
     profile = MagicMock()
     profile.first_name = "Test"
@@ -39,11 +39,11 @@ def test_system_prompt_has_user_data_tags():
 @pytest.mark.asyncio
 async def test_system_prompt_has_application_data_tags(db, sample_profile, sample_jobs):
     """Active applications section uses tagged delimiters."""
-    from app.services.agent.system_prompt import _active_applications
+    from uuid import uuid4
 
     # Create an active application
     from app.db.models.application import Application
-    from uuid import uuid4
+    from app.services.agent.system_prompt import _active_applications
 
     app_obj = Application(
         id=str(uuid4()),
@@ -111,6 +111,7 @@ async def test_preferences_validates_salary(user_id):
 def test_skip_webhook_verify_blocked_in_production():
     """SKIP_WEBHOOK_VERIFY returns False in production regardless of env var."""
     import os
+
     from app.core.config import Settings
 
     os.environ["FOXHOUND_SKIP_WEBHOOK_VERIFY"] = "1"
@@ -122,6 +123,7 @@ def test_skip_webhook_verify_blocked_in_production():
 def test_skip_webhook_verify_allowed_in_dev():
     """SKIP_WEBHOOK_VERIFY works in development."""
     import os
+
     from app.core.config import Settings
 
     os.environ["FOXHOUND_SKIP_WEBHOOK_VERIFY"] = "1"
@@ -138,6 +140,7 @@ def test_skip_webhook_verify_allowed_in_dev():
 def test_debug_context_hidden_in_production():
     """Error handler does not leak debug_context in production."""
     from unittest.mock import MagicMock, patch
+
     from app.core.errors import FoxhoundError, foxhound_error_handler
 
     exc = FoxhoundError(

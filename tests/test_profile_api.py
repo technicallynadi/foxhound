@@ -1,14 +1,10 @@
 """Tests for profile API routes: resume upload, CRUD, preferences."""
 
-import json
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-from uuid import uuid4
 
+import pytest
 from httpx import ASGITransport, AsyncClient
 
 from app.main import app
-
 
 # ---------------------------------------------------------------------------
 # Resume upload

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
@@ -42,6 +43,7 @@ async def get_brief(
     if not brief:
         # Brief doesn't exist — create it and start research
         from uuid import uuid4
+
         from app.db.models.foxhound_brief import FoxhoundBrief as BriefModel
 
         # Verify the application exists and belongs to this user
@@ -72,8 +74,8 @@ async def get_brief(
     elif brief.status not in ("ready", "failed"):
         # Brief exists but incomplete — only re-run if cascade isn't already running
         # and enough time has passed since last update (avoid re-triggering on every poll)
-        from datetime import datetime, timezone, timedelta
-        now = datetime.now(timezone.utc)
+        from datetime import datetime, timedelta
+        now = datetime.now(UTC)
         stale_threshold = now - timedelta(minutes=2)
         failure_ceiling = now - timedelta(minutes=15)
 
