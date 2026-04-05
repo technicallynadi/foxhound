@@ -14,7 +14,8 @@ class ReconDossier(Base):
     __tablename__ = "recon_dossiers"
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
-    company_normalized: Mapped[str] = mapped_column(String, unique=True, index=True)
+    user_id: Mapped[str] = mapped_column(String, index=True)
+    company_normalized: Mapped[str] = mapped_column(String, index=True)
     company_display: Mapped[str] = mapped_column(String)
 
     # Raw source data (stored as JSON strings)

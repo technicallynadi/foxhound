@@ -19,7 +19,8 @@ class TinyFishBriefCache(Base):
     __tablename__ = "tinyfish_brief_cache"
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
-    company_normalized: Mapped[str] = mapped_column(String, unique=True, index=True)
+    user_id: Mapped[str] = mapped_column(String, index=True)
+    company_normalized: Mapped[str] = mapped_column(String, index=True)
     company_display: Mapped[str] = mapped_column(String)
 
     # Raw TinyFish scrape results (JSON strings)

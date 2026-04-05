@@ -127,6 +127,7 @@ class ReconEngine:
             try:
                 dossier = ReconDossier(
                     id=dossier_id,
+                    user_id=self.user_id,
                     company_normalized=normalized,
                     company_display=company_name,
                     careers_data=json.dumps(careers_data, default=str) if careers_data else None,
@@ -202,6 +203,7 @@ class ReconEngine:
         cutoff = datetime.now(UTC) - _CACHE_TTL
         result = await self.db.execute(
             select(ReconDossier).where(
+                ReconDossier.user_id == self.user_id,
                 ReconDossier.company_normalized == company_normalized,
                 ReconDossier.created_at > cutoff,
             )
