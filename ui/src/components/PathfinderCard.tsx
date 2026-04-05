@@ -93,13 +93,8 @@ function Divider() {
 
 function SectionLabel({ index, children }: { index: string; children: React.ReactNode }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 600, color: 'var(--t3)', letterSpacing: '0.08em', opacity: 0.6 }}>
-        {index.padStart(2, '0')}
-      </span>
-      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 500, color: 'var(--t3)', letterSpacing: '0.15em', textTransform: 'uppercase' }}>
-        {children}
-      </span>
+    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 500, color: 'var(--vl)', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 14 }}>
+      {index.padStart(2, '0')} / {children}
     </div>
   );
 }
@@ -388,8 +383,9 @@ export default function PathfinderCard({ jobId, initialData, companyName, jobTit
             <>
               {(hasManagerData || hasOverlap) && <Divider />}
               <SectionLabel index={String(outreachSectionIndex)}>Outreach Drafts</SectionLabel>
-              <div style={{ display: 'inline-flex', alignItems: 'center', fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', padding: '4px 10px', borderRadius: 100, background: 'rgba(139,92,246,0.08)', color: 'var(--vl)', border: '1px solid var(--bv)', marginBottom: 14 }}>
-                AI DRAFT — review and edit before sending
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(139,92,246,0.04)', border: '1px solid var(--bv)', borderRadius: 5, padding: '5px 10px', marginBottom: 14 }}>
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--vl)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>AI DRAFT</span>
+                <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'var(--t3)' }}>— review and edit before sending</span>
               </div>
               {outreach?.personalization_hooks && outreach.personalization_hooks.length > 0 && (
                 <div style={{ marginBottom: 14 }}>
