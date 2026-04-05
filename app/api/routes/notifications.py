@@ -13,7 +13,7 @@ async def list_notifications_endpoint(
     user: dict = Depends(get_current_user),
 ):
     await init_db()
-    return {"deliveries": await list_notification_deliveries(limit=limit)}
+    return {"deliveries": await list_notification_deliveries(limit=limit, user_id=user["user_id"])}
 
 
 @router.get("/runs/{run_id}/notifications")
@@ -23,7 +23,7 @@ async def list_run_notifications_endpoint(
     user: dict = Depends(get_current_user),
 ):
     await init_db()
-    return {"run_id": run_id, "deliveries": await list_notification_deliveries(limit=limit, run_id=run_id)}
+    return {"run_id": run_id, "deliveries": await list_notification_deliveries(limit=limit, run_id=run_id, user_id=user["user_id"])}
 
 
 @router.get("/notifications/{delivery_id}")
@@ -32,7 +32,7 @@ async def get_notification_endpoint(
     user: dict = Depends(get_current_user),
 ):
     await init_db()
-    delivery = await get_notification_delivery(delivery_id)
+    delivery = await get_notification_delivery(delivery_id, user_id=user["user_id"])
     if delivery is None:
         raise HTTPException(status_code=404, detail="Notification delivery not found")
     return delivery
@@ -44,7 +44,7 @@ async def retry_notification_endpoint(
     user: dict = Depends(get_current_user),
 ):
     await init_db()
-    delivery = await retry_notification_delivery(delivery_id)
+    delivery = await retry_notification_delivery(delivery_id, user_id=user["user_id"])
     if delivery is None:
         raise HTTPException(status_code=404, detail="Notification delivery not found")
     return delivery

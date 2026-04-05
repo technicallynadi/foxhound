@@ -42,7 +42,7 @@ async def get_notification_delivery(delivery_id: str, user_id: str | None = None
         row = await session.get(NotificationDelivery, delivery_id)
         if not row:
             return None
-        if user_id and row.user_id and row.user_id != user_id:
+        if user_id and row.user_id != user_id:
             return None
     return _to_response(row)
 
@@ -52,7 +52,7 @@ async def retry_notification_delivery(delivery_id: str, user_id: str | None = No
         delivery = await session.get(NotificationDelivery, delivery_id)
         if not delivery:
             return None
-        if user_id and delivery.user_id and delivery.user_id != user_id:
+        if user_id and delivery.user_id != user_id:
             return None
         run = await session.get(FoxhoundRun, delivery.run_id)
         if not run:
@@ -88,6 +88,7 @@ async def retry_notification_delivery(delivery_id: str, user_id: str | None = No
         new_row = NotificationDelivery(
             id=f"nd_{uuid.uuid4().hex[:10]}",
             run_id=delivery.run_id,
+            user_id=delivery.user_id,
             channel=delivery.channel,
             source_event=delivery.source_event,
             status=state.get("status", "unknown"),

@@ -23,7 +23,7 @@ async def create_notification_destination_endpoint(
     user: dict = Depends(get_current_user),
 ):
     await init_db()
-    return await create_notification_destination(request.model_dump())
+    return await create_notification_destination({**request.model_dump(), "user_id": user["user_id"]})
 
 
 @router.get("/notification-destinations")
@@ -32,4 +32,4 @@ async def list_notification_destinations_endpoint(
     user: dict = Depends(get_current_user),
 ):
     await init_db()
-    return {"destinations": await list_notification_destinations(active_only=active_only)}
+    return {"destinations": await list_notification_destinations(active_only=active_only, user_id=user["user_id"])}
