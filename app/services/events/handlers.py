@@ -26,15 +26,20 @@ async def on_application_submitted(event: FoxhoundEvent) -> None:
 
     logger.info(
         "application.submitted: app=%s job=%s user=%s trigger=%s",
-        application_id, job_id, user_id, trigger,
+        application_id,
+        job_id,
+        user_id,
+        trigger,
     )
 
     # 1. Schedule follow-up jobs (day 3, 7, 14)
     from app.services.scheduling.followup import schedule_followups
+
     await schedule_followups(user_id, application_id, job_id)
 
     # 2. Log activity event
     from app.services.activity.logger import log_activity
+
     await log_activity(
         user_id=user_id,
         event_type="application_submitted",
@@ -53,6 +58,7 @@ async def on_application_submitted(event: FoxhoundEvent) -> None:
 
     # 3. Start post-apply research cascade (simplified for demo)
     from app.services.research.cascade import start_research_cascade
+
     await start_research_cascade(user_id, application_id, job_id, match_score)
 
 

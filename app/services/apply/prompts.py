@@ -92,9 +92,7 @@ def build_custom_questions_block(answers: list[dict]) -> str:
     return "\n".join(lines)
 
 
-def build_dropdown_selections_block(
-    scan_fields: list[dict] | None, profile: UserProfile | None = None
-) -> str:
+def build_dropdown_selections_block(scan_fields: list[dict] | None, profile: UserProfile | None = None) -> str:
     """Build dropdown selection instructions from scanned form fields."""
     if not scan_fields:
         return ""
@@ -114,9 +112,7 @@ def build_dropdown_selections_block(
         if not options:
             continue
 
-        selection = get_dropdown_selection(
-            field.get("label", ""), options, profile_data
-        )
+        selection = get_dropdown_selection(field.get("label", ""), options, profile_data)
         if selection:
             lines.append(f'  Field: "{field["label"]}"')
             lines.append(f'  Select: "{selection}"')
@@ -285,5 +281,3 @@ def _safe_js_filename(name: str | None) -> str:
     if not safe.lower().endswith(".pdf"):
         safe = "resume.pdf"
     return safe
-
-

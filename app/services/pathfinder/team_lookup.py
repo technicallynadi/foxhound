@@ -66,6 +66,7 @@ async def lookup_team_page(
         )
 
         from tinyfish import RunStatus
+
         if result.status == RunStatus.COMPLETED and result.result:
             data = result.result if isinstance(result.result, dict) else {}
             if not data and isinstance(result.result, str):
@@ -77,7 +78,10 @@ async def lookup_team_page(
             if data.get("found"):
                 logger.info(
                     "Pathfinder found manager for %s/%s: %s (%s)",
-                    company_name, department, data.get("name"), data.get("title"),
+                    company_name,
+                    department,
+                    data.get("name"),
+                    data.get("title"),
                 )
                 return {
                     "name": data.get("name", ""),

@@ -12,6 +12,7 @@ from app.services.apply.form_scanner import ScanResult
 
 class ApiSubmitFallbackError(Exception):
     """Raised when API submission fails and we should fall back to browser."""
+
     pass
 
 

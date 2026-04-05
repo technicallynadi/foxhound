@@ -6,6 +6,8 @@ const state = {
   subscriptions: [],
   destinations: [],
   notifications: [],
+  dispatchJobs: [],
+  selectedJobId: null,
 };
 
 function qs(id) {
@@ -14,6 +16,30 @@ function qs(id) {
 
 function formatScore(value) {
   return typeof value === "number" ? value.toFixed(2) : "n/a";
+}
+
+function statusBadge(status) {
+  const colors = {
+    queued: 'background: #f3f4f6; color: #374151;',
+    running: 'background: #dcfce7; color: #15803d;',
+    awaiting_approval: 'background: #fef9c3; color: #854d0e;',
+    completed: 'background: #dbeafe; color: #1d4ed8;',
+    canceled: 'background: #f1f5f9; color: #475569;',
+    failed: 'background: #fee2e2; color: #b91c1c;'
+  };
+  return `<span class="chip" style="${colors[status] || ''}">${status.replace('_', ' ')}</span>`;
+}
+
+function agentIcon(type) {
+  const icons = {
+    discovery: '🔍',
+    recon: '🔭',
+    apply: '📨',
+    outreach: '📢',
+    pathfinder: '🗺️',
+    watchdog: '🐕'
+  };
+  return icons[type] || '🤖';
 }
 
 function renderStats(stats) {
@@ -115,6 +141,141 @@ function renderMarketplace() {
     state.selectedId = state.opportunities[0].opportunity_id;
     loadOpportunityDetail(state.selectedId);
   }
+}
+
+function renderJobRow(job) {
+  const isSelected = state.selectedJobId === job.id;
+  return `
+    <div class="mini-card ${isSelected ? 'active' : ''}" data-job-id="${job.id}">
+      <div class="section-header" style="margin-bottom: 8px">
+        <h4>${agentIcon(job.agent_type)} ${job.job_type.toUpperCase()}</h4>
+        ${statusBadge(job.status)}
+      </div>
+      <div class="meta">
+        <span class="chip" style="background: none; border: 1px solid var(--line)">#${job.id.slice(0, 8)}</span>
+        ${job.child_count > 0 ? `<button class="ghost btn-sm" data-action="tree">Tree (${job.child_count})</button>` : ''}
+        ${['queued', 'running', 'awaiting_approval'].includes(job.status) ? `<button class="ghost btn-sm" data-action="cancel">Cancel</button>` : ''}
+      </div>
+    </div>
+  `;
+}
+
+function renderApprovalCard(job) {
+  return `
+    <div class="mini-card" style="border-left: 4px solid #eab308">
+      <div class="section-header" style="margin-bottom: 8px">
+        <h4>${agentIcon(job.agent_type)} ${job.job_type.toUpperCase()}</h4>
+        <span class="chip" style="background: #fef9c3; color: #854d0e">Needs Approval</span>
+      </div>
+      <p style="font-size: 0.85rem">Job #${job.id.slice(0, 8)} requires your sign-off to proceed.</p>
+      <div class="actions">
+        <button class="btn-sm" data-action="approve" style="background: #15803d">Approve</button>
+        <button class="ghost btn-sm" data-action="deny" style="color: #b91c1c; border-color: rgba(185, 28, 28, 0.2)">Deny</button>
+      </div>
+    </div>
+  `;
+}
+
+function renderDagNode(node) {
+  return `
+    <div class="dag-node">
+      <div class="section-header" style="margin-bottom: 0">
+        <span style="font-size: 0.9rem">${agentIcon(node.agent_type)} <strong>${node.job_type}</strong></span>
+        ${statusBadge(node.status)}
+      </div>
+      ${node.children && node.children.length ? `
+        <div class="dag-children">
+          ${node.children.map(renderDagNode).join('')}
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+
+async function loadDispatch() {
+  try {
+    const data = await api("/api/v1/dispatch/jobs");
+    state.dispatchJobs = data || [];
+
+    const approvals = state.dispatchJobs.filter(j => j.status === 'awaiting_approval');
+    const active = state.dispatchJobs.filter(j => j.status !== 'awaiting_approval');
+
+    const approvalQueue = qs("approval-queue");
+    const approvalList = qs("approval-list");
+    if (approvals.length) {
+      approvalQueue.classList.remove("hidden");
+      approvalList.innerHTML = approvals.map(renderApprovalCard).join('');
+    } else {
+      approvalQueue.classList.add("hidden");
+    }
+
+    const jobList = qs("dispatch-jobs");
+    jobList.innerHTML = active.map(renderJobRow).join('') || '<div class="muted" style="text-align: center; padding: 20px">No active jobs</div>';
+    
+    qs("dispatch-status").textContent = active.length ? `${active.length} active` : 'Idle';
+  } catch (err) {
+    console.error("Dispatch load failed", err);
+    qs("dispatch-status").textContent = 'Error';
+  }
+}
+
+async function openDag(jobId) {
+  state.selectedJobId = jobId;
+  qs("dispatch-dag").classList.remove("hidden");
+  qs("dag-tree").innerHTML = '<div class="muted">Loading tree...</div>';
+  try {
+    const dag = await api(`/api/v1/dispatch/dag/${jobId}`);
+    qs("dag-title").textContent = `Tree #${jobId.slice(0, 8)}`;
+    qs("dag-tree").innerHTML = renderDagNode(dag);
+  } catch (err) {
+    qs("dag-tree").innerHTML = `<div class="chip failed">Failed to load DAG: ${err.message}</div>`;
+  }
+}
+
+async function dispatchAction(id, action) {
+  try {
+    const response = await fetch(`/api/v1/dispatch/jobs/${id}/${action}`, { method: 'POST' });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: 'Unknown error' }));
+      throw new Error(error.detail || 'Action failed');
+    }
+    await loadDispatch();
+    if (action === 'cancel' && state.selectedJobId === id) {
+      qs("dispatch-dag").classList.add("hidden");
+    }
+  } catch (err) {
+    alert(`Action ${action} failed: ${err.message}`);
+  }
+}
+
+function initDispatch() {
+  const panel = qs("dispatch-panel");
+  panel.addEventListener("click", async (e) => {
+    const btn = e.target.closest("button");
+    const card = e.target.closest(".mini-card");
+    const jobId = card?.dataset.jobId;
+
+    if (btn) {
+      const action = btn.dataset.action;
+      if (action === 'refresh') await loadDispatch();
+      if (action === 'tree' && jobId) await openDag(jobId);
+      if (['approve', 'deny', 'cancel'].includes(action) && jobId) await dispatchAction(jobId, action);
+      return;
+    }
+
+    if (jobId && !e.target.closest("button")) {
+      await openDag(jobId);
+    }
+  });
+
+  qs("dag-close").addEventListener("click", () => {
+    qs("dispatch-dag").classList.add("hidden");
+    state.selectedJobId = null;
+    loadDispatch();
+  });
+
+  setInterval(loadDispatch, 5000);
+  loadDispatch();
 }
 
 async function api(path) {
@@ -414,6 +575,7 @@ function connectRunStream(runId) {
     appendStream(event.data);
     qs("run-status").textContent = `completed • ${runId}`;
     closeStream();
+    await loadDispatch();
     await loadMarketplace();
     await loadStats();
     await loadSubscriptions();
@@ -555,6 +717,7 @@ function bindControls() {
 
 async function init() {
   bindControls();
+  initDispatch();
   await loadStats();
   await loadMarketplace();
   await loadSubscriptions();

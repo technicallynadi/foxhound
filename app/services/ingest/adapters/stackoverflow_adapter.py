@@ -135,6 +135,7 @@ def _parse_question(item: dict) -> dict | None:
 
 def _strip_html(text: str) -> str:
     import re
+
     text = re.sub(r"<[^>]+>", " ", text)
     text = re.sub(r"&[a-z]+;", " ", text)
     text = re.sub(r"\s+", " ", text)

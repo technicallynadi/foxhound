@@ -25,9 +25,7 @@ class FoxhoundJob(Base):
     lease_owner: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
     lease_expires_at: Mapped[datetime | None] = mapped_column(TZDateTime, nullable=True, index=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        TZDateTime, default=lambda: datetime.now(UTC)
-    )
+    created_at: Mapped[datetime] = mapped_column(TZDateTime, default=lambda: datetime.now(UTC))
     updated_at: Mapped[datetime] = mapped_column(
         TZDateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC)
     )

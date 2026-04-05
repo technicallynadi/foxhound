@@ -24,7 +24,10 @@ def _cache_path(url: str, prompt_name: str) -> Path:
 
 
 def cache_extraction(
-    url: str, prompt_name: str, items: list[dict], topic: str,
+    url: str,
+    prompt_name: str,
+    items: list[dict],
+    topic: str,
 ) -> None:
     """Save extraction results to disk."""
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
@@ -42,7 +45,9 @@ def cache_extraction(
 
 
 def get_cached_extraction(
-    url: str, prompt_name: str, ttl_hours: int = 24,
+    url: str,
+    prompt_name: str,
+    ttl_hours: int = 24,
 ) -> list[dict] | None:
     """Return cached items if present and fresh, else None."""
     path = _cache_path(url, prompt_name)

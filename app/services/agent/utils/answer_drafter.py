@@ -24,9 +24,7 @@ def _sanitize_for_prompt(text: str) -> str:
     return re.sub(r"</", "< /", text)
 
 
-async def draft_answer(
-    profile: UserProfile, job: JobListing, question: str
-) -> str:
+async def draft_answer(profile: UserProfile, job: JobListing, question: str) -> str:
     """Draft a contextual answer from the user's profile + job description.
 
     Uses Sonnet for quality (this is user-facing text).

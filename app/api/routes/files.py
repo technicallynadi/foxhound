@@ -119,7 +119,11 @@ async def serve_file(token: str):
 
     logger.info(
         "File served: bucket=%s user=%s token=%s...%s size=%d",
-        bucket, path.split("/")[0], token[:8], token[-4:], len(data),
+        bucket,
+        path.split("/")[0],
+        token[:8],
+        token[-4:],
+        len(data),
     )
 
     return Response(

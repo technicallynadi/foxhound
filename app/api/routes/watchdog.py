@@ -59,9 +59,7 @@ async def trigger_manual_check(
     # Run the check (lazy import to avoid tinyfish at module level)
     from app.services.watchdog.checker import check_application
 
-    outcome = await check_application(
-        application, job, triggered_by="manual"
-    )
+    outcome = await check_application(application, job, triggered_by="manual")
 
     # Fetch the latest check record
     check_result = await db.execute(
@@ -121,14 +119,8 @@ async def get_watchdog_status(
             "posting_diff_summary": app.posting_diff_summary,
             "watchdog_enabled": app.watchdog_enabled,
             "days_since_applied": _days_since(app),
-            "last_check_at": (
-                app.last_watchdog_check_at.isoformat()
-                if app.last_watchdog_check_at
-                else None
-            ),
-            "submitted_at": (
-                app.submitted_at.isoformat() if app.submitted_at else None
-            ),
+            "last_check_at": (app.last_watchdog_check_at.isoformat() if app.last_watchdog_check_at else None),
+            "submitted_at": (app.submitted_at.isoformat() if app.submitted_at else None),
             "created_at": app.created_at.isoformat(),
         }
         for app, job in rows

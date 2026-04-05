@@ -41,6 +41,7 @@ async def recon_company(db: AsyncSession, user_id: str, params: dict) -> dict:
     # If company_name looks like a URL, extract company from it
     if company_name and ("http://" in company_name or "https://" in company_name or "." in company_name):
         from app.services.apply.ats_url_parser import parse_ats_url
+
         url_info = parse_ats_url(company_name)
         if url_info:
             # board_token is usually the company slug
@@ -50,9 +51,7 @@ async def recon_company(db: AsyncSession, user_id: str, params: dict) -> dict:
     # Resolve job_id if only company_name given
     if not job_id and company_name:
         result = await db.execute(
-            select(JobListing)
-            .where(JobListing.status == "active")
-            .order_by(JobListing.discovered_at.desc())
+            select(JobListing).where(JobListing.status == "active").order_by(JobListing.discovered_at.desc())
         )
         for job in result.scalars():
             if company_name in (job.company or "").lower():

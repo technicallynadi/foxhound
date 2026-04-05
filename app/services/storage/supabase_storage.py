@@ -11,9 +11,7 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 
-async def upload_file(
-    bucket: str, path: str, data: bytes, content_type: str = "application/octet-stream"
-) -> str:
+async def upload_file(bucket: str, path: str, data: bytes, content_type: str = "application/octet-stream") -> str:
     """Upload a file to Supabase Storage. Returns the storage path."""
     url = f"{settings.supabase_storage_url}/object/{bucket}/{path}"
     headers = {

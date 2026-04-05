@@ -87,15 +87,12 @@ async def _apply_inline_ownership_migrations(conn) -> None:
     if _is_sqlite:
         await _sqlite_add_column_if_missing(conn, "notification_deliveries", "user_id", "VARCHAR")
         await conn.execute(
-            text(
-                "CREATE INDEX IF NOT EXISTS ix_notification_deliveries_user_id ON notification_deliveries (user_id)"
-            )
+            text("CREATE INDEX IF NOT EXISTS ix_notification_deliveries_user_id ON notification_deliveries (user_id)")
         )
         await _sqlite_add_column_if_missing(conn, "notification_destinations", "user_id", "VARCHAR")
         await conn.execute(
             text(
-                "CREATE INDEX IF NOT EXISTS ix_notification_destinations_user_id"
-                " ON notification_destinations (user_id)"
+                "CREATE INDEX IF NOT EXISTS ix_notification_destinations_user_id ON notification_destinations (user_id)"
             )
         )
         await _sqlite_add_column_if_missing(conn, "recon_dossiers", "user_id", "VARCHAR")
@@ -112,10 +109,7 @@ async def _apply_inline_ownership_migrations(conn) -> None:
     )
     await conn.execute(text("ALTER TABLE notification_destinations ADD COLUMN IF NOT EXISTS user_id VARCHAR"))
     await conn.execute(
-        text(
-            "CREATE INDEX IF NOT EXISTS ix_notification_destinations_user_id"
-            " ON notification_destinations (user_id)"
-        )
+        text("CREATE INDEX IF NOT EXISTS ix_notification_destinations_user_id ON notification_destinations (user_id)")
     )
 
     await conn.execute(text("ALTER TABLE recon_dossiers ADD COLUMN IF NOT EXISTS user_id VARCHAR"))

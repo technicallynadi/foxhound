@@ -11,6 +11,7 @@ from app.main import app
 # Public feed (no auth required — these don't need user_id fixture)
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_public_feed_empty():
     transport = ASGITransport(app=app)
@@ -57,6 +58,7 @@ async def test_public_feed_pagination():
 # Public stats
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_public_stats(db, sample_jobs):
     transport = ASGITransport(app=app)
@@ -72,6 +74,7 @@ async def test_public_stats(db, sample_jobs):
 # ---------------------------------------------------------------------------
 # Authenticated feed (auth handled by conftest dependency override)
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_list_jobs_no_matches(user_id):
@@ -109,6 +112,7 @@ async def test_list_jobs_min_score_filter(db, sample_profile, sample_jobs, sampl
 # Job detail
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_get_job_not_found(user_id):
     transport = ASGITransport(app=app)
@@ -130,6 +134,7 @@ async def test_get_job_detail(db, sample_profile, sample_jobs):
 # ---------------------------------------------------------------------------
 # User actions (dismiss, save, feedback)
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_dismiss_job(db, sample_profile, sample_jobs, sample_matches):

@@ -53,10 +53,12 @@ class RequestBudget:
 
     def record_tool_call(self, tool_name: str, duration_ms: int = 0) -> None:
         """Record a tool execution."""
-        self.tool_calls.append({
-            "tool": tool_name,
-            "duration_ms": duration_ms,
-        })
+        self.tool_calls.append(
+            {
+                "tool": tool_name,
+                "duration_ms": duration_ms,
+            }
+        )
 
     def can_continue(self) -> bool:
         """Check if the budget allows another iteration."""

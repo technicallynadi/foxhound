@@ -191,6 +191,7 @@ async def resynthesize_dossier(
 
     builder = DossierBuilder()
     import asyncio
+
     asyncio.create_task(
         builder._resynthesize(dossier_id),
         name=f"resynth-{dossier_id[:8]}",
@@ -235,13 +236,15 @@ async def get_pending_notifications(
 
     notifications = []
     for dossier, company, role in result.all():
-        notifications.append({
-            "dossier_id": dossier.id,
-            "company": company or dossier.company_normalized,
-            "role": role or "",
-            "status": dossier.status,
-            "completed_at": dossier.completed_at.isoformat() if dossier.completed_at else None,
-        })
+        notifications.append(
+            {
+                "dossier_id": dossier.id,
+                "company": company or dossier.company_normalized,
+                "role": role or "",
+                "status": dossier.status,
+                "completed_at": dossier.completed_at.isoformat() if dossier.completed_at else None,
+            }
+        )
 
     return {"notifications": notifications}
 

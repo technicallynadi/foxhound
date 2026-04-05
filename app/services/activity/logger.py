@@ -31,12 +31,14 @@ async def log_activity(
             if dedup_minutes > 0:
                 cutoff = datetime.now(UTC) - timedelta(minutes=dedup_minutes)
                 existing = await db.execute(
-                    select(AgentActivity.id).where(
+                    select(AgentActivity.id)
+                    .where(
                         AgentActivity.user_id == user_id,
                         AgentActivity.event_type == event_type,
                         AgentActivity.title == title,
                         AgentActivity.created_at >= cutoff,
-                    ).limit(1)
+                    )
+                    .limit(1)
                 )
                 if existing.scalar_one_or_none():
                     return None  # Duplicate, skip

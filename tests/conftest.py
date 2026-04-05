@@ -53,10 +53,12 @@ def event_loop():
 @pytest.fixture(scope="session", autouse=True)
 def _init_db(event_loop):
     from app.db.session import init_db
+
     event_loop.run_until_complete(init_db())
 
     # Discover agent tools so ToolGuard can resolve tool specs
     from app.services.agent.registry import discover_tools
+
     discover_tools()
 
     # Override auth dependency so API tests don't need real tokens.
@@ -66,6 +68,7 @@ def _init_db(event_loop):
 
     async def _fake_current_user():
         return {"user_id": _fake_current_user._test_user_id, "email": "test@foxhound.com", "role": "authenticated"}
+
     _fake_current_user._test_user_id = ""
 
     fastapi_app.dependency_overrides[get_current_user] = _fake_current_user
@@ -75,6 +78,7 @@ def _init_db(event_loop):
 async def db():
     """Provide a fresh async DB session for each test."""
     from app.db.session import async_session
+
     async with async_session() as session:
         yield session
 
@@ -82,10 +86,12 @@ async def db():
 @pytest.fixture
 def user_id():
     from uuid import uuid4
+
     uid = str(uuid4())
     # Set on the auth mock so API tests use this user_id
     from app.main import app as fastapi_app
     from app.services.auth_service import get_current_user
+
     override_fn = fastapi_app.dependency_overrides.get(get_current_user)
     if override_fn:
         override_fn._test_user_id = uid
@@ -112,9 +118,11 @@ async def sample_profile(db, user_id):
         location="San Francisco, CA",
         summary="Senior engineer with 5 years in Python and React.",
         skills_json=json.dumps(["Python", "React", "FastAPI", "PostgreSQL"]),
-        experience_json=json.dumps([
-            {"title": "Senior Engineer", "company": "Stripe", "years": "2022-2025"},
-        ]),
+        experience_json=json.dumps(
+            [
+                {"title": "Senior Engineer", "company": "Stripe", "years": "2022-2025"},
+            ]
+        ),
         education_json=json.dumps([{"degree": "BS CS", "school": "UC Berkeley"}]),
         target_titles_json=json.dumps(["Senior Engineer", "Staff Engineer"]),
         years_experience=5,
@@ -141,18 +149,39 @@ async def sample_jobs(db):
         ("ML Engineer", "OpenAI", 250000, 400000),
         ("Backend Engineer", "Stripe", 190000, 300000),
     ]:
+        company_slug = company.lower().replace(" ", "-")
         job = JobListing(
-            id=str(uuid4()), title=title, company=company,
+            id=str(uuid4()),
+            title=title,
+            company=company,
             description=f"{title} role at {company}",
-            apply_url=f"https://{company.lower()}.com/jobs",
-            source="test", source_url=f"https://{company.lower()}.com",
-            location="San Francisco, CA", salary_min=sal_min, salary_max=sal_max,
+            apply_url=f"https://jobs.lever.co/{company_slug}/{uuid4()}",
+            source="test",
+            source_url=f"https://{company.lower()}.com",
+            location="San Francisco, CA",
+            salary_min=sal_min,
+            salary_max=sal_max,
             ats_type="greenhouse",
         )
         jobs.append(job)
         db.add(job)
     await db.commit()
     return jobs
+
+
+@pytest.fixture(autouse=True)
+def _stub_url_validator_dns(monkeypatch):
+    """Keep URL validator tests deterministic without external DNS dependency."""
+
+    def _fake_resolve(host: str) -> set[str]:
+        if host in {"localhost", "127.0.0.1", "::1", "169.254.169.254"}:
+            return {host}
+        return {"93.184.216.34"}
+
+    monkeypatch.setattr(
+        "app.services.agent.utils.url_validator._resolve_host_ips",
+        _fake_resolve,
+    )
 
 
 @pytest.fixture
@@ -165,10 +194,16 @@ async def sample_matches(db, user_id, sample_jobs):
     matches = []
     for job, score in zip(sample_jobs, [92, 85, 78]):
         match = JobMatch(
-            id=str(uuid4()), user_id=user_id, job_id=job.id,
-            match_score=score, title_score=0.3, skills_score=0.25,
-            experience_score=0.15, location_score=0.15,
-            salary_score=0.10, recency_score=0.05,
+            id=str(uuid4()),
+            user_id=user_id,
+            job_id=job.id,
+            match_score=score,
+            title_score=0.3,
+            skills_score=0.25,
+            experience_score=0.15,
+            location_score=0.15,
+            salary_score=0.10,
+            recency_score=0.05,
         )
         matches.append(match)
         db.add(match)

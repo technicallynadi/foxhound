@@ -29,6 +29,7 @@ async def lifespan(app: FastAPI):
 
     # Register recurring scheduled jobs
     from app.services.scheduling.scheduler import ensure_recurring_jobs
+
     await ensure_recurring_jobs()
 
     # Start background loops
@@ -70,7 +71,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.mount("/static", StaticFiles(directory=str(__import__("pathlib").Path(__file__).resolve().parent / "static")), name="static")
+app.mount(
+    "/static",
+    StaticFiles(directory=str(__import__("pathlib").Path(__file__).resolve().parent / "static")),
+    name="static",
+)
 
 
 def _include_router(module_path: str) -> None:

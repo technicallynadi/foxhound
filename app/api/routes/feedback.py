@@ -10,9 +10,18 @@ router = APIRouter(prefix="/v1/feedback", tags=["feedback"])
 logger = logging.getLogger(__name__)
 
 VALID_EVENT_TYPES = {
-    "impression", "click", "detail_dwell", "detail_scroll",
-    "view_build_plans", "return_visit", "share", "export",
-    "sandbox_create", "github_publish", "dismiss", "bounce",
+    "impression",
+    "click",
+    "detail_dwell",
+    "detail_scroll",
+    "view_build_plans",
+    "return_visit",
+    "share",
+    "export",
+    "sandbox_create",
+    "github_publish",
+    "dismiss",
+    "bounce",
 }
 
 

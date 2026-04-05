@@ -94,9 +94,7 @@ async def check_application(
 
     # If empty result (possible bot detection), retry with STEALTH
     if result.status.value == "COMPLETED" and not result.result:
-        logger.warning(
-            "Watchdog: empty result for %s, retrying STEALTH", job.apply_url
-        )
+        logger.warning("Watchdog: empty result for %s, retrying STEALTH", job.apply_url)
         await asyncio.sleep(RETRY_DELAY_SECONDS)
         from tinyfish import ProxyConfig, ProxyCountryCode
 
@@ -104,9 +102,7 @@ async def check_application(
             goal=WATCHDOG_CHECK_GOAL,
             url=job.apply_url,
             browser_profile=BrowserProfile.STEALTH,
-            proxy_config=ProxyConfig(
-                enabled=True, country_code=ProxyCountryCode.US
-            ),
+            proxy_config=ProxyConfig(enabled=True, country_code=ProxyCountryCode.US),
         )
         profile_used = "STEALTH"
 
@@ -114,9 +110,7 @@ async def check_application(
 
     # --- Parse result ---
     if result.status.value != "COMPLETED" or not result.result:
-        return await _record_check_failed(
-            application, result, elapsed_ms, profile_used, triggered_by
-        )
+        return await _record_check_failed(application, result, elapsed_ms, profile_used, triggered_by)
 
     import json as _json
 
@@ -138,22 +132,16 @@ async def check_application(
 
     # --- Compute new posting_status ---
     old_status = application.posting_status or "unknown"
-    new_status = _compute_new_status(
-        old_status, check_status, description_text, application.posting_last_text
-    )
+    new_status = _compute_new_status(old_status, check_status, description_text, application.posting_last_text)
     status_changed = old_status != new_status
-    posting_changed = _text_changed(
-        application.posting_last_text, description_text
-    )
+    posting_changed = _text_changed(application.posting_last_text, description_text)
 
     # --- Diff summary ---
     diff_summary = None
     if posting_changed and description_text and application.posting_last_text:
         from app.services.watchdog.differ import summarize_diff
 
-        diff_summary = summarize_diff(
-            application.posting_last_text, description_text
-        )
+        diff_summary = summarize_diff(application.posting_last_text, description_text)
 
     # --- Persist check record + update application ---
     check_id = str(uuid4())
@@ -191,9 +179,7 @@ async def check_application(
 
     # --- Notify on meaningful transitions ---
     if (old_status, new_status) in NOTIFY_TRANSITIONS:
-        await _send_watchdog_notification(
-            application, job, old_status, new_status, diff_summary
-        )
+        await _send_watchdog_notification(application, job, old_status, new_status, diff_summary)
 
     # --- Log to activity feed + emit event ---
     from app.services.activity.logger import log_activity
@@ -217,19 +203,22 @@ async def check_application(
         )
 
         from app.services.events import FoxhoundEvent, emit
-        await emit(FoxhoundEvent(
-            name="watchdog.change",
-            data={
-                "user_id": application.user_id,
-                "application_id": application.id,
-                "job_id": job.id,
-                "company": job.company,
-                "title": job.title,
-                "old_status": old_status,
-                "new_status": new_status,
-                "recommendation": recommendation,
-            },
-        ))
+
+        await emit(
+            FoxhoundEvent(
+                name="watchdog.change",
+                data={
+                    "user_id": application.user_id,
+                    "application_id": application.id,
+                    "job_id": job.id,
+                    "company": job.company,
+                    "title": job.title,
+                    "old_status": old_status,
+                    "new_status": new_status,
+                    "recommendation": recommendation,
+                },
+            )
+        )
 
     return {
         "status": new_status,
@@ -357,8 +346,6 @@ async def _send_watchdog_notification(
     from app.services.watchdog.notifications import send_watchdog_alert
 
     try:
-        await send_watchdog_alert(
-            application, job, old_status, new_status, diff_summary
-        )
+        await send_watchdog_alert(application, job, old_status, new_status, diff_summary)
     except Exception:
         logger.exception("Watchdog notification failed: app=%s", application.id)

@@ -13,6 +13,7 @@ from app.main import app
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 async def sample_application(db, sample_profile, sample_jobs):
     """Create a sample submitted application."""
@@ -34,6 +35,7 @@ async def sample_application(db, sample_profile, sample_jobs):
 # ---------------------------------------------------------------------------
 # List applications
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_list_applications_empty(user_id):
@@ -83,6 +85,7 @@ async def test_list_applications_filter_by_status(db, sample_profile, sample_job
 # Application detail
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_get_application_detail(db, sample_application):
     transport = ASGITransport(app=app)
@@ -105,6 +108,7 @@ async def test_get_application_not_found(user_id):
 # ---------------------------------------------------------------------------
 # Application stats
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_application_stats(db, sample_application):

@@ -61,22 +61,22 @@ class ToolGuard:
 
     async def _check_tier(self, db: AsyncSession, user_id: str) -> None:
         """Free tier cannot apply."""
-        result = await db.execute(
-            select(UserProfile).where(UserProfile.user_id == user_id)
-        )
+        result = await db.execute(select(UserProfile).where(UserProfile.user_id == user_id))
         profile = result.scalar_one_or_none()
         if not profile:
-            raise ToolBlocked("no_profile", "No profile found. Upload your resume first.",
-                              "Upload your resume to get started.")
+            raise ToolBlocked(
+                "no_profile", "No profile found. Upload your resume first.", "Upload your resume to get started."
+            )
         if profile.tier == "free":
-            raise ToolBlocked("browse_tier", "Browse tier cannot apply. Upgrade to Agent to start applying.",
-                              "Upgrade to Agent ($39/mo) for unlimited applications.")
+            raise ToolBlocked(
+                "browse_tier",
+                "Browse tier cannot apply. Upgrade to Agent to start applying.",
+                "Upgrade to Agent ($39/mo) for unlimited applications.",
+            )
 
     async def _check_monthly_limit(self, db: AsyncSession, user_id: str) -> None:
         """Check monthly application cap."""
-        result = await db.execute(
-            select(UserProfile).where(UserProfile.user_id == user_id)
-        )
+        result = await db.execute(select(UserProfile).where(UserProfile.user_id == user_id))
         profile = result.scalar_one_or_none()
         if not profile:
             return
@@ -84,7 +84,7 @@ class ToolGuard:
             raise ToolBlocked(
                 "monthly_limit",
                 f"You've used all {profile.monthly_apply_limit} applications this month.",
-                "Your limit resets next month, or upgrade your plan for more."
+                "Your limit resets next month, or upgrade your plan for more.",
             )
 
     async def _check_duplicate(self, db: AsyncSession, user_id: str, params: dict) -> None:
@@ -105,7 +105,7 @@ class ToolGuard:
             raise ToolBlocked(
                 "duplicate_application",
                 "You already have an active application for this job.",
-                "Check your application status instead."
+                "Check your application status instead.",
             )
 
     async def _check_blacklist(self, db: AsyncSession, user_id: str, params: dict) -> None:
@@ -121,9 +121,7 @@ class ToolGuard:
         if not company_name:
             return
 
-        result = await db.execute(
-            select(UserProfile).where(UserProfile.user_id == user_id)
-        )
+        result = await db.execute(select(UserProfile).where(UserProfile.user_id == user_id))
         profile = result.scalar_one_or_none()
         if not profile:
             return
@@ -133,5 +131,5 @@ class ToolGuard:
             raise ToolBlocked(
                 "blacklisted_company",
                 f"{company_name.title()} is on your blacklist.",
-                "Remove it from your blacklist in settings if you've changed your mind."
+                "Remove it from your blacklist in settings if you've changed your mind.",
             )

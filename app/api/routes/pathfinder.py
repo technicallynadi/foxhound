@@ -35,17 +35,13 @@ async def pathfinder_discover(
     user_id = user["user_id"]
 
     # Load job listing
-    job_result = await db.execute(
-        select(JobListing).where(JobListing.id == job_id)
-    )
+    job_result = await db.execute(select(JobListing).where(JobListing.id == job_id))
     job = job_result.scalar_one_or_none()
     if not job:
         raise HTTPException(status_code=404, detail="Job listing not found.")
 
     # Load user profile
-    profile_result = await db.execute(
-        select(UserProfile).where(UserProfile.user_id == user_id)
-    )
+    profile_result = await db.execute(select(UserProfile).where(UserProfile.user_id == user_id))
     profile = profile_result.scalar_one_or_none()
     if not profile:
         raise HTTPException(status_code=404, detail="User profile not found. Complete onboarding first.")
@@ -73,6 +69,7 @@ async def pathfinder_discover(
     import asyncio
 
     from app.services.pathfinder.team_lookup import lookup_team_page
+
     team_lookup_task = asyncio.create_task(
         lookup_team_page(
             company_name=job.company,
@@ -97,9 +94,7 @@ async def pathfinder_discover(
     )
 
     # 4. Draft outreach messages
-    user_name = " ".join(
-        p for p in [profile.first_name, profile.last_name] if p
-    ) or "there"
+    user_name = " ".join(p for p in [profile.first_name, profile.last_name] if p) or "there"
 
     outreach = await draft_outreach(
         job_title=job.title,

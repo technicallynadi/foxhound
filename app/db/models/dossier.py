@@ -64,8 +64,6 @@ class Dossier(Base):
     tinyfish_credits: Mapped[int] = mapped_column(Integer, default=0)
 
     # --- Timestamps ---
-    created_at: Mapped[datetime] = mapped_column(
-        TZDateTime, default=lambda: datetime.now(UTC)
-    )
+    created_at: Mapped[datetime] = mapped_column(TZDateTime, default=lambda: datetime.now(UTC))
     completed_at: Mapped[datetime | None] = mapped_column(TZDateTime, nullable=True)
     notified_at: Mapped[datetime | None] = mapped_column(TZDateTime, nullable=True)

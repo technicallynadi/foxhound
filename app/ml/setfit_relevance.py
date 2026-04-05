@@ -29,6 +29,7 @@ def load_model(version: str = "latest") -> bool:
 
     try:
         import pickle
+
         with open(model_path, "rb") as f:
             _model = pickle.load(f)
         _is_loaded = True

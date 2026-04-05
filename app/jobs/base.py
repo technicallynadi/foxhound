@@ -34,6 +34,7 @@ async def run_job(
         items = await fn(url)
     elif job_type == "preview_source_debug":
         from app.services.ingest.tinyfish_adapter import stream_extraction
+
         events = await stream_extraction(url, topic or "Debug extraction")
         return {"job_type": job_type, "url": url, "events": events}
     else:

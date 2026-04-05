@@ -139,55 +139,63 @@ def _build_submitted_blocks(
     ]
 
     if application.tinyfish_duration_ms:
-        blocks.append({
-            "type": "context",
-            "elements": [
-                {
-                    "type": "mrkdwn",
-                    "text": f"Completed in {application.tinyfish_duration_ms / 1000:.1f}s | ATS: {job.ats_type or 'unknown'}",
-                },
-            ],
-        })
+        blocks.append(
+            {
+                "type": "context",
+                "elements": [
+                    {
+                        "type": "mrkdwn",
+                        "text": f"Completed in {application.tinyfish_duration_ms / 1000:.1f}s | ATS: {job.ats_type or 'unknown'}",
+                    },
+                ],
+            }
+        )
 
     # Screenshot thumbnail
     public_url = _screenshot_public_url(screenshot_url)
     if public_url:
-        blocks.append({
-            "type": "image",
-            "image_url": public_url,
-            "alt_text": f"Application screenshot for {job.company}",
-        })
-
-    blocks.append({
-        "type": "actions",
-        "elements": [
+        blocks.append(
             {
-                "type": "button",
-                "text": {"type": "plain_text", "text": "Open Applications"},
-                "url": f"{DASHBOARD_BASE}/applications",
-            },
-            {
-                "type": "button",
-                "text": {"type": "plain_text", "text": "Open Research"},
-                "url": _research_href(
-                    "people",
-                    company=job.company,
-                    role=job.title,
-                    application_id=application.id,
-                ),
-            },
-        ],
-    })
-
-    blocks.append({
-        "type": "context",
-        "elements": [
-            {
-                "type": "mrkdwn",
-                "text": "Reply in this DM if you want Foxhound to queue the next follow-up or open more Research.",
+                "type": "image",
+                "image_url": public_url,
+                "alt_text": f"Application screenshot for {job.company}",
             }
-        ],
-    })
+        )
+
+    blocks.append(
+        {
+            "type": "actions",
+            "elements": [
+                {
+                    "type": "button",
+                    "text": {"type": "plain_text", "text": "Open Applications"},
+                    "url": f"{DASHBOARD_BASE}/applications",
+                },
+                {
+                    "type": "button",
+                    "text": {"type": "plain_text", "text": "Open Research"},
+                    "url": _research_href(
+                        "people",
+                        company=job.company,
+                        role=job.title,
+                        application_id=application.id,
+                    ),
+                },
+            ],
+        }
+    )
+
+    blocks.append(
+        {
+            "type": "context",
+            "elements": [
+                {
+                    "type": "mrkdwn",
+                    "text": "Reply in this DM if you want Foxhound to queue the next follow-up or open more Research.",
+                }
+            ],
+        }
+    )
 
     return blocks
 
@@ -236,26 +244,30 @@ def _build_failed_blocks(
     ]
 
     if job.apply_url:
-        blocks.append({
-            "type": "actions",
+        blocks.append(
+            {
+                "type": "actions",
+                "elements": [
+                    {
+                        "type": "button",
+                        "text": {"type": "plain_text", "text": "Apply Manually"},
+                        "url": job.apply_url,
+                    },
+                ],
+            }
+        )
+
+    blocks.append(
+        {
+            "type": "context",
             "elements": [
                 {
-                    "type": "button",
-                    "text": {"type": "plain_text", "text": "Apply Manually"},
-                    "url": job.apply_url,
-                },
+                    "type": "mrkdwn",
+                    "text": "Reply here if you want Foxhound to keep tracking the role or look for better fits.",
+                }
             ],
-        })
-
-    blocks.append({
-        "type": "context",
-        "elements": [
-            {
-                "type": "mrkdwn",
-                "text": "Reply here if you want Foxhound to keep tracking the role or look for better fits.",
-            }
-        ],
-    })
+        }
+    )
 
     return blocks
 
@@ -291,60 +303,69 @@ def _build_questions_blocks(
         q_text = f"*Q{i}:* {q['question']}"
         if q.get("suggested_answer"):
             q_text += f"\n_Suggested:_ {q['suggested_answer']}"
-        blocks.append({
-            "type": "section",
-            "text": {"type": "mrkdwn", "text": q_text},
-        })
+        blocks.append(
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": q_text},
+            }
+        )
 
     if len(questions) > 5:
-        blocks.append({
-            "type": "context",
-            "elements": [
-                {"type": "mrkdwn", "text": f"+ {len(questions) - 5} more questions"},
-            ],
-        })
+        blocks.append(
+            {
+                "type": "context",
+                "elements": [
+                    {"type": "mrkdwn", "text": f"+ {len(questions) - 5} more questions"},
+                ],
+            }
+        )
 
     # Tell user to reply right here in Slack
-    blocks.append({
-        "type": "section",
-        "text": {
-            "type": "mrkdwn",
-            "text": "*Reply with your answers:*\n" + "\n".join(
-                f"{i}. [your answer]" for i in range(1, min(len(questions) + 1, 6))
-            ),
-        },
-    })
-
-    blocks.append({
-        "type": "context",
-        "elements": [
-            {
+    blocks.append(
+        {
+            "type": "section",
+            "text": {
                 "type": "mrkdwn",
-                "text": "Reply in this thread and Foxhound will keep the application moving.",
-            }
-        ],
-    })
+                "text": "*Reply with your answers:*\n"
+                + "\n".join(f"{i}. [your answer]" for i in range(1, min(len(questions) + 1, 6))),
+            },
+        }
+    )
 
-    blocks.append({
-        "type": "actions",
-        "elements": [
-            {
-                "type": "button",
-                "text": {"type": "plain_text", "text": "Open Applications"},
-                "url": f"{DASHBOARD_BASE}/applications",
-            },
-            {
-                "type": "button",
-                "text": {"type": "plain_text", "text": "Open Research"},
-                "url": _research_href(
-                    "people",
-                    company=job.company,
-                    role=job.title,
-                    application_id=application_id,
-                ),
-            },
-        ],
-    })
+    blocks.append(
+        {
+            "type": "context",
+            "elements": [
+                {
+                    "type": "mrkdwn",
+                    "text": "Reply in this thread and Foxhound will keep the application moving.",
+                }
+            ],
+        }
+    )
+
+    blocks.append(
+        {
+            "type": "actions",
+            "elements": [
+                {
+                    "type": "button",
+                    "text": {"type": "plain_text", "text": "Open Applications"},
+                    "url": f"{DASHBOARD_BASE}/applications",
+                },
+                {
+                    "type": "button",
+                    "text": {"type": "plain_text", "text": "Open Research"},
+                    "url": _research_href(
+                        "people",
+                        company=job.company,
+                        role=job.title,
+                        application_id=application_id,
+                    ),
+                },
+            ],
+        }
+    )
 
     return blocks
 
@@ -389,27 +410,31 @@ def _build_needs_manual_blocks(
     ]
 
     apply_url = job.apply_url or f"{DASHBOARD_BASE}/applications"
-    blocks.append({
-        "type": "actions",
-        "elements": [
-            {
-                "type": "button",
-                "text": {"type": "plain_text", "text": "Complete Application"},
-                "url": apply_url,
-                "style": "primary",
-            },
-        ],
-    })
+    blocks.append(
+        {
+            "type": "actions",
+            "elements": [
+                {
+                    "type": "button",
+                    "text": {"type": "plain_text", "text": "Complete Application"},
+                    "url": apply_url,
+                    "style": "primary",
+                },
+            ],
+        }
+    )
 
-    blocks.append({
-        "type": "context",
-        "elements": [
-            {
-                "type": "mrkdwn",
-                "text": "Reply here if you want Foxhound to help you find a better-fit role instead.",
-            }
-        ],
-    })
+    blocks.append(
+        {
+            "type": "context",
+            "elements": [
+                {
+                    "type": "mrkdwn",
+                    "text": "Reply here if you want Foxhound to help you find a better-fit role instead.",
+                }
+            ],
+        }
+    )
 
     return blocks
 
@@ -440,7 +465,9 @@ async def send_application_receipt(
         return {"skipped": "no channels configured"}
 
     # Build message
-    status_emoji = "Submitted" if application.status == "submitted" else f"Failed ({application.error_type or 'unknown'})"
+    status_emoji = (
+        "Submitted" if application.status == "submitted" else f"Failed ({application.error_type or 'unknown'})"
+    )
     fields_filled = json.loads(application.fields_filled_json or "[]")
 
     message = (
@@ -463,15 +490,11 @@ async def send_application_receipt(
                 profile, webhook_url, message, job, application, screenshot_url
             )
         elif channel == "discord":
-            results["discord"] = await _send_discord_application(
-                webhook_url, message, job, application, screenshot_url
-            )
+            results["discord"] = await _send_discord_application(webhook_url, message, job, application, screenshot_url)
         elif channel == "sms":
             # SMS gets a shorter message
             sms_msg = f"Foxhound: Applied to {job.company} — {job.title}. Status: {status_emoji}"
-            results["sms"] = await _post_webhook(
-                webhook_url, {"text": sms_msg, "to": profile.phone or ""}
-            )
+            results["sms"] = await _post_webhook(webhook_url, {"text": sms_msg, "to": profile.phone or ""})
 
     return results
 
@@ -516,10 +539,12 @@ async def _send_discord_application(
     }
 
     if application.error_message:
-        embed["fields"].append({
-            "name": "Error",
-            "value": application.error_message[:200],
-        })
+        embed["fields"].append(
+            {
+                "name": "Error",
+                "value": application.error_message[:200],
+            }
+        )
 
     if screenshot_url:
         embed["image"] = {"url": screenshot_url}
@@ -533,9 +558,7 @@ async def _send_discord_application(
 # ---------------------------------------------------------------------------
 
 
-async def send_daily_digest(
-    db: AsyncSession, user_id: str
-) -> dict:
+async def send_daily_digest(db: AsyncSession, user_id: str) -> dict:
     """Send end-of-day summary to a user.
 
     "Today's applications (5):
@@ -545,9 +568,7 @@ async def send_daily_digest(
      3 new matches above your 75% threshold for tomorrow."
     """
     # Get profile
-    result = await db.execute(
-        select(UserProfile).where(UserProfile.user_id == user_id)
-    )
+    result = await db.execute(select(UserProfile).where(UserProfile.user_id == user_id))
     profile = result.scalar_one_or_none()
     if not profile or not profile.notify_daily_digest:
         return {"skipped": "digest disabled or no profile"}
@@ -578,7 +599,7 @@ async def send_daily_digest(
             JobMatch.user_id == user_id,
             JobMatch.match_score >= threshold,
             JobMatch.user_action == "none",
-            JobMatch.disqualified is False,
+            JobMatch.disqualified.is_(False),
             JobMatch.created_at >= today_start,
         )
     )
@@ -608,7 +629,9 @@ async def send_daily_digest(
     submitted = sum(1 for app, _ in todays_apps if app.status == "submitted")
     failed = sum(1 for app, _ in todays_apps if app.status == "failed")
     if todays_apps:
-        lines.append(f"\nSubmitted: {submitted} | Failed: {failed} | Remaining today: {max(0, profile.daily_apply_limit - len(todays_apps))}")
+        lines.append(
+            f"\nSubmitted: {submitted} | Failed: {failed} | Remaining today: {max(0, profile.daily_apply_limit - len(todays_apps))}"
+        )
 
     message = "\n".join(lines)
 
@@ -733,18 +756,21 @@ async def send_conversation_question(
     results = {}
     for channel, webhook_url in channels.items():
         if channel == "slack":
-            results["slack"] = await _send_slack_question(
-                profile, webhook_url, message, job, questions, application_id
-            )
+            results["slack"] = await _send_slack_question(profile, webhook_url, message, job, questions, application_id)
         elif channel == "discord":
-            results["discord"] = await _post_webhook(webhook_url, {
-                "content": message[:2000],
-                "embeds": [{
-                    "title": f"Input needed: {job.company} — {job.title}",
-                    "description": message[:4000],
-                    "color": 0xFFA500,
-                }],
-            })
+            results["discord"] = await _post_webhook(
+                webhook_url,
+                {
+                    "content": message[:2000],
+                    "embeds": [
+                        {
+                            "title": f"Input needed: {job.company} — {job.title}",
+                            "description": message[:4000],
+                            "color": 0xFFA500,
+                        }
+                    ],
+                },
+            )
         elif channel == "sms":
             # SMS gets first question only
             first_q = questions[0]["question"] if questions else ""
@@ -864,9 +890,7 @@ async def send_new_match_alert(
         return {"skipped": "no channels"}
 
     threshold = profile.autopilot_threshold or 70
-    lines = [
-        f"{len(new_matches)} new job{'s' if len(new_matches) != 1 else ''} above your {threshold}% threshold:"
-    ]
+    lines = [f"{len(new_matches)} new job{'s' if len(new_matches) != 1 else ''} above your {threshold}% threshold:"]
     for match, job in new_matches[:5]:
         lines.append(f"  - {job.company} — {job.title} ({match.match_score}% match)")
     if len(new_matches) > 5:
@@ -922,9 +946,7 @@ async def send_new_match_alert(
 # ---------------------------------------------------------------------------
 
 
-async def send_followup_day3(
-    profile: UserProfile, job: JobListing
-) -> dict:
+async def send_followup_day3(profile: UserProfile, job: JobListing) -> dict:
     """Day 3: normal timeline status update."""
     channels = _get_user_channels(profile)
     if not channels:
@@ -975,9 +997,7 @@ async def send_followup_day3(
     return results
 
 
-async def send_followup_day7(
-    profile: UserProfile, job: JobListing
-) -> dict:
+async def send_followup_day7(profile: UserProfile, job: JobListing) -> dict:
     """Day 7: offer to draft a follow-up."""
     channels = _get_user_channels(profile)
     if not channels:
@@ -1031,9 +1051,7 @@ async def send_followup_day7(
     return results
 
 
-async def send_followup_day14(
-    profile: UserProfile, job: JobListing
-) -> dict:
+async def send_followup_day14(profile: UserProfile, job: JobListing) -> dict:
     """Day 14: suggest moving on."""
     channels = _get_user_channels(profile)
     if not channels:

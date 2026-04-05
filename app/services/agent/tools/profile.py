@@ -44,7 +44,8 @@ async def get_profile(db: AsyncSession, user_id: str, params: dict) -> dict:
         "years_experience": profile.years_experience,
         "experience": [
             {"title": e.get("title"), "company": e.get("company"), "years": e.get("years")}
-            for e in experience[:5] if isinstance(e, dict)
+            for e in experience[:5]
+            if isinstance(e, dict)
         ],
         "preferences": {
             "target_titles": target_titles,

@@ -73,9 +73,7 @@ async def discover_jobs(db: AsyncSession, user_id: str, params: dict) -> dict:
         return {"error": "missing_query", "message": "Please describe what kind of jobs you're looking for."}
 
     # Load user profile for context
-    result = await db.execute(
-        select(UserProfile).where(UserProfile.user_id == user_id)
-    )
+    result = await db.execute(select(UserProfile).where(UserProfile.user_id == user_id))
     profile = result.scalar_one_or_none()
 
     # Build search context from profile if available
@@ -116,6 +114,7 @@ async def discover_jobs(db: AsyncSession, user_id: str, params: dict) -> dict:
 
     # Run searches in parallel with global semaphore
     from app.services.tinyfish_concurrency import TINYFISH_SEMAPHORE
+
     all_jobs: list[dict] = []
 
     async def _run_search(source: dict) -> list[dict]:
@@ -172,6 +171,7 @@ async def discover_jobs(db: AsyncSession, user_id: str, params: dict) -> dict:
         }
 
     from app.services.activity.logger import log_activity
+
     await log_activity(
         user_id=user_id,
         event_type="matches_discovered",
@@ -215,7 +215,7 @@ def _parse_job_results(raw: str) -> list[dict]:
         pass
 
     # Try extracting JSON array from text
-    match = re.search(r'\[[\s\S]*\]', raw)
+    match = re.search(r"\[[\s\S]*\]", raw)
     if match:
         try:
             data = json.loads(match.group(0))

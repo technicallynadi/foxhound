@@ -163,9 +163,7 @@ async def _find_field(page: Page, form_field: FormField, ats: str | None) -> obj
 
     # Strategy 3: Placeholder text
     try:
-        placeholder_input = page.locator(
-            f'input[placeholder*="{label}" i], textarea[placeholder*="{label}" i]'
-        ).first
+        placeholder_input = page.locator(f'input[placeholder*="{label}" i], textarea[placeholder*="{label}" i]').first
         if await placeholder_input.count() > 0 and await placeholder_input.is_visible(timeout=500):
             return placeholder_input
     except Exception:
@@ -223,9 +221,7 @@ async def _find_field(page: Page, form_field: FormField, ats: str | None) -> obj
     return None
 
 
-async def _fill_greenhouse_phone_country(
-    page: Page, phone_locator, phone_value: str, location: str
-) -> None:
+async def _fill_greenhouse_phone_country(page: Page, phone_locator, phone_value: str, location: str) -> None:
     """Select the correct country code in Greenhouse's embedded phone dropdown.
 
     Greenhouse phone fields have a small country code select embedded
@@ -245,15 +241,39 @@ async def _fill_greenhouse_phone_country(
 
     # Map country codes to search terms
     code_to_search = {
-        "1": "United States", "44": "United Kingdom", "61": "Australia",
-        "64": "New Zealand", "91": "India", "49": "Germany", "33": "France",
-        "81": "Japan", "86": "China", "82": "Korea", "65": "Singapore",
-        "852": "Hong Kong", "971": "United Arab Emirates", "353": "Ireland",
-        "31": "Netherlands", "46": "Sweden", "47": "Norway", "45": "Denmark",
-        "358": "Finland", "41": "Switzerland", "39": "Italy", "34": "Spain",
-        "55": "Brazil", "52": "Mexico", "27": "South Africa", "63": "Philippines",
-        "66": "Thailand", "60": "Malaysia", "62": "Indonesia", "84": "Vietnam",
-        "886": "Taiwan", "972": "Israel", "966": "Saudi Arabia",
+        "1": "United States",
+        "44": "United Kingdom",
+        "61": "Australia",
+        "64": "New Zealand",
+        "91": "India",
+        "49": "Germany",
+        "33": "France",
+        "81": "Japan",
+        "86": "China",
+        "82": "Korea",
+        "65": "Singapore",
+        "852": "Hong Kong",
+        "971": "United Arab Emirates",
+        "353": "Ireland",
+        "31": "Netherlands",
+        "46": "Sweden",
+        "47": "Norway",
+        "45": "Denmark",
+        "358": "Finland",
+        "41": "Switzerland",
+        "39": "Italy",
+        "34": "Spain",
+        "55": "Brazil",
+        "52": "Mexico",
+        "27": "South Africa",
+        "63": "Philippines",
+        "66": "Thailand",
+        "60": "Malaysia",
+        "62": "Indonesia",
+        "84": "Vietnam",
+        "886": "Taiwan",
+        "972": "Israel",
+        "966": "Saudi Arabia",
     }
 
     search_term = ""
@@ -262,9 +282,15 @@ async def _fill_greenhouse_phone_country(
     elif location:
         # Try to use location to find country
         abbrev_map = {
-            "uk": "United Kingdom", "us": "United States", "usa": "United States",
-            "au": "Australia", "nz": "New Zealand", "sg": "Singapore",
-            "hk": "Hong Kong", "ie": "Ireland", "ca": "Canada",
+            "uk": "United Kingdom",
+            "us": "United States",
+            "usa": "United States",
+            "au": "Australia",
+            "nz": "New Zealand",
+            "sg": "Singapore",
+            "hk": "Hong Kong",
+            "ie": "Ireland",
+            "ca": "Canada",
         }
         parts = [p.strip().lower() for p in location.replace(",", " ").split()]
         for part in parts:
@@ -284,7 +310,7 @@ async def _fill_greenhouse_phone_country(
         if await iti_container.count() > 0:
             # Click the flag dropdown button to open the country list
             flag_btn = iti_container.locator(
-                '.iti__selected-country, .iti__selected-flag, .iti__flag-container, '
+                ".iti__selected-country, .iti__selected-flag, .iti__flag-container, "
                 'button[aria-label*="country"], [class*="selected-flag"]'
             ).first
             if await flag_btn.count() > 0:
@@ -295,9 +321,7 @@ async def _fill_greenhouse_phone_country(
                 # Each <li> has data-country-code and data-dial-code attributes
                 # Try selecting by dial code first (most reliable)
                 if phone_code:
-                    country_item = iti_container.locator(
-                        f'li[data-dial-code="{phone_code}"]'
-                    ).first
+                    country_item = iti_container.locator(f'li[data-dial-code="{phone_code}"]').first
                     if await country_item.count() > 0:
                         await country_item.click()
                         logger.info("Set phone country by dial code +%s", phone_code)
@@ -311,16 +335,14 @@ async def _fill_greenhouse_phone_country(
                     await search_input.fill(search_term)
                     await page.wait_for_timeout(500)
                     # Click first visible result
-                    first_result = iti_container.locator(
-                        'li.iti__country:not(.iti__hide)'
-                    ).first
+                    first_result = iti_container.locator("li.iti__country:not(.iti__hide)").first
                     if await first_result.count() > 0:
                         await first_result.click()
                         logger.info("Set phone country via ITI search: %s", search_term)
                         return
 
                 # Fallback: scroll through list and click matching country name
-                country_items = iti_container.locator('li.iti__country, li[data-dial-code]')
+                country_items = iti_container.locator("li.iti__country, li[data-dial-code]")
                 count = await country_items.count()
                 for i in range(count):
                     item = country_items.nth(i)
@@ -753,10 +775,7 @@ def _resolve_field_value(
         form_field.field_type == "select"
         and form_field.options
         and any("+" in opt for opt in form_field.options)
-        and any(
-            kw in label_lower
-            for kw in ("country", "country code", "phone country", "dialing", "dial code")
-        )
+        and any(kw in label_lower for kw in ("country", "country code", "phone country", "dialing", "dial code"))
     )
     if _is_phone_country:
         # Try to extract country from profile phone number first
@@ -764,6 +783,7 @@ def _resolve_field_value(
         phone_code = ""
         if phone:
             import re as _re
+
             code_match = _re.match(r"\+(\d{1,3})", phone)
             if code_match:
                 phone_code = code_match.group(1)
@@ -831,16 +851,37 @@ def _resolve_field_value(
             country_hints.append(location)
         # Map common abbreviations
         abbrev_map = {
-            "uk": "United Kingdom", "us": "United States", "usa": "United States",
-            "uae": "United Arab Emirates", "hk": "Hong Kong", "sg": "Singapore",
-            "au": "Australia", "nz": "New Zealand", "ca": "Canada",
-            "de": "Germany", "fr": "France", "jp": "Japan", "in": "India",
-            "ie": "Ireland", "nl": "Netherlands", "se": "Sweden",
-            "no": "Norway", "dk": "Denmark", "fi": "Finland", "ch": "Switzerland",
-            "br": "Brazil", "mx": "Mexico", "za": "South Africa",
-            "ph": "Philippines", "th": "Thailand", "my": "Malaysia",
-            "id": "Indonesia", "vn": "Vietnam", "tw": "Taiwan",
-            "kr": "South Korea", "il": "Israel",
+            "uk": "United Kingdom",
+            "us": "United States",
+            "usa": "United States",
+            "uae": "United Arab Emirates",
+            "hk": "Hong Kong",
+            "sg": "Singapore",
+            "au": "Australia",
+            "nz": "New Zealand",
+            "ca": "Canada",
+            "de": "Germany",
+            "fr": "France",
+            "jp": "Japan",
+            "in": "India",
+            "ie": "Ireland",
+            "nl": "Netherlands",
+            "se": "Sweden",
+            "no": "Norway",
+            "dk": "Denmark",
+            "fi": "Finland",
+            "ch": "Switzerland",
+            "br": "Brazil",
+            "mx": "Mexico",
+            "za": "South Africa",
+            "ph": "Philippines",
+            "th": "Thailand",
+            "my": "Malaysia",
+            "id": "Indonesia",
+            "vn": "Vietnam",
+            "tw": "Taiwan",
+            "kr": "South Korea",
+            "il": "Israel",
         }
         expanded = []
         for h in country_hints:
@@ -875,28 +916,62 @@ def _resolve_field_value(
         phone_code = ""
         if phone:
             import re as _re
+
             code_match = _re.match(r"\+(\d{1,3})", phone)
             if code_match:
                 phone_code = code_match.group(1)
 
         # Map dial codes to country names for plain-text matching
         code_to_country = {
-            "1": "United States", "44": "United Kingdom", "61": "Australia",
-            "64": "New Zealand", "91": "India", "49": "Germany", "33": "France",
-            "81": "Japan", "86": "China", "82": "South Korea", "65": "Singapore",
-            "852": "Hong Kong", "971": "United Arab Emirates", "353": "Ireland",
-            "31": "Netherlands", "46": "Sweden", "47": "Norway", "45": "Denmark",
-            "41": "Switzerland", "39": "Italy", "34": "Spain", "55": "Brazil",
-            "52": "Mexico", "27": "South Africa", "63": "Philippines",
-            "66": "Thailand", "60": "Malaysia", "62": "Indonesia",
-            "7": "Russia", "48": "Poland", "351": "Portugal",
-            "972": "Israel", "966": "Saudi Arabia", "234": "Nigeria",
+            "1": "United States",
+            "44": "United Kingdom",
+            "61": "Australia",
+            "64": "New Zealand",
+            "91": "India",
+            "49": "Germany",
+            "33": "France",
+            "81": "Japan",
+            "86": "China",
+            "82": "South Korea",
+            "65": "Singapore",
+            "852": "Hong Kong",
+            "971": "United Arab Emirates",
+            "353": "Ireland",
+            "31": "Netherlands",
+            "46": "Sweden",
+            "47": "Norway",
+            "45": "Denmark",
+            "41": "Switzerland",
+            "39": "Italy",
+            "34": "Spain",
+            "55": "Brazil",
+            "52": "Mexico",
+            "27": "South Africa",
+            "63": "Philippines",
+            "66": "Thailand",
+            "60": "Malaysia",
+            "62": "Indonesia",
+            "7": "Russia",
+            "48": "Poland",
+            "351": "Portugal",
+            "972": "Israel",
+            "966": "Saudi Arabia",
+            "234": "Nigeria",
         }
         abbrev_map = {
-            "uk": "United Kingdom", "us": "United States", "usa": "United States",
-            "au": "Australia", "nz": "New Zealand", "sg": "Singapore",
-            "hk": "Hong Kong", "ie": "Ireland", "ca": "Canada",
-            "de": "Germany", "fr": "France", "jp": "Japan", "in": "India",
+            "uk": "United Kingdom",
+            "us": "United States",
+            "usa": "United States",
+            "au": "Australia",
+            "nz": "New Zealand",
+            "sg": "Singapore",
+            "hk": "Hong Kong",
+            "ie": "Ireland",
+            "ca": "Canada",
+            "de": "Germany",
+            "fr": "France",
+            "jp": "Japan",
+            "in": "India",
         }
 
         # Strategy 1: Match by phone country code
@@ -934,6 +1009,7 @@ def _resolve_field_value(
             # Strip country code from phone when form has a separate country dropdown
             if profile_key == "phone":
                 import re
+
                 val = re.sub(r"^\+\d{1,3}\s*", "", val)
             return val
 
@@ -959,8 +1035,14 @@ def _resolve_field_value(
 
     # 5. Common yes/no confirmation questions
     confirm_patterns = [
-        "confirm", "suitable", "agree", "acknowledge", "consent",
-        "reasonable adjustments", "accommodations", "disability",
+        "confirm",
+        "suitable",
+        "agree",
+        "acknowledge",
+        "consent",
+        "reasonable adjustments",
+        "accommodations",
+        "disability",
     ]
     if any(p in label_lower for p in confirm_patterns):
         # For "do you require adjustments" type questions, answer No
@@ -1294,9 +1376,7 @@ async def fill_and_submit(
             except Exception:
                 pass
 
-            if "captcha" in body_text_lower and any(
-                kw in body_text_lower for kw in ["verify", "robot", "human"]
-            ):
+            if "captcha" in body_text_lower and any(kw in body_text_lower for kw in ["verify", "robot", "human"]):
                 return FillResult(
                     status="captcha",
                     error="CAPTCHA detected on form page",
@@ -1319,17 +1399,25 @@ async def fill_and_submit(
                     # Handle file upload separately below
                     continue
                 if form_field.field_type == "hidden":
-                    field_results.append(FieldFillResult(
-                        label=form_field.label, status="skipped", value_used="(hidden)",
-                    ))
+                    field_results.append(
+                        FieldFillResult(
+                            label=form_field.label,
+                            status="skipped",
+                            value_used="(hidden)",
+                        )
+                    )
                     skipped += 1
                     continue
 
                 value = _resolve_field_value(form_field, profile_data, answers_map)
                 if not value:
-                    field_results.append(FieldFillResult(
-                        label=form_field.label, status="skipped", value_used="(no value)",
-                    ))
+                    field_results.append(
+                        FieldFillResult(
+                            label=form_field.label,
+                            status="skipped",
+                            value_used="(no value)",
+                        )
+                    )
                     skipped += 1
                     logger.info("Skipped: '%s' (no value)", form_field.label)
                     continue
@@ -1347,10 +1435,13 @@ async def fill_and_submit(
                     await page.wait_for_timeout(500)
                     locator = await _find_field(page, form_field, ats)
                 if not locator:
-                    field_results.append(FieldFillResult(
-                        label=form_field.label, status="not_found",
-                        error="Could not locate field in DOM",
-                    ))
+                    field_results.append(
+                        FieldFillResult(
+                            label=form_field.label,
+                            status="not_found",
+                            error="Could not locate field in DOM",
+                        )
+                    )
                     errored += 1
                     logger.warning("Not found in DOM: '%s'", form_field.label)
                     continue
@@ -1363,7 +1454,9 @@ async def fill_and_submit(
                         # Greenhouse phone fields have an embedded country code dropdown
                         if form_field.field_type == "tel" and ats == "greenhouse":
                             await _fill_greenhouse_phone_country(
-                                page, locator, profile_data.get("phone", ""),
+                                page,
+                                locator,
+                                profile_data.get("phone", ""),
                                 profile_data.get("location", ""),
                             )
                         await _fill_text(page, locator, value)
@@ -1379,24 +1472,42 @@ async def fill_and_submit(
                         # Unknown type -- try text fill as fallback
                         await _fill_text(page, locator, value)
 
-                    field_results.append(FieldFillResult(
-                        label=form_field.label, status="filled", value_used=value,
-                    ))
+                    field_results.append(
+                        FieldFillResult(
+                            label=form_field.label,
+                            status="filled",
+                            value_used=value,
+                        )
+                    )
                     filled += 1
                     logger.info("Filled: '%s'", form_field.label)
 
                 except Exception as e:
-                    logger.warning("Failed to fill '%s': %s", form_field.label, e)
-                    field_results.append(FieldFillResult(
-                        label=form_field.label, status="error",
-                        value_used=value, error=str(e),
-                    ))
+                    logger.warning(
+                        "Failed to fill '%s' (error_type=%s)",
+                        form_field.label,
+                        type(e).__name__,
+                    )
+                    field_results.append(
+                        FieldFillResult(
+                            label=form_field.label,
+                            status="error",
+                            value_used=value,
+                            error=str(e),
+                        )
+                    )
                     errored += 1
 
                 # Minimal pause between fields — CDP sessions have short timeouts
                 await page.wait_for_timeout(100)
 
-            logger.info("Field fill summary: %d filled, %d skipped, %d errors out of %d", filled, skipped, errored, len(scan_result.fields))
+            logger.info(
+                "Field fill summary: %d filled, %d skipped, %d errors out of %d",
+                filled,
+                skipped,
+                errored,
+                len(scan_result.fields),
+            )
 
             # 9. Upload resume
             if resume_bytes and scan_result.has_file_upload:

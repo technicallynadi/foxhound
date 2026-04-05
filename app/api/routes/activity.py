@@ -32,11 +32,7 @@ async def get_activity_feed(
     user_id = user["user_id"]
     offset = (page - 1) * page_size
 
-    stmt = (
-        select(AgentActivity)
-        .where(AgentActivity.user_id == user_id)
-        .order_by(AgentActivity.created_at.desc())
-    )
+    stmt = select(AgentActivity).where(AgentActivity.user_id == user_id).order_by(AgentActivity.created_at.desc())
     # Hide internal cache events from the feed
     if not event_type:
         stmt = stmt.where(~AgentActivity.event_type.like("\\_%", escape="\\"))
@@ -46,9 +42,7 @@ async def get_activity_feed(
     result = await db.execute(stmt.offset(offset).limit(page_size))
     events = result.scalars().all()
 
-    count_result = await db.execute(
-        select(func.count(AgentActivity.id)).where(AgentActivity.user_id == user_id)
-    )
+    count_result = await db.execute(select(func.count(AgentActivity.id)).where(AgentActivity.user_id == user_id))
     total = count_result.scalar() or 0
 
     return {
@@ -83,9 +77,7 @@ async def get_morning_briefing(
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
     # Profile for threshold
-    profile_result = await db.execute(
-        select(UserProfile).where(UserProfile.user_id == user_id)
-    )
+    profile_result = await db.execute(select(UserProfile).where(UserProfile.user_id == user_id))
     profile = profile_result.scalar_one_or_none()
     threshold = profile.autopilot_threshold if profile else 70
 
@@ -102,31 +94,30 @@ async def get_morning_briefing(
     for app, job in todays_apps:
         # Get match score
         match_result = await db.execute(
-            select(JobMatch.match_score).where(
-                JobMatch.user_id == user_id, JobMatch.job_id == job.id
-            )
+            select(JobMatch.match_score).where(JobMatch.user_id == user_id, JobMatch.job_id == job.id)
         )
         score = match_result.scalar_one_or_none()
 
         # Check if brief exists
         from app.db.models.foxhound_brief import FoxhoundBrief
+
         brief_result = await db.execute(
-            select(FoxhoundBrief.id, FoxhoundBrief.status).where(
-                FoxhoundBrief.application_id == app.id
-            )
+            select(FoxhoundBrief.id, FoxhoundBrief.status).where(FoxhoundBrief.application_id == app.id)
         )
         brief_row = brief_result.first()
 
-        applications.append({
-            "application_id": app.id,
-            "company": job.company,
-            "title": job.title,
-            "match_score": score,
-            "submitted_at": app.submitted_at.isoformat() if app.submitted_at else None,
-            "status": app.status,
-            "brief_ready": brief_row[1] in ("ready", "partial") if brief_row else False,
-            "brief_id": brief_row[0] if brief_row else None,
-        })
+        applications.append(
+            {
+                "application_id": app.id,
+                "company": job.company,
+                "title": job.title,
+                "match_score": score,
+                "submitted_at": app.submitted_at.isoformat() if app.submitted_at else None,
+                "status": app.status,
+                "brief_ready": brief_row[1] in ("ready", "partial") if brief_row else False,
+                "brief_id": brief_row[0] if brief_row else None,
+            }
+        )
 
     # Today's alerts (from activity log)
     alert_types = {"ghost_alert", "followup_reminder", "followup_sent", "watchdog_check"}
@@ -157,7 +148,7 @@ async def get_morning_briefing(
         .where(
             JobMatch.user_id == user_id,
             JobMatch.match_score >= threshold,
-            JobMatch.disqualified is False,
+            JobMatch.disqualified.is_(False),
             JobMatch.user_action == "none",
             JobMatch.created_at >= today_start,
         )
@@ -177,14 +168,13 @@ async def get_morning_briefing(
 
     # Count total discovered today
     discovered_result = await db.execute(
-        select(func.count(JobListing.id)).where(
-            JobListing.discovered_at >= today_start
-        )
+        select(func.count(JobListing.id)).where(JobListing.discovered_at >= today_start)
     )
     jobs_discovered = discovered_result.scalar() or 0
 
     # Count pending questions
     from app.db.models.application_question import ApplicationQuestion
+
     pending_q_result = await db.execute(
         select(func.count(ApplicationQuestion.id))
         .join(Application, ApplicationQuestion.application_id == Application.id)
@@ -216,19 +206,13 @@ async def get_dashboard_stats(
     """Compact stats for the summary bar."""
     user_id = user["user_id"]
 
-    profile_result = await db.execute(
-        select(UserProfile).where(UserProfile.user_id == user_id)
-    )
+    profile_result = await db.execute(select(UserProfile).where(UserProfile.user_id == user_id))
     profile = profile_result.scalar_one_or_none()
 
     match_count = await db.execute(
-        select(func.count(JobMatch.id)).where(
-            JobMatch.user_id == user_id, JobMatch.disqualified is False
-        )
+        select(func.count(JobMatch.id)).where(JobMatch.user_id == user_id, JobMatch.disqualified.is_(False))
     )
-    app_count = await db.execute(
-        select(func.count(Application.id)).where(Application.user_id == user_id)
-    )
+    app_count = await db.execute(select(func.count(Application.id)).where(Application.user_id == user_id))
 
     return {
         "total_matches": match_count.scalar() or 0,

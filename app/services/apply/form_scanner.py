@@ -19,6 +19,8 @@ import re
 import time
 from dataclasses import dataclass, field
 
+from app.services.agent.utils.url_validator import validate_apply_url
+
 logger = logging.getLogger(__name__)
 
 
@@ -117,6 +119,14 @@ async def scan_form(apply_url: str, use_stealth: bool = True) -> ScanResult:
     goal = FORM_SCAN_PROMPT
 
     t0 = time.monotonic()
+
+    if not validate_apply_url(apply_url):
+        return ScanResult(
+            status="error",
+            error="Blocked unsafe apply URL (failed ATS allowlist validation)",
+            scan_duration_ms=int((time.monotonic() - t0) * 1000),
+        )
+
     try:
         client = _get_client()
 
@@ -135,8 +145,8 @@ async def scan_form(apply_url: str, use_stealth: bool = True) -> ScanResult:
             if "result" in raw_dict and isinstance(raw_dict["result"], str):
                 inner = raw_dict["result"]
                 # Strip markdown code blocks
-                inner = re.sub(r'^```json\s*', '', inner.strip())
-                inner = re.sub(r'\s*```$', '', inner.strip())
+                inner = re.sub(r"^```json\s*", "", inner.strip())
+                inner = re.sub(r"\s*```$", "", inner.strip())
                 return _parse_scan_result(inner, duration_ms)
             return _parse_scan_result(json.dumps(raw_dict), duration_ms)
 
@@ -200,7 +210,9 @@ def _parse_scan_result(raw: str, duration_ms: int) -> ScanResult:
     if "not found" in raw_lower or "404" in raw_lower:
         return ScanResult(status="not_found", raw_output=raw[:2000], scan_duration_ms=duration_ms)
 
-    return ScanResult(status="error", error="Could not parse scan result", raw_output=raw[:2000], scan_duration_ms=duration_ms)
+    return ScanResult(
+        status="error", error="Could not parse scan result", raw_output=raw[:2000], scan_duration_ms=duration_ms
+    )
 
 
 def _detect_ats_from_scan(data: dict) -> str | None:
@@ -245,18 +257,39 @@ FIELD_PATTERNS: dict[str, list[str]] = {
 
 # Fields that are custom/narrative and may need user input
 NARRATIVE_PATTERNS: list[str] = [
-    "why", "tell us", "describe", "what interests", "what excites",
-    "what motivates", "cover letter", "additional information",
-    "anything else", "biggest achievement", "proudest",
+    "why",
+    "tell us",
+    "describe",
+    "what interests",
+    "what excites",
+    "what motivates",
+    "cover letter",
+    "additional information",
+    "anything else",
+    "biggest achievement",
+    "proudest",
 ]
 
 # Sensitive fields we must ask the user about
 SENSITIVE_PATTERNS: list[str] = [
-    "salary", "compensation", "pay expectation",
-    "criminal", "background check", "felony",
-    "disability", "veteran", "gender", "race", "ethnicity",
-    "start date", "notice period",
-    "sponsorship", "visa", "right to work", "authorized to work", "eligible to work",
+    "salary",
+    "compensation",
+    "pay expectation",
+    "criminal",
+    "background check",
+    "felony",
+    "disability",
+    "veteran",
+    "gender",
+    "race",
+    "ethnicity",
+    "start date",
+    "notice period",
+    "sponsorship",
+    "visa",
+    "right to work",
+    "authorized to work",
+    "eligible to work",
 ]
 
 

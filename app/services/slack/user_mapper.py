@@ -23,9 +23,7 @@ async def get_foxhound_user(
 
     Returns the UserProfile if found, or None.
     """
-    result = await db.execute(
-        select(UserProfile).where(UserProfile.slack_user_id == slack_user_id)
-    )
+    result = await db.execute(select(UserProfile).where(UserProfile.slack_user_id == slack_user_id))
     profile = result.scalar_one_or_none()
     if profile:
         return profile
@@ -50,9 +48,7 @@ async def link_slack_user(
 
     Returns the updated UserProfile, or None if the user was not found.
     """
-    result = await db.execute(
-        select(UserProfile).where(UserProfile.user_id == foxhound_user_id)
-    )
+    result = await db.execute(select(UserProfile).where(UserProfile.user_id == foxhound_user_id))
     profile = result.scalar_one_or_none()
     if profile is None:
         return None

@@ -227,15 +227,10 @@ async def list_applications(
             )
         )
         brief_status_by_application = {
-            application_id: brief_status
-            for application_id, brief_status in brief_rows.all()
+            application_id: brief_status for application_id, brief_status in brief_rows.all()
         }
 
-    count_query = (
-        select(func.count())
-        .select_from(Application)
-        .where(Application.user_id == user_id)
-    )
+    count_query = select(func.count()).select_from(Application).where(Application.user_id == user_id)
     if status:
         count_query = count_query.where(Application.status == status)
     total = (await db.execute(count_query)).scalar() or 0
@@ -246,6 +241,7 @@ async def list_applications(
         screenshot_signed = None
         pre_submit_screenshot_signed = None
         from app.services.storage.supabase_storage import get_signed_url
+
         if app.screenshot_storage_path:
             try:
                 parts = app.screenshot_storage_path.split("/", 1)
@@ -261,31 +257,31 @@ async def list_applications(
             except Exception:
                 pass
 
-        items.append({
-            "id": app.id,
-            "status": app.status,
-            "trigger": app.trigger,
-            "brief_ready": app.id in brief_status_by_application,
-            "brief_status": brief_status_by_application.get(app.id),
-            "job": {
-                "id": job.id,
-                "title": job.title,
-                "company": job.company,
-                "ats_type": job.ats_type,
-            },
-            "tinyfish_status": app.tinyfish_status,
-            "posting_status": getattr(app, "posting_status", None),
-            "posting_diff_summary": getattr(app, "posting_diff_summary", None),
-            "last_watchdog_check_at": (
-                app.last_watchdog_check_at.isoformat()
-                if getattr(app, "last_watchdog_check_at", None)
-                else None
-            ),
-            "screenshot_url": screenshot_signed,
-            "pre_submit_screenshot_url": pre_submit_screenshot_signed,
-            "submitted_at": app.submitted_at.isoformat() if app.submitted_at else None,
-            "created_at": app.created_at.isoformat() if app.created_at else None,
-        })
+        items.append(
+            {
+                "id": app.id,
+                "status": app.status,
+                "trigger": app.trigger,
+                "brief_ready": app.id in brief_status_by_application,
+                "brief_status": brief_status_by_application.get(app.id),
+                "job": {
+                    "id": job.id,
+                    "title": job.title,
+                    "company": job.company,
+                    "ats_type": job.ats_type,
+                },
+                "tinyfish_status": app.tinyfish_status,
+                "posting_status": getattr(app, "posting_status", None),
+                "posting_diff_summary": getattr(app, "posting_diff_summary", None),
+                "last_watchdog_check_at": (
+                    app.last_watchdog_check_at.isoformat() if getattr(app, "last_watchdog_check_at", None) else None
+                ),
+                "screenshot_url": screenshot_signed,
+                "pre_submit_screenshot_url": pre_submit_screenshot_signed,
+                "submitted_at": app.submitted_at.isoformat() if app.submitted_at else None,
+                "created_at": app.created_at.isoformat() if app.created_at else None,
+            }
+        )
 
     return {"items": items, "total": total, "page": page, "per_page": per_page}
 
@@ -300,16 +296,12 @@ async def application_stats(
     from app.db.models.user_profile import UserProfile
 
     # Get profile for tier/limits
-    profile_result = await db.execute(
-        select(UserProfile).where(UserProfile.user_id == user_id)
-    )
+    profile_result = await db.execute(select(UserProfile).where(UserProfile.user_id == user_id))
     profile = profile_result.scalar_one_or_none()
 
     # Count by status
     result = await db.execute(
-        select(Application.status, func.count())
-        .where(Application.user_id == user_id)
-        .group_by(Application.status)
+        select(Application.status, func.count()).where(Application.user_id == user_id).group_by(Application.status)
     )
     status_counts = dict(result.all())
 
@@ -503,12 +495,14 @@ async def submit_answers(
         existing = json.loads(app_obj.custom_answers_json or "[]")
         for q in pending:
             if q.final_answer:
-                existing.append({
-                    "question": q.field_label,
-                    "answer": q.final_answer,
-                    "confidence": 0.9 if q.status == "approved" else 0.8,
-                    "needs_approval": False,
-                })
+                existing.append(
+                    {
+                        "question": q.field_label,
+                        "answer": q.final_answer,
+                        "confidence": 0.9 if q.status == "approved" else 0.8,
+                        "needs_approval": False,
+                    }
+                )
         app_obj.custom_answers_json = json.dumps(existing)
         app_obj.phase = "fill"
         app_obj.status = "in_progress"
@@ -518,10 +512,12 @@ async def submit_answers(
         async def _background_fill():
             try:
                 from app.services.apply.orchestrator import ApplicationOrchestrator
+
                 orch = ApplicationOrchestrator()
                 await orch.resume_fill(db=db, application_id=application_id)
             except Exception as e:
                 import logging
+
                 logging.getLogger(__name__).exception("Background Phase 2 failed: %s", e)
 
         asyncio.create_task(_background_fill())

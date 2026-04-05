@@ -87,9 +87,7 @@ async def _send_expiry_notice(db: AsyncSession, app: Application) -> None:
     from app.services.apply.notifications import _get_user_channels
     from app.services.notification_service import _post_webhook
 
-    profile_result = await db.execute(
-        select(UserProfile).where(UserProfile.user_id == app.user_id)
-    )
+    profile_result = await db.execute(select(UserProfile).where(UserProfile.user_id == app.user_id))
     profile = profile_result.scalar_one_or_none()
     if not profile:
         return
@@ -127,7 +125,7 @@ async def _check_followups(db: AsyncSession) -> None:
         .join(UserProfile, Application.user_id == UserProfile.user_id)
         .where(
             Application.status == "submitted",
-            Application.followup_day3_sent is False,
+            Application.followup_day3_sent.is_(False),
             Application.submitted_at <= day3_cutoff,
         )
         .limit(50)
@@ -148,7 +146,7 @@ async def _check_followups(db: AsyncSession) -> None:
         .join(UserProfile, Application.user_id == UserProfile.user_id)
         .where(
             Application.status == "submitted",
-            Application.followup_day7_sent is False,
+            Application.followup_day7_sent.is_(False),
             Application.submitted_at <= day7_cutoff,
         )
         .limit(50)
@@ -169,7 +167,7 @@ async def _check_followups(db: AsyncSession) -> None:
         .join(UserProfile, Application.user_id == UserProfile.user_id)
         .where(
             Application.status == "submitted",
-            Application.followup_day14_sent is False,
+            Application.followup_day14_sent.is_(False),
             Application.submitted_at <= day14_cutoff,
         )
         .limit(50)

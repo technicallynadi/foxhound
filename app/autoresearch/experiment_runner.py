@@ -66,10 +66,7 @@ def compare_experiments(experiments: list[dict], metric_key: str = "num_results"
     return {
         "winner": winner["variant_id"],
         "winner_score": _get_metric(winner),
-        "all_scores": {
-            e["variant_id"]: _get_metric(e)
-            for e in sorted_exps
-        },
+        "all_scores": {e["variant_id"]: _get_metric(e) for e in sorted_exps},
     }
 
 
@@ -98,8 +95,7 @@ def should_promote(
 
     net_improvement = sum(improvements.values()) - abs(sum(regressions.values()))
     promote = (
-        net_improvement > improvement_threshold
-        and len(regressions) <= 1  # allow at most 1 minor regression
+        net_improvement > improvement_threshold and len(regressions) <= 1  # allow at most 1 minor regression
     )
 
     return {

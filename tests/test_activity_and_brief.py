@@ -63,9 +63,8 @@ async def test_foxhound_brief_creation(db):
     await db.commit()
 
     from sqlalchemy import select
-    result = await db.execute(
-        select(FoxhoundBrief).where(FoxhoundBrief.user_id == "test-user")
-    )
+
+    result = await db.execute(select(FoxhoundBrief).where(FoxhoundBrief.user_id == "test-user"))
     loaded = result.scalar_one()
     assert loaded.status == "assembling"
     assert loaded.company_brief_json is None
@@ -153,6 +152,7 @@ async def test_activity_stats(user_id):
 
 def test_rate_limit_creates_dependency():
     from app.api.rate_limit import rate_limit
+
     dep = rate_limit("test_scope", 5, 60)
     assert callable(dep)
 
@@ -185,6 +185,7 @@ async def test_claim_next_job_respects_scheduled_time(db):
     await db.commit()
 
     from app.services.run_service import claim_next_job
+
     result = await claim_next_job("test-worker")
 
     # Should NOT claim the future-scheduled job

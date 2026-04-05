@@ -33,9 +33,7 @@ class TinyFishBriefCache(Base):
     sources_failed: Mapped[str] = mapped_column(Text, default="[]")
     tinyfish_credits: Mapped[int] = mapped_column(Integer, default=0)
 
-    created_at: Mapped[datetime] = mapped_column(
-        TZDateTime, default=lambda: datetime.now(UTC)
-    )
+    created_at: Mapped[datetime] = mapped_column(TZDateTime, default=lambda: datetime.now(UTC))
     updated_at: Mapped[datetime] = mapped_column(
         TZDateTime,
         default=lambda: datetime.now(UTC),

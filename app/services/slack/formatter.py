@@ -153,8 +153,12 @@ def _format_application_status(result: dict) -> list[dict]:
     fields_filled = result.get("fields_filled", 0)
     fields_total = result.get("fields_total", 0)
 
-    emoji = {"submitted": "white_check_mark", "in_progress": "hourglass_flowing_sand",
-             "failed": "x", "questions_pending": "question"}.get(status, "clipboard")
+    emoji = {
+        "submitted": "white_check_mark",
+        "in_progress": "hourglass_flowing_sand",
+        "failed": "x",
+        "questions_pending": "question",
+    }.get(status, "clipboard")
 
     header = f":{emoji}: *Application: {title}*"
     if company:
@@ -217,9 +221,7 @@ def _format_interview_prep(result: dict) -> list[dict]:
     blocks: list[dict] = [
         _divider(),
         _section("\n".join(lines)),
-        _context(
-            "Reply with a different company or role if you want Foxhound to run more Research."
-        ),
+        _context("Reply with a different company or role if you want Foxhound to run more Research."),
         _action_row(
             _button(_research_href("interview", company=company, role=role), "Open Research", emphasis=True),
             _button("/applications", "Open Applications"),
@@ -227,7 +229,12 @@ def _format_interview_prep(result: dict) -> list[dict]:
     ]
 
     if status == "no_data":
-        blocks.insert(1, _section("Foxhound couldn't find much interview data, but it can keep searching if you want to broaden the target."))
+        blocks.insert(
+            1,
+            _section(
+                "Foxhound couldn't find much interview data, but it can keep searching if you want to broaden the target."
+            ),
+        )
     return blocks
 
 
@@ -280,8 +287,9 @@ def _format_applications_list(result: dict) -> list[dict]:
         title = app.get("title") or app.get("job_title", "Unknown")
         company = app.get("company") or app.get("company_name", "")
         status = app.get("status", "unknown")
-        emoji = {"submitted": "white_check_mark", "in_progress": "hourglass_flowing_sand",
-                 "failed": "x"}.get(status, "clipboard")
+        emoji = {"submitted": "white_check_mark", "in_progress": "hourglass_flowing_sand", "failed": "x"}.get(
+            status, "clipboard"
+        )
 
         line = f":{emoji}: *{i}. {title}*"
         if company:

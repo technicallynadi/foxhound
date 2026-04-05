@@ -35,7 +35,7 @@ def extract_json(text: str) -> dict | list | None:
         pass
 
     # Try to find a JSON object { ... }
-    obj_match = re.search(r'\{[\s\S]*\}', cleaned)
+    obj_match = re.search(r"\{[\s\S]*\}", cleaned)
     if obj_match:
         try:
             return json.loads(obj_match.group(0))
@@ -43,7 +43,7 @@ def extract_json(text: str) -> dict | list | None:
             pass
 
     # Try to find a JSON array [ ... ]
-    arr_match = re.search(r'\[[\s\S]*\]', cleaned)
+    arr_match = re.search(r"\[[\s\S]*\]", cleaned)
     if arr_match:
         try:
             return json.loads(arr_match.group(0))

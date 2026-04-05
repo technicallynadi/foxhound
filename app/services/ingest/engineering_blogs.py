@@ -36,7 +36,6 @@ BLOG_REGISTRY = [
     ("Pinterest Engineering", "https://medium.com/feed/@Pinterest_Engineering", ["data", "ml"]),
     ("Dropbox Tech", "https://dropbox.tech/feed", ["infra", "sync", "storage"]),
     ("Airbnb Tech", "https://medium.com/feed/airbnb-engineering", ["data", "frontend", "ml"]),
-
     # Developer tools
     ("Vercel Blog", "https://vercel.com/blog/rss.xml", ["frontend", "devtools", "deployment"]),
     ("Supabase Blog", "https://supabase.com/blog/rss.xml", ["database", "backend", "auth"]),
@@ -49,7 +48,6 @@ BLOG_REGISTRY = [
     ("Turso Blog", "https://blog.turso.tech/rss.xml", ["database", "edge"]),
     ("Deno Blog", "https://deno.com/blog/rss.xml", ["runtime", "devtools"]),
     ("Bun Blog", "https://bun.sh/blog/rss.xml", ["runtime", "devtools"]),
-
     # Data / ML
     ("dbt Labs Blog", "https://www.getdbt.com/blog/rss.xml", ["data", "analytics"]),
     ("Dagster Blog", "https://dagster.io/blog/rss.xml", ["data", "orchestration"]),
@@ -57,23 +55,19 @@ BLOG_REGISTRY = [
     ("Modal Blog", "https://modal.com/blog/rss.xml", ["ml", "infra", "serverless"]),
     ("Weights & Biases", "https://wandb.ai/fully-connected/rss.xml", ["ml", "experiment-tracking"]),
     ("Hugging Face Blog", "https://huggingface.co/blog/feed.xml", ["ml", "nlp", "ai"]),
-
     # Infrastructure / DevOps
     ("HashiCorp Blog", "https://www.hashicorp.com/blog/feed.xml", ["devops", "infra", "terraform"]),
     ("Datadog Blog", "https://www.datadoghq.com/blog/engineering/feed/", ["monitoring", "observability"]),
     ("Grafana Blog", "https://grafana.com/blog/rss.xml", ["monitoring", "observability"]),
     ("Pulumi Blog", "https://www.pulumi.com/blog/rss.xml", ["iac", "devops"]),
-
     # Security
     ("Trail of Bits Blog", "https://blog.trailofbits.com/feed/", ["security", "audit"]),
     ("Snyk Blog", "https://snyk.io/blog/feed/", ["security", "devsecops"]),
-
     # AI / LLM
     ("Anthropic Research", "https://www.anthropic.com/research/rss.xml", ["ai", "llm", "safety"]),
     ("OpenAI Blog", "https://openai.com/blog/rss.xml", ["ai", "llm"]),
     ("LangChain Blog", "https://blog.langchain.dev/rss/", ["ai", "agents", "llm"]),
     ("LlamaIndex Blog", "https://www.llamaindex.ai/blog/rss.xml", ["ai", "rag", "llm"]),
-
     # General / Aggregators
     ("The Pragmatic Engineer", "https://newsletter.pragmaticengineer.com/feed", ["engineering", "career", "infra"]),
     ("ByteByteGo", "https://blog.bytebytego.com/feed", ["system-design", "infra"]),
@@ -139,16 +133,18 @@ async def fetch_recent_posts(
                     if len(overlap) < 1:
                         continue
 
-                posts.append({
-                    "title": title,
-                    "url": link,
-                    "published_at": published.isoformat() if published else None,
-                    "blog_name": name,
-                    "summary": summary,
-                    "topics": blog_topics,
-                    "source_type": "engineering_blog",
-                    "source_platform": name,
-                })
+                posts.append(
+                    {
+                        "title": title,
+                        "url": link,
+                        "published_at": published.isoformat() if published else None,
+                        "blog_name": name,
+                        "summary": summary,
+                        "topics": blog_topics,
+                        "source_type": "engineering_blog",
+                        "source_platform": name,
+                    }
+                )
             return posts
         except Exception as e:
             logger.debug("Failed to fetch %s: %s", name, e)
@@ -205,13 +201,15 @@ def get_blog_urls_for_topic(topic: str) -> list[dict]:
             blog_url = rss_url.split("/feed")[0].split("/rss")[0]
             if blog_url.endswith("/"):
                 blog_url = blog_url[:-1]
-            urls.append({
-                "url": blog_url,
-                "page_type": "engineering_blog",
-                "title": f"Engineering blog: {name}",
-                "source": "engineering_blog_registry",
-                "source_platform": name,
-                "evidence_class": "workflow",
-            })
+            urls.append(
+                {
+                    "url": blog_url,
+                    "page_type": "engineering_blog",
+                    "title": f"Engineering blog: {name}",
+                    "source": "engineering_blog_registry",
+                    "source_platform": name,
+                    "evidence_class": "workflow",
+                }
+            )
 
     return urls[:5]  # cap to avoid over-crawling blogs

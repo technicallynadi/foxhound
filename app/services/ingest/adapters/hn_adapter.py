@@ -69,6 +69,7 @@ async def fetch_hn_comments(
 async def fetch_hn_signals(topic: str, limit: int = 30) -> list[dict]:
     """Fetch both stories and comments, merge and deduplicate."""
     import asyncio
+
     stories, comments = await asyncio.gather(
         fetch_hn_stories(topic, limit=limit // 2),
         fetch_hn_comments(topic, limit=limit // 2),
@@ -134,6 +135,7 @@ def _parse_comment(hit: dict) -> dict:
 def _strip_html(text: str) -> str:
     """Remove HTML tags from HN comment text."""
     import re
+
     text = re.sub(r"<[^>]+>", " ", text)
     text = re.sub(r"&[a-z]+;", " ", text)
     text = re.sub(r"\s+", " ", text)

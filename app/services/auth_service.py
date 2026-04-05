@@ -132,6 +132,7 @@ async def get_user_tier(user: dict) -> str:
 # Admin helpers (use SUPABASE_SERVICE_KEY, not user tokens)
 # ---------------------------------------------------------------------------
 
+
 async def admin_get_user(user_id: str) -> dict | None:
     """Fetch a user by ID using the service role key (admin only)."""
     if not settings.supabase_service_key:

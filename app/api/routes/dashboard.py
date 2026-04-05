@@ -28,9 +28,7 @@ async def get_dashboard(
     """Aggregated dashboard data in one call."""
     user_id = user["user_id"]
     # Profile summary
-    profile_result = await db.execute(
-        select(UserProfile).where(UserProfile.user_id == user_id)
-    )
+    profile_result = await db.execute(select(UserProfile).where(UserProfile.user_id == user_id))
     profile = profile_result.scalar_one_or_none()
     if not profile:
         return {"error": "no_profile", "message": "Upload your resume to get started."}
@@ -78,7 +76,7 @@ async def get_dashboard(
     match_count_result = await db.execute(
         select(func.count(JobMatch.id)).where(
             JobMatch.user_id == user_id,
-            JobMatch.disqualified is False,
+            JobMatch.disqualified.is_(False),
             JobMatch.match_score >= 65,
             JobMatch.user_action != "dismissed",
         )
@@ -89,13 +87,14 @@ async def get_dashboard(
     top_match_result = await db.execute(
         select(func.max(JobMatch.match_score)).where(
             JobMatch.user_id == user_id,
-            JobMatch.disqualified is False,
+            JobMatch.disqualified.is_(False),
         )
     )
     top_match = top_match_result.scalar()
 
     # Pending questions count
     from app.db.models.application_question import ApplicationQuestion
+
     pending_q_result = await db.execute(
         select(func.count(ApplicationQuestion.id))
         .join(Application, ApplicationQuestion.application_id == Application.id)
@@ -163,10 +162,7 @@ async def get_activity(
     ]
 
     # Total count for pagination
-    count_stmt = (
-        select(func.count(Application.id))
-        .where(Application.user_id == user_id)
-    )
+    count_stmt = select(func.count(Application.id)).where(Application.user_id == user_id)
     if type_filter:
         count_stmt = count_stmt.where(Application.status == type_filter)
     total_result = await db.execute(count_stmt)

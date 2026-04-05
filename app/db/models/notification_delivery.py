@@ -21,6 +21,4 @@ class NotificationDelivery(Base):
     attempt_number: Mapped[int] = mapped_column(Integer, default=1)
     message: Mapped[str | None] = mapped_column(Text, nullable=True)
     http_status: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        TZDateTime, default=lambda: datetime.now(UTC)
-    )
+    created_at: Mapped[datetime] = mapped_column(TZDateTime, default=lambda: datetime.now(UTC))

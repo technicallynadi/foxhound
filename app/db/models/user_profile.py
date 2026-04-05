@@ -42,14 +42,18 @@ class UserProfile(Base):
     years_experience: Mapped[int | None] = mapped_column(Integer, nullable=True)
     has_clearance: Mapped[bool] = mapped_column(Boolean, default=False)
     clearance_type: Mapped[str | None] = mapped_column(String, nullable=True)
-    visa_status: Mapped[str | None] = mapped_column(String, nullable=True)  # citizen, green_card, h1b, opt, need_sponsorship
+    visa_status: Mapped[str | None] = mapped_column(
+        String, nullable=True
+    )  # citizen, green_card, h1b, opt, need_sponsorship
     salary_expectation: Mapped[str | None] = mapped_column(String, nullable=True)
     notice_period: Mapped[str | None] = mapped_column(String, nullable=True)
     work_preference: Mapped[str | None] = mapped_column(String, nullable=True)  # remote, hybrid, office
     willing_to_relocate: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     # --- EEO demographics (auto-fill on applications) ---
     gender: Mapped[str | None] = mapped_column(String, nullable=True)  # male, female, non_binary, decline
-    race: Mapped[str | None] = mapped_column(String, nullable=True)  # white, black, asian, native, pacific, two_or_more, decline
+    race: Mapped[str | None] = mapped_column(
+        String, nullable=True
+    )  # white, black, asian, native, pacific, two_or_more, decline
     hispanic_latino: Mapped[bool | None] = mapped_column(Boolean, nullable=True)  # True=yes, False=no, None=decline
     veteran_status: Mapped[str | None] = mapped_column(String, nullable=True)  # not_veteran, veteran, decline
     disability_status: Mapped[str | None] = mapped_column(String, nullable=True)  # no, yes, decline
@@ -89,9 +93,7 @@ class UserProfile(Base):
     profile_complete: Mapped[bool] = mapped_column(Boolean, default=False)
     onboarding_step: Mapped[str] = mapped_column(String, default="upload_resume")
 
-    created_at: Mapped[datetime] = mapped_column(
-        TZDateTime, default=lambda: datetime.now(UTC)
-    )
+    created_at: Mapped[datetime] = mapped_column(TZDateTime, default=lambda: datetime.now(UTC))
     updated_at: Mapped[datetime] = mapped_column(
         TZDateTime,
         default=lambda: datetime.now(UTC),

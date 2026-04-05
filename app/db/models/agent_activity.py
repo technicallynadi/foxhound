@@ -28,5 +28,7 @@ class AgentActivity(Base):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     metadata_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
-        TZDateTime, default=lambda: datetime.now(UTC), index=True,
+        TZDateTime,
+        default=lambda: datetime.now(UTC),
+        index=True,
     )

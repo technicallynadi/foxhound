@@ -12,8 +12,16 @@ MIN_SIGNAL_THRESHOLD = 10
 
 
 DEFAULT_DEV_SUBREDDITS = [
-    "programming", "webdev", "devops", "sysadmin", "ExperiencedDevs",
-    "selfhosted", "SaaS", "startups", "dataengineering", "MachineLearning",
+    "programming",
+    "webdev",
+    "devops",
+    "sysadmin",
+    "ExperiencedDevs",
+    "selfhosted",
+    "SaaS",
+    "startups",
+    "dataengineering",
+    "MachineLearning",
 ]
 
 
@@ -37,8 +45,13 @@ async def fetch_reddit_posts(topic: str, limit: int = 25) -> list[dict]:
             tier = "primary" if sub in routed_subs else "default"
             await _fetch_subreddit(client, sub, topic, results, limit, tier=tier)
 
-    logger.info("Reddit ingested %d posts across %d communities for '%s' (strategy=%s)",
-                len(results), _count_communities(results), topic, plan.get("strategy", "unknown"))
+    logger.info(
+        "Reddit ingested %d posts across %d communities for '%s' (strategy=%s)",
+        len(results),
+        _count_communities(results),
+        topic,
+        plan.get("strategy", "unknown"),
+    )
 
     # Enrich top posts with comment content (where the real pain signals live)
     posts = list(results.values())
@@ -69,14 +82,23 @@ async def _fetch_subreddit(
     """Fetch posts from a specific subreddit — search first, then top/hot."""
     # Strategy 1: Search within subreddit for the topic (most relevant)
     await _fetch_search(
-        client, subreddit, topic, limit, results, tier,
+        client,
+        subreddit,
+        topic,
+        limit,
+        results,
+        tier,
     )
 
     # Strategy 2: Top posts only if search found nothing
     if len(results) < 3:
         await _fetch_listing(
-            client, subreddit, "top", {"t": "year", "limit": limit},
-            results, tier,
+            client,
+            subreddit,
+            "top",
+            {"t": "year", "limit": limit},
+            results,
+            tier,
         )
 
 
@@ -187,11 +209,13 @@ async def _fetch_top_comments(
             body = cdata.get("body", "")
             if not body or len(body.strip()) < 30:
                 continue
-            comments.append({
-                "text": body[:500],
-                "author": cdata.get("author", ""),
-                "score": cdata.get("score", 0),
-            })
+            comments.append(
+                {
+                    "text": body[:500],
+                    "author": cdata.get("author", ""),
+                    "score": cdata.get("score", 0),
+                }
+            )
 
         # Sort by score, return top N
         comments.sort(key=lambda c: c["score"], reverse=True)

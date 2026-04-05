@@ -39,8 +39,7 @@ async def search_jobs(db: AsyncSession, user_id: str, params: dict) -> dict:
     limit = min(params.get("limit", 5), 20)
 
     result = await db.execute(
-        select(JobListing).where(JobListing.status == "active")
-        .order_by(JobListing.discovered_at.desc())
+        select(JobListing).where(JobListing.status == "active").order_by(JobListing.discovered_at.desc())
     )
     all_jobs = list(result.scalars().all())
 
@@ -81,9 +80,7 @@ async def search_jobs(db: AsyncSession, user_id: str, params: dict) -> dict:
 
     # Check match scores
     job_ids = [j.id for _, j in top]
-    match_result = await db.execute(
-        select(JobMatch).where(JobMatch.user_id == user_id, JobMatch.job_id.in_(job_ids))
-    )
+    match_result = await db.execute(select(JobMatch).where(JobMatch.user_id == user_id, JobMatch.job_id.in_(job_ids)))
     match_map = {m.job_id: m.match_score for m in match_result.scalars()}
 
     jobs_data = []
@@ -101,8 +98,12 @@ async def search_jobs(db: AsyncSession, user_id: str, params: dict) -> dict:
             entry["match_score"] = match_map[job.id]
         jobs_data.append(entry)
 
-    return {"jobs": jobs_data, "total_found": len(scored), "showing": len(top),
-            "message": f"Found {len(scored)} jobs matching '{query}'. Showing top {len(top)}."}
+    return {
+        "jobs": jobs_data,
+        "total_found": len(scored),
+        "showing": len(top),
+        "message": f"Found {len(scored)} jobs matching '{query}'. Showing top {len(top)}.",
+    }
 
 
 @tool(
@@ -132,7 +133,7 @@ async def get_matches(db: AsyncSession, user_id: str, params: dict) -> dict:
         .where(
             JobMatch.user_id == user_id,
             JobMatch.match_score >= min_score,
-            JobMatch.disqualified is False,
+            JobMatch.disqualified.is_(False),
             JobMatch.user_action != "dismissed",
         )
         .order_by(JobMatch.match_score.desc())
@@ -141,9 +142,7 @@ async def get_matches(db: AsyncSession, user_id: str, params: dict) -> dict:
     rows = result.all()
 
     if not rows:
-        count_result = await db.execute(
-            select(func.count()).select_from(JobMatch).where(JobMatch.user_id == user_id)
-        )
+        count_result = await db.execute(select(func.count()).select_from(JobMatch).where(JobMatch.user_id == user_id))
         total = count_result.scalar() or 0
         if total == 0:
             return {"matches": [], "message": "No matches yet. Want me to search for jobs?"}
@@ -151,16 +150,23 @@ async def get_matches(db: AsyncSession, user_id: str, params: dict) -> dict:
 
     matches = []
     for match, job in rows:
-        matches.append({
-            "job_id": job.id, "title": job.title, "company": job.company,
-            "location": job.location or "Not specified",
-            "remote": job.remote_type or "unknown",
-            "match_score": match.match_score,
-            "salary_range": _format_salary(job.salary_min, job.salary_max),
-        })
+        matches.append(
+            {
+                "job_id": job.id,
+                "title": job.title,
+                "company": job.company,
+                "location": job.location or "Not specified",
+                "remote": job.remote_type or "unknown",
+                "match_score": match.match_score,
+                "salary_range": _format_salary(job.salary_min, job.salary_max),
+            }
+        )
 
-    return {"matches": matches, "total_above_threshold": len(rows),
-            "message": f"Top {len(matches)} matches above {min_score}%."}
+    return {
+        "matches": matches,
+        "total_above_threshold": len(rows),
+        "message": f"Top {len(matches)} matches above {min_score}%.",
+    }
 
 
 def _format_salary(min_sal: int | None, max_sal: int | None) -> str:

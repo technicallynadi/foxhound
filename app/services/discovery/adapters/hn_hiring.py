@@ -26,11 +26,14 @@ class HNHiringAdapter:
         """Find the latest Who's Hiring thread and extract job posts."""
         async with httpx.AsyncClient(timeout=15.0) as client:
             # Find the latest "Who is hiring?" thread by whoishiring
-            resp = await client.get(ALGOLIA_SEARCH_URL, params={
-                "query": "Ask HN: Who is hiring?",
-                "tags": "story,author_whoishiring",
-                "hitsPerPage": 1,
-            })
+            resp = await client.get(
+                ALGOLIA_SEARCH_URL,
+                params={
+                    "query": "Ask HN: Who is hiring?",
+                    "tags": "story,author_whoishiring",
+                    "hitsPerPage": 1,
+                },
+            )
             resp.raise_for_status()
             hits = resp.json().get("hits", [])
 
@@ -59,23 +62,25 @@ class HNHiringAdapter:
             company = parsed["company"]
             title = parsed["title"]
 
-            listings.append({
-                "external_id": str(comment.get("id", "")),
-                "title": title,
-                "company": company,
-                "company_url": None,
-                "description": text,
-                "description_html": text,
-                "location": parsed.get("location", ""),
-                "remote_type": parsed.get("remote_type"),
-                "apply_url": parsed.get("apply_url", ""),
-                "ats_type": None,
-                "auto_apply_supported": False,
-                "source": "hn_hiring",
-                "source_url": f"https://news.ycombinator.com/item?id={comment.get('id', '')}",
-                "posted_at": comment.get("created_at"),
-                "dedup_hash": compute_dedup_hash(company, title, parsed.get("location")),
-            })
+            listings.append(
+                {
+                    "external_id": str(comment.get("id", "")),
+                    "title": title,
+                    "company": company,
+                    "company_url": None,
+                    "description": text,
+                    "description_html": text,
+                    "location": parsed.get("location", ""),
+                    "remote_type": parsed.get("remote_type"),
+                    "apply_url": parsed.get("apply_url", ""),
+                    "ats_type": None,
+                    "auto_apply_supported": False,
+                    "source": "hn_hiring",
+                    "source_url": f"https://news.ycombinator.com/item?id={comment.get('id', '')}",
+                    "posted_at": comment.get("created_at"),
+                    "dedup_hash": compute_dedup_hash(company, title, parsed.get("location")),
+                }
+            )
 
         logger.info("HN: extracted %d job listings from %d comments", len(listings), len(children))
         return listings

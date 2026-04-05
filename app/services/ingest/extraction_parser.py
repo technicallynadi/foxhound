@@ -54,11 +54,7 @@ def parse_signal_result(result: dict | None, url: str) -> list[dict]:
 
     # try multiple keys for robustness
     items = (
-        unwrapped.get("items")
-        or unwrapped.get("results")
-        or unwrapped.get("signals")
-        or unwrapped.get("data")
-        or []
+        unwrapped.get("items") or unwrapped.get("results") or unwrapped.get("signals") or unwrapped.get("data") or []
     )
     if not isinstance(items, list):
         return []
@@ -81,14 +77,16 @@ def parse_signal_result(result: dict | None, url: str) -> list[dict]:
 
         source_id = hashlib.md5(f"{url}:{text[:100]}".encode()).hexdigest()[:12]
 
-        parsed.append({
-            "source_id": source_id,
-            "url": url,
-            "text": text,
-            "signal_type": signal_type,
-            "tool_mentioned": str(tool).strip() if tool else None,
-            "evidence_quote": str(quote).strip() if quote else None,
-        })
+        parsed.append(
+            {
+                "source_id": source_id,
+                "url": url,
+                "text": text,
+                "signal_type": signal_type,
+                "tool_mentioned": str(tool).strip() if tool else None,
+                "evidence_quote": str(quote).strip() if quote else None,
+            }
+        )
 
     logger.info("Parsed %d signals from %s", len(parsed), url)
     return parsed
@@ -120,11 +118,13 @@ def parse_url_discovery_result(result: dict | None) -> list[dict]:
         if not url or not url.startswith("http"):
             continue
 
-        parsed.append({
-            "url": url,
-            "title": (item.get("title") or item.get("name") or "").strip(),
-            "comment_count": item.get("comment_count") or item.get("comments") or item.get("num_comments"),
-        })
+        parsed.append(
+            {
+                "url": url,
+                "title": (item.get("title") or item.get("name") or "").strip(),
+                "comment_count": item.get("comment_count") or item.get("comments") or item.get("num_comments"),
+            }
+        )
 
     logger.info("Discovered %d URLs", len(parsed))
     return parsed

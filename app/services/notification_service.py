@@ -171,9 +171,15 @@ def _build_notification_payload(
         if opportunity_id:
             item["opportunity_id"] = opportunity_id
             item["artifact_id"] = f"artifact_{opportunity_id}"
-            item["opportunity_url"] = f"{settings.APP_BASE_URL.rstrip('/')}/v1/marketplace/opportunities/{opportunity_id}"
-            item["artifact_url"] = f"{settings.APP_BASE_URL.rstrip('/')}/v1/marketplace/opportunities/{opportunity_id}/artifact"
-            item["build_plan_url"] = f"{settings.APP_BASE_URL.rstrip('/')}/v1/marketplace/opportunities/{opportunity_id}/build-plans"
+            item["opportunity_url"] = (
+                f"{settings.APP_BASE_URL.rstrip('/')}/v1/marketplace/opportunities/{opportunity_id}"
+            )
+            item["artifact_url"] = (
+                f"{settings.APP_BASE_URL.rstrip('/')}/v1/marketplace/opportunities/{opportunity_id}/artifact"
+            )
+            item["build_plan_url"] = (
+                f"{settings.APP_BASE_URL.rstrip('/')}/v1/marketplace/opportunities/{opportunity_id}/build-plans"
+            )
     top_titles = [item["title"] for item in top_opportunities]
     message = _build_message(event_type, query, payload, top_titles)
     return {
@@ -185,7 +191,9 @@ def _build_notification_payload(
         "opportunities_found": len(opportunities),
         "top_opportunities": top_titles,
         "top_opportunity_items": top_opportunities,
-        "top_build_plan_ids": [item.get("plan_id") for item in ((output or {}).get("build_plans", [])[:3]) if item.get("plan_id")],
+        "top_build_plan_ids": [
+            item.get("plan_id") for item in ((output or {}).get("build_plans", [])[:3]) if item.get("plan_id")
+        ],
         "marketplace_ids": marketplace_ids,
         "run_url": f"{settings.APP_BASE_URL.rstrip('/')}/v1/runs/{run_id}",
         "marketplace_url": f"{settings.APP_BASE_URL.rstrip('/')}/",
@@ -260,10 +268,12 @@ async def _send_discord(webhook_url: str, payload: dict) -> dict:
                     lines.append(f"build_plan_url: {item['build_plan_url']}")
         if payload["top_build_plan_ids"]:
             lines.append(f"build_plan_ids: {', '.join(payload['top_build_plan_ids'])}")
-        body["embeds"] = [{
-            "title": f"Foxhound result: {payload['query']}",
-            "description": "\n".join(lines),
-        }]
+        body["embeds"] = [
+            {
+                "title": f"Foxhound result: {payload['query']}",
+                "description": "\n".join(lines),
+            }
+        ]
         return await _post_webhook(webhook_url, body)
     if payload["event_type"] == "run.completed":
         description_lines = [
@@ -273,15 +283,19 @@ async def _send_discord(webhook_url: str, payload: dict) -> dict:
         if payload["top_opportunity_items"]:
             description_lines.append("")
             description_lines.extend(_top_human_lines(payload))
-        body["embeds"] = [{
-            "title": f"Foxhound completed: {payload['query']}",
-            "description": "\n".join(description_lines),
-        }]
+        body["embeds"] = [
+            {
+                "title": f"Foxhound completed: {payload['query']}",
+                "description": "\n".join(description_lines),
+            }
+        ]
     elif payload["event_type"] == "run.milestone":
-        body["embeds"] = [{
-            "title": payload.get("message") or "Foxhound milestone",
-            "description": f"Progress: {payload.get('status') or ''}\nRun: {payload['run_url']}",
-        }]
+        body["embeds"] = [
+            {
+                "title": payload.get("message") or "Foxhound milestone",
+                "description": f"Progress: {payload.get('status') or ''}\nRun: {payload['run_url']}",
+            }
+        ]
     elif payload["event_type"] == "opportunity.created":
         event = payload.get("payload", {})
         evidence = event.get("evidence", []) or []
@@ -290,30 +304,38 @@ async def _send_discord(webhook_url: str, payload: dict) -> dict:
             first = evidence[0]
             quote = first.get("quote") or first.get("text", "")
             evidence_line = f"\nEvidence: {first.get('type', 'signal')}: {_truncate(quote, 120)}"
-        body["embeds"] = [{
-            "title": event.get("title", "Foxhound opportunity"),
-            "description": "\n".join(
-                line for line in [
-                    f"_{event.get('one_liner', '')}_" if event.get("one_liner") else "",
-                    f"Effort: {event.get('effort_tier', '')}" if event.get("effort_tier") else "",
-                    f"Workflow: {event.get('workflow', '')}",
-                    f"Broken step: {_truncate(event.get('breakpoint', ''), 130)}" if event.get("breakpoint") else "",
-                    f"Wedge: {_truncate(event.get('wedge', ''), 130)}" if event.get("wedge") else "",
-                    f"Score: {event.get('score', 0.0):.2f}",
-                    evidence_line.strip(),
-                ] if line
-            ),
-        }]
+        body["embeds"] = [
+            {
+                "title": event.get("title", "Foxhound opportunity"),
+                "description": "\n".join(
+                    line
+                    for line in [
+                        f"_{event.get('one_liner', '')}_" if event.get("one_liner") else "",
+                        f"Effort: {event.get('effort_tier', '')}" if event.get("effort_tier") else "",
+                        f"Workflow: {event.get('workflow', '')}",
+                        f"Broken step: {_truncate(event.get('breakpoint', ''), 130)}"
+                        if event.get("breakpoint")
+                        else "",
+                        f"Wedge: {_truncate(event.get('wedge', ''), 130)}" if event.get("wedge") else "",
+                        f"Score: {event.get('score', 0.0):.2f}",
+                        evidence_line.strip(),
+                    ]
+                    if line
+                ),
+            }
+        ]
     elif payload["event_type"] == "build_plan.created":
         event = payload.get("payload", {})
         mvp_scope = event.get("mvp_scope", [])[:3]
-        body["embeds"] = [{
-            "title": f"Build plan ready: {event.get('opportunity_title', 'Untitled opportunity')}",
-            "description": "\n".join(
-                [f"Wedge: {_truncate(event.get('wedge', ''), 130)}"] +
-                [f"MVP {index + 1}: {_truncate(item, 120)}" for index, item in enumerate(mvp_scope)]
-            ),
-        }]
+        body["embeds"] = [
+            {
+                "title": f"Build plan ready: {event.get('opportunity_title', 'Untitled opportunity')}",
+                "description": "\n".join(
+                    [f"Wedge: {_truncate(event.get('wedge', ''), 130)}"]
+                    + [f"MVP {index + 1}: {_truncate(item, 120)}" for index, item in enumerate(mvp_scope)]
+                ),
+            }
+        ]
     return await _post_webhook(webhook_url, body)
 
 
@@ -348,29 +370,42 @@ async def _send_slack(webhook_url: str, payload: dict) -> dict:
     if payload["event_type"] == "run.started":
         body["blocks"] = [
             {"type": "section", "text": {"type": "mrkdwn", "text": payload["message"]}},
-            {"type": "actions", "elements": [
-                {"type": "button", "text": {"type": "plain_text", "text": "View run"}, "url": payload["run_url"]}
-            ]},
+            {
+                "type": "actions",
+                "elements": [
+                    {"type": "button", "text": {"type": "plain_text", "text": "View run"}, "url": payload["run_url"]}
+                ],
+            },
         ]
     elif payload["event_type"] == "run.completed":
         blocks = [
             {"type": "section", "text": {"type": "mrkdwn", "text": f"*Foxhound completed:* {payload['query']}"}},
-            {"type": "section", "text": {"type": "mrkdwn", "text": f"*Opportunities found:* {payload['opportunities_found']}"}},
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": f"*Opportunities found:* {payload['opportunities_found']}"},
+            },
         ]
         if payload["top_opportunity_items"]:
             lines = "\n".join(_top_human_lines(payload))
             blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": lines}})
-        blocks.append({
-            "type": "actions",
-            "elements": [{"type": "button", "text": {"type": "plain_text", "text": "View run"}, "url": payload["run_url"]}],
-        })
+        blocks.append(
+            {
+                "type": "actions",
+                "elements": [
+                    {"type": "button", "text": {"type": "plain_text", "text": "View run"}, "url": payload["run_url"]}
+                ],
+            }
+        )
         body["blocks"] = blocks
     elif payload["event_type"] == "run.milestone":
         blocks = [
             {"type": "section", "text": {"type": "mrkdwn", "text": payload["message"]}},
-            {"type": "actions", "elements": [
-                {"type": "button", "text": {"type": "plain_text", "text": "View run"}, "url": payload["run_url"]}
-            ]},
+            {
+                "type": "actions",
+                "elements": [
+                    {"type": "button", "text": {"type": "plain_text", "text": "View run"}, "url": payload["run_url"]}
+                ],
+            },
         ]
         body["blocks"] = blocks
     elif payload["event_type"] == "opportunity.created":
@@ -393,9 +428,12 @@ async def _send_slack(webhook_url: str, payload: dict) -> dict:
         body["blocks"] = [
             {"type": "section", "text": {"type": "mrkdwn", "text": payload["message"]}},
             {"type": "section", "text": {"type": "mrkdwn", "text": "\n".join(line for line in details if line)}},
-            {"type": "actions", "elements": [
-                {"type": "button", "text": {"type": "plain_text", "text": "View run"}, "url": payload["run_url"]}
-            ]},
+            {
+                "type": "actions",
+                "elements": [
+                    {"type": "button", "text": {"type": "plain_text", "text": "View run"}, "url": payload["run_url"]}
+                ],
+            },
         ]
     elif payload["event_type"] == "build_plan.created":
         event = payload.get("payload", {})
@@ -403,18 +441,28 @@ async def _send_slack(webhook_url: str, payload: dict) -> dict:
         bullets = [f"• {_truncate(item, 120)}" for item in mvp_scope]
         body["blocks"] = [
             {"type": "section", "text": {"type": "mrkdwn", "text": payload["message"]}},
-            {"type": "section", "text": {"type": "mrkdwn", "text": "\n".join(
-                [f"*Wedge:* {_truncate(event.get('wedge', ''), 140)}"] + bullets
-            )}},
-            {"type": "actions", "elements": [
-                {"type": "button", "text": {"type": "plain_text", "text": "View run"}, "url": payload["run_url"]}
-            ]},
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": "\n".join([f"*Wedge:* {_truncate(event.get('wedge', ''), 140)}"] + bullets),
+                },
+            },
+            {
+                "type": "actions",
+                "elements": [
+                    {"type": "button", "text": {"type": "plain_text", "text": "View run"}, "url": payload["run_url"]}
+                ],
+            },
         ]
     return await _post_webhook(webhook_url, body)
 
 
 async def _send_sms(webhook_url: str, payload: dict, phone_number: str) -> dict:
-    return await _post_webhook(webhook_url, {"text": payload["message"], "run_id": payload["run_id"], "query": payload["query"], "to": phone_number})
+    return await _post_webhook(
+        webhook_url,
+        {"text": payload["message"], "run_id": payload["run_id"], "query": payload["query"], "to": phone_number},
+    )
 
 
 async def _post_webhook(webhook_url: str, body: dict) -> dict:
@@ -496,13 +544,15 @@ def _skipped_state(message: str) -> dict:
 
 
 def _build_message(event_type: str, query: str, payload: dict, top_titles: list[str]) -> str:
-    return _build_human_message({
-        "event_type": event_type,
-        "query": query,
-        "status": payload.get("status"),
-        "top_opportunities": top_titles,
-        "payload": payload,
-    })
+    return _build_human_message(
+        {
+            "event_type": event_type,
+            "query": query,
+            "status": payload.get("status"),
+            "top_opportunities": top_titles,
+            "payload": payload,
+        }
+    )
 
 
 def _build_human_message(payload: dict) -> str:

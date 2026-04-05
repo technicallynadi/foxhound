@@ -54,9 +54,13 @@ async def slack_events(request: Request):
     # ------------------------------------------------------------------
     event = body.get("event", {})
     event_type = event.get("type", "")
-    logger.info("Slack event received: type=%s event_type=%s user=%s text=%s",
-                body.get("type"), event_type, event.get("user", event.get("event", {}).get("user")),
-                event.get("event", {}).get("text", "")[:50])
+    logger.info(
+        "Slack event received: type=%s event_type=%s user=%s text=%s",
+        body.get("type"),
+        event_type,
+        event.get("user", event.get("event", {}).get("user")),
+        event.get("event", {}).get("text", "")[:50],
+    )
 
     # Only handle message events
     if event_type == "message":
@@ -109,8 +113,7 @@ async def _handle_slack_message(event: dict) -> None:
                 await slack_client.send_reply(
                     channel,
                     thread_ts,
-                    "I don't recognise your Slack account. "
-                    "Link it first at usefoxhound.com/settings",
+                    "I don't recognise your Slack account. Link it first at usefoxhound.com/settings",
                 )
                 return
 
@@ -154,6 +157,7 @@ async def _handle_slack_message(event: dict) -> None:
         logger.exception("Error handling Slack message from user=%s", slack_user_id)
         try:
             from app.services.slack import client as slack_client
+
             await slack_client.send_reply(
                 channel,
                 thread_ts,
