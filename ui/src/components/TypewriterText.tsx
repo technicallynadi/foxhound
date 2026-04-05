@@ -39,7 +39,7 @@ export default function TypewriterText({ phrases, interval = 3000, typingSpeed =
   }, [charIndex, deleting, currentPhrase, phrases, interval, typingSpeed]); /* eslint-enable react-hooks/set-state-in-effect */
 
   return (
-    <span className="gradient-text" style={{ borderRight: '2px solid var(--accent-blue)', paddingRight: 2 }}>
+    <span className="gradient-text" style={{ borderRight: '2px solid var(--v)', paddingRight: 2 }}>
       {currentPhrase.slice(0, charIndex)}
     </span>
   );
