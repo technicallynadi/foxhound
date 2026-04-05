@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from typing import Literal
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
@@ -39,11 +40,11 @@ class ProfileUpdate(BaseModel):
     notice_period: str | None = None
     work_preference: str | None = None
     willing_to_relocate: bool | None = None
-    gender: str | None = None
-    race: str | None = None
+    gender: Literal["male", "female", "non_binary", "decline"] | None = None
+    race: Literal["white", "black", "asian", "native", "pacific", "two_or_more", "decline"] | None = None
     hispanic_latino: bool | None = None
-    veteran_status: str | None = None
-    disability_status: str | None = None
+    veteran_status: Literal["not_veteran", "veteran", "decline"] | None = None
+    disability_status: Literal["no", "yes", "decline"] | None = None
     how_did_you_hear: str | None = None
 
 
