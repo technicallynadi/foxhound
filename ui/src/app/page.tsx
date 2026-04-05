@@ -8,6 +8,7 @@ import ScrollReveal from "@/components/landing/ScrollReveal";
 import ChatDemo from "@/components/landing/ChatDemo";
 import FormFillDemo from "@/components/landing/FormFillDemo";
 import Ticker from "@/components/landing/Ticker";
+import AnimatedCounter from "@/components/landing/AnimatedCounter";
 
 export default function LandingPage() {
   const features: Array<{
@@ -216,6 +217,22 @@ export default function LandingPage() {
           needs you.
         </p>
 
+        <ScrollReveal delay={2}>
+          <div className="hero-stats">
+            {[
+              { value: 100, suffix: "+", label: "Companies" },
+              { value: 10000, suffix: "+", label: "Jobs indexed" },
+              { value: 60, suffix: "s", label: "Per application" },
+              { value: 70, suffix: "%", label: "Match floor" },
+            ].map((stat) => (
+              <div key={stat.label} className="hero-stat">
+                <AnimatedCounter target={stat.value} suffix={stat.suffix} />
+                <div className="hero-stat-label">{stat.label}</div>
+              </div>
+            ))}
+          </div>
+        </ScrollReveal>
+
         <ScrollReveal delay={3}>
           <div
             style={{
@@ -247,6 +264,17 @@ export default function LandingPage() {
           }}
         >
           V.01 / Early Access
+        </div>
+      </section>
+
+      <section className="trust-bar">
+        <div className="trust-label">Trusted by candidates targeting roles at</div>
+        <div className="trust-logos">
+          <span>Anthropic</span>
+          <span>Vercel</span>
+          <span>Figma</span>
+          <span>Ramp</span>
+          <span>Datadog</span>
         </div>
       </section>
 
@@ -305,6 +333,15 @@ export default function LandingPage() {
             <FormFillDemo />
           </ScrollReveal>
         </div>
+
+        <ScrollReveal delay={4}>
+          <div className="inline-cta">
+            <p>Upload your resume once. Let Foxhound run the rest.</p>
+            <Link href="/login" className="btn-solid">
+              Start Free →
+            </Link>
+          </div>
+        </ScrollReveal>
       </section>
 
       <div className="divider" />
@@ -1393,6 +1430,15 @@ export default function LandingPage() {
             </Link>
           </div>
         </ScrollReveal>
+      </section>
+
+      <section className="founder-note">
+        <p className="founder-quote">
+          &ldquo;Foxhound exists for people tired of submitting great applications
+          into silence. You should always know what happened and what to do
+          next.&rdquo;
+        </p>
+        <p className="founder-attribution">Founding Team / Foxhound</p>
       </section>
     </>
   );
