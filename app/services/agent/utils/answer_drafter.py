@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 
 import anthropic
 
@@ -12,6 +13,15 @@ from app.db.models.job_listing import JobListing
 from app.db.models.user_profile import UserProfile
 
 logger = logging.getLogger(__name__)
+
+
+def _sanitize_for_prompt(text: str) -> str:
+    """Neutralize prompt injection by breaking XML closing tags in untrusted text.
+
+    Replaces ``</`` with ``< /`` so any attempt to escape an XML delimiter
+    (e.g. ``</job_description>``) is rendered inert.
+    """
+    return re.sub(r"</", "< /", text)
 
 
 async def draft_answer(
@@ -25,6 +35,9 @@ async def draft_answer(
     experience = json.loads(profile.experience_json or "[]")
     skills = json.loads(profile.skills_json or "[]")
 
+    safe_description = _sanitize_for_prompt((job.description or "")[:500])
+    safe_question = _sanitize_for_prompt(question)
+
     prompt_text = (
         "Draft a brief, natural answer to this job application question.\n"
         "Use details from the CANDIDATE section. Keep it under 150 words.\n"
@@ -37,9 +50,9 @@ async def draft_answer(
         "</candidate>\n\n"
         "<job_description>\n"
         f"Title: {job.title} at {job.company}\n"
-        f"Description: {(job.description or '')[:500]}\n"
+        f"Description: {safe_description}\n"
         "</job_description>\n\n"
-        f"<question>{question}</question>\n\n"
+        f"<question>{safe_question}</question>\n\n"
         "Answer:"
     )
 
