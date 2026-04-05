@@ -25,7 +25,10 @@ from app.services.application_guidance import (
     input_schema={
         "type": "object",
         "properties": {
-            "status": {"type": "string", "description": "Filter by status (pending, submitted, failed, waiting_user_input, needs_manual)"},
+            "status": {
+                "type": "string",
+                "description": "Filter by status (pending, submitted, failed, waiting_user_input, needs_manual)",
+            },
             "company": {"type": "string", "description": "Filter by company name"},
             "limit": {"type": "integer", "description": "Max results (default 10)"},
         },

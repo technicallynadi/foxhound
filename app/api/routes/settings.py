@@ -9,7 +9,7 @@ GET /api/v1/settings               — current settings
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -113,14 +113,17 @@ async def update_autopilot(
         profile.daily_apply_limit = body.daily_limit
         changes.append(f"daily limit set to {body.daily_limit}")
 
-    profile.updated_at = datetime.now(UTC)
+    profile.updated_at = datetime.now(timezone.utc)
     await db.commit()
 
-    return {"changes": changes, "autopilot": {
-        "enabled": bool(profile.autopilot_enabled),
-        "threshold": profile.autopilot_threshold,
-        "daily_limit": profile.daily_apply_limit,
-    }}
+    return {
+        "changes": changes,
+        "autopilot": {
+            "enabled": bool(profile.autopilot_enabled),
+            "threshold": profile.autopilot_threshold,
+            "daily_limit": profile.daily_apply_limit,
+        },
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -153,7 +156,7 @@ async def update_notifications(
         profile.notify_daily_digest = body.daily_digest
         changes.append(f"daily_digest {'enabled' if body.daily_digest else 'disabled'}")
 
-    profile.updated_at = datetime.now(UTC)
+    profile.updated_at = datetime.now(timezone.utc)
     await db.commit()
 
     return {"changes": changes}
@@ -182,7 +185,7 @@ async def update_blocklist(
         profile.whitelisted_companies_json = json.dumps(body.whitelist)
         changes.append(f"whitelist: {len(body.whitelist)} companies")
 
-    profile.updated_at = datetime.now(UTC)
+    profile.updated_at = datetime.now(timezone.utc)
     await db.commit()
 
     return {"changes": changes}
@@ -194,9 +197,7 @@ async def update_blocklist(
 
 
 async def _get_profile(db: AsyncSession, user_id: str) -> UserProfile:
-    result = await db.execute(
-        select(UserProfile).where(UserProfile.user_id == user_id)
-    )
+    result = await db.execute(select(UserProfile).where(UserProfile.user_id == user_id))
     profile = result.scalar_one_or_none()
     if not profile:
         raise HTTPException(status_code=404, detail="No profile found. Upload your resume first.")

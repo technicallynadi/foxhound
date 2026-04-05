@@ -35,9 +35,11 @@ class FoxhoundBrief(Base):
     recommended_next_action: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
-        TZDateTime, default=lambda: datetime.now(UTC),
+        TZDateTime,
+        default=lambda: datetime.now(UTC),
     )
     updated_at: Mapped[datetime] = mapped_column(
-        TZDateTime, default=lambda: datetime.now(UTC),
+        TZDateTime,
+        default=lambda: datetime.now(UTC),
         onupdate=lambda: datetime.now(UTC),
     )

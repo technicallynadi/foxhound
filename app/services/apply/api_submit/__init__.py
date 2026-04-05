@@ -17,11 +17,14 @@ def get_api_submitter(ats_type: str | None) -> ATSApiSubmitter | None:
     # Lazy imports to avoid circular deps
     if ats_type == "greenhouse":
         from app.services.apply.api_submit.greenhouse import GreenhouseSubmitter
+
         return GreenhouseSubmitter()
     if ats_type == "lever":
         from app.services.apply.api_submit.lever import LeverSubmitter
+
         return LeverSubmitter()
     if ats_type == "ashby":
         from app.services.apply.api_submit.ashby import AshbySubmitter
+
         return AshbySubmitter()
     return None

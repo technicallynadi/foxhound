@@ -54,6 +54,7 @@ async def run_test():
         resume_path = "/tmp/test_resume.pdf"
         try:
             import pdfplumber  # noqa — just checking if we can make a PDF
+
             # Simple approach: write minimal PDF bytes
             with open(resume_path, "wb") as f:
                 f.write(
@@ -272,6 +273,7 @@ async def run_test():
 
 if __name__ == "__main__":
     from dotenv import load_dotenv
+
     load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
     os.environ.setdefault("AGENTQL_API_KEY", os.environ.get("AGENTQL_KEY", ""))
     asyncio.run(run_test())

@@ -10,9 +10,7 @@ TZDateTime = DateTime(timezone=True)
 
 class JobMatch(Base):
     __tablename__ = "job_matches"
-    __table_args__ = (
-        UniqueConstraint("user_id", "job_id", name="uq_user_job"),
-    )
+    __table_args__ = (UniqueConstraint("user_id", "job_id", name="uq_user_job"),)
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
     user_id: Mapped[str] = mapped_column(String, index=True)
@@ -35,9 +33,7 @@ class JobMatch(Base):
     user_action: Mapped[str] = mapped_column(String, default="none")
     user_feedback: Mapped[str | None] = mapped_column(String, nullable=True)
 
-    created_at: Mapped[datetime] = mapped_column(
-        TZDateTime, default=lambda: datetime.now(UTC)
-    )
+    created_at: Mapped[datetime] = mapped_column(TZDateTime, default=lambda: datetime.now(UTC))
     updated_at: Mapped[datetime] = mapped_column(
         TZDateTime,
         default=lambda: datetime.now(UTC),

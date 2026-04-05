@@ -20,19 +20,38 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_COMPANIES: list[tuple[str, str]] = [
     # Tier 1 — top AI companies
-    ("openai", "OpenAI"), ("anthropic", "Anthropic"), ("perplexity", "Perplexity"),
-    ("cohere", "Cohere"), ("cognition", "Cognition"), ("cursor", "Cursor"),
-    ("runway", "Runway"), ("harvey", "Harvey"), ("scaleai", "Scale AI"),
+    ("openai", "OpenAI"),
+    ("anthropic", "Anthropic"),
+    ("perplexity", "Perplexity"),
+    ("cohere", "Cohere"),
+    ("cognition", "Cognition"),
+    ("cursor", "Cursor"),
+    ("runway", "Runway"),
+    ("harvey", "Harvey"),
+    ("scaleai", "Scale AI"),
     # Tier 2 — high-growth tech
-    ("notion", "Notion"), ("ramp", "Ramp"), ("reddit", "Reddit"),
-    ("deel", "Deel"), ("rippling", "Rippling"), ("snowflake", "Snowflake"),
-    ("linear", "Linear"), ("vercel", "Vercel"), ("retool", "Retool"),
+    ("notion", "Notion"),
+    ("ramp", "Ramp"),
+    ("reddit", "Reddit"),
+    ("deel", "Deel"),
+    ("rippling", "Rippling"),
+    ("snowflake", "Snowflake"),
+    ("linear", "Linear"),
+    ("vercel", "Vercel"),
+    ("retool", "Retool"),
     ("webflow", "Webflow"),
     # Tier 3 — promising startups
-    ("zip", "Zip"), ("handshake", "Handshake"), ("evenup", "EvenUp"),
-    ("modern-treasury", "Modern Treasury"), ("stainlessapi", "Stainless"),
-    ("mintlify", "Mintlify"), ("pylon-labs", "Pylon"), ("kikoff", "Kikoff"),
-    ("loom", "Loom"), ("ashby", "Ashby"), ("opendoor", "Opendoor"),
+    ("zip", "Zip"),
+    ("handshake", "Handshake"),
+    ("evenup", "EvenUp"),
+    ("modern-treasury", "Modern Treasury"),
+    ("stainlessapi", "Stainless"),
+    ("mintlify", "Mintlify"),
+    ("pylon-labs", "Pylon"),
+    ("kikoff", "Kikoff"),
+    ("loom", "Loom"),
+    ("ashby", "Ashby"),
+    ("opendoor", "Opendoor"),
 ]
 
 API_BASE = "https://api.ashbyhq.com/posting-api/job-board"
@@ -96,26 +115,28 @@ class AshbyAdapter:
             job.get("department", "")
             job.get("team", "")
 
-            listings.append({
-                "external_id": job.get("id", ""),
-                "title": job.get("title", ""),
-                "company": display_name,
-                "company_url": f"https://jobs.ashbyhq.com/{slug}",
-                "description": job.get("descriptionPlain", "") or job.get("description", ""),
-                "description_html": job.get("description", ""),
-                "location": location,
-                "remote_type": _infer_remote(location, job),
-                "salary_min": salary_min,
-                "salary_max": salary_max,
-                "salary_currency": salary_currency,
-                "apply_url": apply_url,
-                "ats_type": ats_type,
-                "auto_apply_supported": is_auto_apply_supported(ats_type),
-                "source": "ashby",
-                "source_url": apply_url,
-                "posted_at": job.get("publishedAt"),
-                "dedup_hash": compute_dedup_hash(slug, job.get("title", ""), location),
-            })
+            listings.append(
+                {
+                    "external_id": job.get("id", ""),
+                    "title": job.get("title", ""),
+                    "company": display_name,
+                    "company_url": f"https://jobs.ashbyhq.com/{slug}",
+                    "description": job.get("descriptionPlain", "") or job.get("description", ""),
+                    "description_html": job.get("description", ""),
+                    "location": location,
+                    "remote_type": _infer_remote(location, job),
+                    "salary_min": salary_min,
+                    "salary_max": salary_max,
+                    "salary_currency": salary_currency,
+                    "apply_url": apply_url,
+                    "ats_type": ats_type,
+                    "auto_apply_supported": is_auto_apply_supported(ats_type),
+                    "source": "ashby",
+                    "source_url": apply_url,
+                    "posted_at": job.get("publishedAt"),
+                    "dedup_hash": compute_dedup_hash(slug, job.get("title", ""), location),
+                }
+            )
 
         return listings
 

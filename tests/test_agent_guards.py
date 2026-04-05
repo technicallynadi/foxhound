@@ -14,6 +14,7 @@ from app.services.agent.utils.url_validator import validate_apply_url
 # ToolGuard
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_guard_blocks_free_tier(db, sample_profile):
     from sqlalchemy import select
@@ -69,9 +70,14 @@ async def test_guard_blocks_blacklisted_company(db, sample_profile, sample_jobs)
 
     guard = ToolGuard()
     with pytest.raises(ToolBlocked) as exc:
-        await guard.check(db, sample_profile.user_id, "apply_to_job", {
-            "job_id": sample_jobs[0].id,
-        })
+        await guard.check(
+            db,
+            sample_profile.user_id,
+            "apply_to_job",
+            {
+                "job_id": sample_jobs[0].id,
+            },
+        )
     assert exc.value.code == "blacklisted_company"
 
 
@@ -88,6 +94,7 @@ async def test_guard_skips_read_tools(db, user_id):
 # ---------------------------------------------------------------------------
 # Budget
 # ---------------------------------------------------------------------------
+
 
 def test_budget_tracks():
     b = RequestBudget()
@@ -125,32 +132,56 @@ def test_budget_summary():
 # URL Validator
 # ---------------------------------------------------------------------------
 
-@pytest.mark.parametrize("url,expected", [
-    ("https://boards.greenhouse.io/anthropic/jobs/123", True),
-    ("https://jobs.lever.co/stripe/abc", True),
-    ("https://jobs.ashbyhq.com/openai/xyz", True),
-    ("https://abc.myworkdayjobs.com/en-US/jobs", True),
-    ("http://boards.greenhouse.io/test", False),
-    ("https://evil.com/phishing", False),
-    ("https://169.254.169.254/metadata", False),
-    ("https://localhost/admin", False),
-    ("", False),
-])
+
+@pytest.mark.parametrize(
+    "url,expected",
+    [
+        ("https://boards.greenhouse.io/anthropic/jobs/123", True),
+        ("https://jobs.lever.co/stripe/abc", True),
+        ("https://jobs.ashbyhq.com/openai/xyz", True),
+        ("https://abc.myworkdayjobs.com/en-US/jobs", True),
+        ("http://boards.greenhouse.io/test", False),
+        ("https://evil.com/phishing", False),
+        ("https://169.254.169.254/metadata", False),
+        ("https://localhost/admin", False),
+        ("", False),
+    ],
+)
 def test_url_validator(url, expected):
     assert validate_apply_url(url) == expected
+
+
+def test_url_validator_blocks_dns_rebinding(monkeypatch):
+    monkeypatch.setattr(
+        "app.services.agent.utils.url_validator._resolve_host_ips",
+        lambda host: {"10.1.2.3"},
+    )
+    assert validate_apply_url("https://jobs.lever.co/stripe/abc123") is False
+
+
+def test_url_validator_blocks_ipv6_rebinding(monkeypatch):
+    monkeypatch.setattr(
+        "app.services.agent.utils.url_validator._resolve_host_ips",
+        lambda host: {"::1"},
+    )
+    assert validate_apply_url("https://boards.greenhouse.io/acme/jobs/123") is False
 
 
 # ---------------------------------------------------------------------------
 # Question Classifier
 # ---------------------------------------------------------------------------
 
-@pytest.mark.parametrize("label,expected", [
-    ("First Name", "auto"),
-    ("Email", "auto"),
-    ("Why do you want to work here?", "draft_and_approve"),
-    ("Salary expectations", "ask_directly"),
-    ("Favorite color", "unknown"),
-])
+
+@pytest.mark.parametrize(
+    "label,expected",
+    [
+        ("First Name", "auto"),
+        ("Email", "auto"),
+        ("Why do you want to work here?", "draft_and_approve"),
+        ("Salary expectations", "ask_directly"),
+        ("Favorite color", "unknown"),
+    ],
+)
 def test_question_classifier(label, expected):
     assert classify_question(label) == expected
 
@@ -159,14 +190,24 @@ def test_question_classifier(label, expected):
 # Profile Filler + Answer Bank
 # ---------------------------------------------------------------------------
 
+
 def test_profile_filler():
-    profile = type("P", (), {
-        "first_name": "Test", "last_name": "User", "email": "t@t.com",
-        "phone": "+1234", "linkedin_url": "https://li.com/t",
-        "portfolio_url": "https://gh.com/t", "location": "SF",
-        "visa_status": "US Citizen", "years_experience": 5,
-        "education_json": json.dumps([{"degree": "BS", "school": "MIT"}]),
-    })()
+    profile = type(
+        "P",
+        (),
+        {
+            "first_name": "Test",
+            "last_name": "User",
+            "email": "t@t.com",
+            "phone": "+1234",
+            "linkedin_url": "https://li.com/t",
+            "portfolio_url": "https://gh.com/t",
+            "location": "SF",
+            "visa_status": "US Citizen",
+            "years_experience": 5,
+            "education_json": json.dumps([{"degree": "BS", "school": "MIT"}]),
+        },
+    )()
     assert extract_profile_value(profile, "Email") == "t@t.com"
     assert extract_profile_value(profile, "Full Name") == "Test User"
     assert extract_profile_value(profile, "Favorite color") is None

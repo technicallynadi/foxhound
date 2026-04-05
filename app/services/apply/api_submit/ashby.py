@@ -44,9 +44,7 @@ class AshbySubmitter(ATSApiSubmitter):
                 )
                 resp.raise_for_status()
             except httpx.HTTPStatusError as e:
-                raise ApiSubmitFallbackError(
-                    f"Ashby API returned {e.response.status_code}"
-                ) from e
+                raise ApiSubmitFallbackError(f"Ashby API returned {e.response.status_code}") from e
             except httpx.RequestError as e:
                 raise ApiSubmitFallbackError(f"Ashby API request failed: {e}") from e
 
@@ -88,22 +86,28 @@ class AshbySubmitter(ATSApiSubmitter):
                     else:
                         options.append(str(opt))
 
-                fields.append(FormField(
-                    label=label,
-                    field_type=normalized_type,
-                    required=required,
-                    options=options,
-                    field_name=field_path,
-                ))
+                fields.append(
+                    FormField(
+                        label=label,
+                        field_type=normalized_type,
+                        required=required,
+                        options=options,
+                        field_name=field_path,
+                    )
+                )
 
         # Ensure we always have resume upload
         has_file = any(f.field_type == "file" for f in fields)
         if not has_file:
-            fields.append(FormField(label="Resume/CV", field_type="file", required=True, field_name="_systemfield_resume"))
+            fields.append(
+                FormField(label="Resume/CV", field_type="file", required=True, field_name="_systemfield_resume")
+            )
 
         logger.info(
             "Ashby API schema: %s/%s — %d fields",
-            url_info.board_token, url_info.job_id, len(fields),
+            url_info.board_token,
+            url_info.job_id,
+            len(fields),
         )
 
         return ScanResult(
@@ -131,7 +135,7 @@ class AshbySubmitter(ATSApiSubmitter):
         # Standard fields — Ashby uses path conventions
         standard_map = {
             "_systemfield_name": profile_data.get("full_name", "")
-                or f"{profile_data.get('first_name', '')} {profile_data.get('last_name', '')}".strip(),
+            or f"{profile_data.get('first_name', '')} {profile_data.get('last_name', '')}".strip(),
             "_systemfield_email": profile_data.get("email", ""),
             "_systemfield_phone": profile_data.get("phone", ""),
             "_systemfield_linkedInUrl": profile_data.get("linkedin", ""),
@@ -161,14 +165,16 @@ class AshbySubmitter(ATSApiSubmitter):
         if resume_bytes:
             b64 = base64.b64encode(resume_bytes).decode("utf-8")
             # Add resume as a file field value
-            field_values.append({
-                "path": "_systemfield_resume",
-                "value": {
-                    "fileName": resume_filename,
-                    "mimeType": "application/pdf",
-                    "content": b64,
-                },
-            })
+            field_values.append(
+                {
+                    "path": "_systemfield_resume",
+                    "value": {
+                        "fileName": resume_filename,
+                        "mimeType": "application/pdf",
+                        "content": b64,
+                    },
+                }
+            )
 
         async with httpx.AsyncClient(timeout=30.0) as client:
             try:
@@ -194,6 +200,4 @@ class AshbySubmitter(ATSApiSubmitter):
             return ApiSubmitResult(status="rate_limited", error="Rate limited by Ashby")
 
         logger.warning("Ashby submit %d: %s", resp.status_code, resp.text[:300])
-        raise ApiSubmitFallbackError(
-            f"Ashby API returned {resp.status_code}: {resp.text[:200]}"
-        )
+        raise ApiSubmitFallbackError(f"Ashby API returned {resp.status_code}: {resp.text[:200]}")

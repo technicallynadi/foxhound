@@ -32,7 +32,6 @@ SOURCES = {
         "signal_types": ["pain", "request", "workflow"],
         "phase": "listing",
     },
-
     # Tier 1 — Feature Requests (public, vote-weighted, sorted by most upvoted)
     "github_feature_requests": {
         "url_pattern": "https://github.com/search?q={query}+label%3Aenhancement+OR+label%3A%22feature+request%22+is:open+sort:reactions-%2B1-desc&type=issues",
@@ -48,7 +47,6 @@ SOURCES = {
         "signal_types": ["request"],
         "phase": "listing",
     },
-
     # Tier 1 — GitHub Trends (what new tools people are building = signals unmet needs)
     "github_trending_weekly": {
         "url_pattern": "https://github.com/trending?since=weekly&spoken_language_code=en",
@@ -64,7 +62,6 @@ SOURCES = {
         "signal_types": ["market_pull"],
         "phase": "content",
     },
-
     # Tier 1 — Canny feature boards via Google (direct access is SPA-gated)
     # Google indexes Canny pages and shows titles + descriptions in snippets
     "canny_google": {
@@ -75,7 +72,6 @@ SOURCES = {
         "phase": "listing",
         "query_strategy": "short",
     },
-
     # Tier 1 — Discourse Feature Request categories (direct, no login)
     "discourse_fly_features": {
         "url_pattern": "https://community.fly.io/c/feature-requests/32",
@@ -112,7 +108,6 @@ SOURCES = {
         "signal_types": ["request"],
         "phase": "listing",
     },
-
     # Tier 1 — Developer Communities
     "lobsters": {
         "url_pattern": "https://lobste.rs/search?q={query}&what=comments&order=relevance",
@@ -121,7 +116,6 @@ SOURCES = {
         "signal_types": ["pain", "tool_complaint"],
         "phase": "content",
     },
-
     # Tier 1 — Discourse Forums (append .json for API access)
     "discourse_hashicorp": {
         "url_pattern": "https://discuss.hashicorp.com/search?q={query}",
@@ -147,7 +141,6 @@ SOURCES = {
         "phase": "listing",
         "verticals": ["devtools"],
     },
-
     # Tier 2 — Blog/Content Platforms
     "devto": {
         "url_pattern": "https://dev.to/search?q={query}",
@@ -170,7 +163,6 @@ SOURCES = {
         "signal_types": ["workflow", "pain"],
         "phase": "listing",
     },
-
     # Tier 2 — Q&A
     "stackoverflow": {
         "url_pattern": "https://stackoverflow.com/search?q={query}&tab=votes",
@@ -186,7 +178,6 @@ SOURCES = {
         "signal_types": ["pain", "tool_complaint"],
         "phase": "listing",
     },
-
     # Tier 2 — Feature Request Boards
     "canny": {
         "url_pattern": "https://www.google.com/search?q=site:canny.io+{query}",
@@ -195,7 +186,6 @@ SOURCES = {
         "signal_types": ["request"],
         "phase": "listing",
     },
-
     # Tier 2 — Curated Lists
     "awesome_lists": {
         "url_pattern": "https://github.com/search?q=awesome+{query}&type=repositories&sort=stars",
@@ -204,7 +194,6 @@ SOURCES = {
         "signal_types": ["workflow"],
         "phase": "listing",
     },
-
     # Tier 2 — Product Launches & Market Signals
     # NOTE: These sites need simplified queries — use {short_query} (1-2 keywords)
     # or {tool} (first detected tool name) instead of the full query slug.
@@ -232,7 +221,6 @@ SOURCES = {
         "phase": "listing",
         "query_strategy": "short",
     },
-
     # Tier 2 — Developer Newsletters & Blogs
     "substack": {
         "url_pattern": "https://substack.com/search/{short_query}",
@@ -242,7 +230,6 @@ SOURCES = {
         "phase": "listing",
         "query_strategy": "short",
     },
-
     # Tier 2 — Investor / YC Signals
     "yc_companies": {
         "url_pattern": "https://www.ycombinator.com/companies?q={short_query}",
@@ -260,7 +247,6 @@ SOURCES = {
         "phase": "listing",
         "query_strategy": "short",
     },
-
     # Tier 2 — Tool Comparison / Migration
     "stackshare": {
         "url_pattern": "https://stackshare.io/search/q={short_query}",
@@ -270,7 +256,6 @@ SOURCES = {
         "phase": "listing",
         "query_strategy": "short",
     },
-
     # Tier 2 — Social / Real-time signals
     # X/Twitter requires login — use Google site:x.com as proxy to find tweets
     "twitter_pain": {
@@ -289,7 +274,6 @@ SOURCES = {
         "phase": "content",
         "query_strategy": "short",
     },
-
     # Tier 3 — Protected Sites (stealth + proxy)
     "reddit": {
         "url_pattern": "https://www.reddit.com/search/?q={query}&sort=relevance&t=year",
@@ -322,7 +306,12 @@ SUBREDDITS = {
 # Known GitHub repos with high-signal issues per vertical
 GITHUB_REPOS = {
     "devtools": ["actions/runner", "docker/compose", "hashicorp/terraform", "vercel/next.js"],
-    "ai_developer_tooling": ["langchain-ai/langchain", "openai/openai-python", "anthropics/anthropic-sdk-python", "run-llama/llama_index"],
+    "ai_developer_tooling": [
+        "langchain-ai/langchain",
+        "openai/openai-python",
+        "anthropics/anthropic-sdk-python",
+        "run-llama/llama_index",
+    ],
     "data": ["apache/airflow", "dbt-labs/dbt-core", "apache/spark"],
     "default": [],
 }
@@ -354,205 +343,246 @@ def get_source_targets(topic: str, vertical: str | None = None, budget: int = 10
     # Priority 1: Known GitHub repos for this vertical (bonus, not exclusive)
     repos = GITHUB_REPOS.get(v, GITHUB_REPOS["default"])
     for repo in repos[:3]:
-        targets.append({
-            "url": f"https://github.com/{repo}/issues?q=is:open+sort:comments",
-            "source_type": "github",
-            "browser_profile": "lite",
-            "prompt_names": ["pain", "workaround", "request"],
-            "phase": "listing",
-            "priority": 1,
-        })
+        targets.append(
+            {
+                "url": f"https://github.com/{repo}/issues?q=is:open+sort:comments",
+                "source_type": "github",
+                "browser_profile": "lite",
+                "prompt_names": ["pain", "workaround", "request"],
+                "phase": "listing",
+                "priority": 1,
+            }
+        )
 
     # Priority 2: GitHub search (issues + starred + new + TRENDING)
-    targets.append({
-        "url": SOURCES["github_issues"]["url_pattern"].format(query=slug),
-        "source_type": "github",
-        "browser_profile": "lite",
-        "prompt_names": ["issue_list"],
-        "phase": "listing",
-        "priority": 2,
-    })
-    targets.append({
-        "url": GITHUB_DISCOVERY["most_starred"].format(query=slug),
-        "source_type": "github",
-        "browser_profile": "lite",
-        "prompt_names": ["discover_projects"],
-        "phase": "content",
-        "priority": 2,
-    })
-    targets.append({
-        "url": GITHUB_DISCOVERY["recently_created"].format(query=slug),
-        "source_type": "github",
-        "browser_profile": "lite",
-        "prompt_names": ["discover_projects"],
-        "phase": "content",
-        "priority": 2,
-    })
-    # GitHub trending — catches new tools people are building (signals unmet needs)
-    targets.append({
-        "url": GITHUB_DISCOVERY["trending"],
-        "source_type": "github",
-        "browser_profile": "lite",
-        "prompt_names": ["discover_projects"],
-        "phase": "content",
-        "priority": 2,
-    })
-    # Topic-specific trending (if topic maps to a GitHub topic slug)
-    topic_slug = slug.replace("+", "-").lower()
-    if topic_slug:
-        targets.append({
-            "url": GITHUB_DISCOVERY["trending_topic"].format(topic=topic_slug),
+    targets.append(
+        {
+            "url": SOURCES["github_issues"]["url_pattern"].format(query=slug),
+            "source_type": "github",
+            "browser_profile": "lite",
+            "prompt_names": ["issue_list"],
+            "phase": "listing",
+            "priority": 2,
+        }
+    )
+    targets.append(
+        {
+            "url": GITHUB_DISCOVERY["most_starred"].format(query=slug),
             "source_type": "github",
             "browser_profile": "lite",
             "prompt_names": ["discover_projects"],
             "phase": "content",
             "priority": 2,
-        })
+        }
+    )
+    targets.append(
+        {
+            "url": GITHUB_DISCOVERY["recently_created"].format(query=slug),
+            "source_type": "github",
+            "browser_profile": "lite",
+            "prompt_names": ["discover_projects"],
+            "phase": "content",
+            "priority": 2,
+        }
+    )
+    # GitHub trending — catches new tools people are building (signals unmet needs)
+    targets.append(
+        {
+            "url": GITHUB_DISCOVERY["trending"],
+            "source_type": "github",
+            "browser_profile": "lite",
+            "prompt_names": ["discover_projects"],
+            "phase": "content",
+            "priority": 2,
+        }
+    )
+    # Topic-specific trending (if topic maps to a GitHub topic slug)
+    topic_slug = slug.replace("+", "-").lower()
+    if topic_slug:
+        targets.append(
+            {
+                "url": GITHUB_DISCOVERY["trending_topic"].format(topic=topic_slug),
+                "source_type": "github",
+                "browser_profile": "lite",
+                "prompt_names": ["discover_projects"],
+                "phase": "content",
+                "priority": 2,
+            }
+        )
 
     # Priority 3: Feature requests (GitHub + Canny via Google)
-    targets.append({
-        "url": SOURCES["github_feature_requests"]["url_pattern"].format(query=slug),
-        "source_type": "github",
-        "browser_profile": "lite",
-        "prompt_names": ["request", "pain"],
-        "phase": "listing",
-        "priority": 3,
-    })
-    targets.append({
-        "url": SOURCES["github_ideas"]["url_pattern"].format(query=slug),
-        "source_type": "github",
-        "browser_profile": "lite",
-        "prompt_names": ["request"],
-        "phase": "listing",
-        "priority": 3,
-    })
-    # Canny boards via Google site search (direct access is SPA-gated)
-    canny_url = _format_source_url(SOURCES["canny_google"], qv)
-    if canny_url:
-        targets.append({
-            "url": canny_url,
-            "source_type": "feature_board",
-            "browser_profile": "stealth",
+    targets.append(
+        {
+            "url": SOURCES["github_feature_requests"]["url_pattern"].format(query=slug),
+            "source_type": "github",
+            "browser_profile": "lite",
+            "prompt_names": ["request", "pain"],
+            "phase": "listing",
+            "priority": 3,
+        }
+    )
+    targets.append(
+        {
+            "url": SOURCES["github_ideas"]["url_pattern"].format(query=slug),
+            "source_type": "github",
+            "browser_profile": "lite",
             "prompt_names": ["request"],
             "phase": "listing",
             "priority": 3,
-        })
+        }
+    )
+    # Canny boards via Google site search (direct access is SPA-gated)
+    canny_url = _format_source_url(SOURCES["canny_google"], qv)
+    if canny_url:
+        targets.append(
+            {
+                "url": canny_url,
+                "source_type": "feature_board",
+                "browser_profile": "stealth",
+                "prompt_names": ["request"],
+                "phase": "listing",
+                "priority": 3,
+            }
+        )
 
     # Priority 4: Lobsters
-    targets.append({
-        "url": SOURCES["lobsters"]["url_pattern"].format(query=slug),
-        "source_type": "lobsters",
-        "browser_profile": "lite",
-        "prompt_names": ["pain", "tool_complaint"],
-        "phase": "content",
-        "priority": 4,
-    })
+    targets.append(
+        {
+            "url": SOURCES["lobsters"]["url_pattern"].format(query=slug),
+            "source_type": "lobsters",
+            "browser_profile": "lite",
+            "prompt_names": ["pain", "tool_complaint"],
+            "phase": "content",
+            "priority": 4,
+        }
+    )
 
     # Priority 5: Discourse forums — ALL forums + dedicated feature request categories
     for key, source in SOURCES.items():
         if source["source_type"] == "discourse":
-            targets.append({
-                "url": source["url_pattern"].format(query=slug),
-                "source_type": "discourse",
-                "browser_profile": "lite",
-                "prompt_names": source["signal_types"],
-                "phase": "listing",
-                "priority": 4,
-            })
+            targets.append(
+                {
+                    "url": source["url_pattern"].format(query=slug),
+                    "source_type": "discourse",
+                    "browser_profile": "lite",
+                    "prompt_names": source["signal_types"],
+                    "phase": "listing",
+                    "priority": 4,
+                }
+            )
 
     # Priority 5: Blog platforms + newsletters + engineering blogs
     for platform in ["devto", "hashnode", "medium"]:
-        targets.append({
-            "url": SOURCES[platform]["url_pattern"].format(query=slug),
-            "source_type": "blog",
-            "browser_profile": "lite",
-            "prompt_names": ["workflow", "pain"],
-            "phase": "listing",
-            "priority": 5,
-        })
+        targets.append(
+            {
+                "url": SOURCES[platform]["url_pattern"].format(query=slug),
+                "source_type": "blog",
+                "browser_profile": "lite",
+                "prompt_names": ["workflow", "pain"],
+                "phase": "listing",
+                "priority": 5,
+            }
+        )
     # Engineering blogs matched by topic
     from app.services.ingest.engineering_blogs import get_blog_urls_for_topic
+
     for blog_url in get_blog_urls_for_topic(topic):
-        targets.append({
-            "url": blog_url["url"],
-            "source_type": "engineering_blog",
-            "browser_profile": "lite",
-            "prompt_names": ["workflow", "operator_practice"],
-            "phase": "content",
-            "priority": 5,
-        })
+        targets.append(
+            {
+                "url": blog_url["url"],
+                "source_type": "engineering_blog",
+                "browser_profile": "lite",
+                "prompt_names": ["workflow", "operator_practice"],
+                "phase": "content",
+                "priority": 5,
+            }
+        )
     substack_url = _format_source_url(SOURCES["substack"], qv)
     if substack_url:
-        targets.append({
-            "url": substack_url,
-            "source_type": "newsletter",
-            "browser_profile": "lite",
-            "prompt_names": ["workflow", "operator_practice"],
-            "phase": "listing",
-            "priority": 5,
-        })
+        targets.append(
+            {
+                "url": substack_url,
+                "source_type": "newsletter",
+                "browser_profile": "lite",
+                "prompt_names": ["workflow", "operator_practice"],
+                "phase": "listing",
+                "priority": 5,
+            }
+        )
 
     # Priority 6: HN, SO, and Product Hunt
-    targets.append({
-        "url": SOURCES["hackernews"]["url_pattern"].format(query=slug),
-        "source_type": "hackernews",
-        "browser_profile": "lite",
-        "prompt_names": ["pain", "tool_complaint"],
-        "phase": "listing",
-        "priority": 6,
-    })
-    targets.append({
-        "url": SOURCES["stackoverflow"]["url_pattern"].format(query=slug),
-        "source_type": "stackoverflow",
-        "browser_profile": "lite",
-        "prompt_names": ["so_extract"],
-        "phase": "listing",
-        "priority": 6,
-    })
+    targets.append(
+        {
+            "url": SOURCES["hackernews"]["url_pattern"].format(query=slug),
+            "source_type": "hackernews",
+            "browser_profile": "lite",
+            "prompt_names": ["pain", "tool_complaint"],
+            "phase": "listing",
+            "priority": 6,
+        }
+    )
+    targets.append(
+        {
+            "url": SOURCES["stackoverflow"]["url_pattern"].format(query=slug),
+            "source_type": "stackoverflow",
+            "browser_profile": "lite",
+            "prompt_names": ["so_extract"],
+            "phase": "listing",
+            "priority": 6,
+        }
+    )
     # Product Hunt — search with short keywords + browse topic category
     ph_search_url = _format_source_url(SOURCES["producthunt"], qv)
     if ph_search_url:
-        targets.append({
-            "url": ph_search_url,
-            "source_type": "producthunt",
-            "browser_profile": "stealth",
-            "prompt_names": ["market_pull", "pain"],
-            "phase": "listing",
-            "priority": 6,
-        })
+        targets.append(
+            {
+                "url": ph_search_url,
+                "source_type": "producthunt",
+                "browser_profile": "stealth",
+                "prompt_names": ["market_pull", "pain"],
+                "phase": "listing",
+                "priority": 6,
+            }
+        )
     ph_topic_url = _format_source_url(SOURCES["producthunt_topics"], qv)
     if ph_topic_url:
-        targets.append({
-            "url": ph_topic_url,
-            "source_type": "producthunt",
-            "browser_profile": "stealth",
-            "prompt_names": ["market_pull"],
-            "phase": "listing",
-            "priority": 6,
-        })
+        targets.append(
+            {
+                "url": ph_topic_url,
+                "source_type": "producthunt",
+                "browser_profile": "stealth",
+                "prompt_names": ["market_pull"],
+                "phase": "listing",
+                "priority": 6,
+            }
+        )
     ih_url = _format_source_url(SOURCES["indiehackers"], qv)
     if ih_url:
-        targets.append({
-            "url": ih_url,
-            "source_type": "indiehackers",
-            "browser_profile": "lite",
-            "prompt_names": ["market_pull", "pain", "operator_practice"],
-            "phase": "listing",
-            "priority": 6,
-        })
+        targets.append(
+            {
+                "url": ih_url,
+                "source_type": "indiehackers",
+                "browser_profile": "lite",
+                "prompt_names": ["market_pull", "pain", "operator_practice"],
+                "phase": "listing",
+                "priority": 6,
+            }
+        )
 
     # X/Twitter via Google site search (login-free)
     for tw_key in ["twitter_pain", "twitter_alternatives"]:
         tw_url = _format_source_url(SOURCES[tw_key], qv)
         if tw_url:
-            targets.append({
-                "url": tw_url,
-                "source_type": "twitter",
-                "browser_profile": "stealth",
-                "prompt_names": SOURCES[tw_key]["signal_types"],
-                "phase": "content",
-                "priority": 6,
-            })
+            targets.append(
+                {
+                    "url": tw_url,
+                    "source_type": "twitter",
+                    "browser_profile": "stealth",
+                    "prompt_names": SOURCES[tw_key]["signal_types"],
+                    "phase": "content",
+                    "priority": 6,
+                }
+            )
 
     # Priority 7: Reddit — combine vertical-specific + default subs (query-driven)
     vertical_subs = SUBREDDITS.get(v, []) if v != "default" else []
@@ -565,40 +595,46 @@ def get_source_targets(topic: str, vertical: str | None = None, budget: int = 10
             seen_subs.add(sub)
             all_subs.append(sub)
     for sub in all_subs[:4]:
-        targets.append({
-            "url": f"https://www.reddit.com/{sub}/search/?q={slug}&restrict_sr=1&sort=top&t=year",
-            "source_type": "reddit",
-            "browser_profile": "stealth",
-            "prompt_names": ["pain", "workaround"],
-            "phase": "listing",
-            "priority": 7,
-        })
+        targets.append(
+            {
+                "url": f"https://www.reddit.com/{sub}/search/?q={slug}&restrict_sr=1&sort=top&t=year",
+                "source_type": "reddit",
+                "browser_profile": "stealth",
+                "prompt_names": ["pain", "workaround"],
+                "phase": "listing",
+                "priority": 7,
+            }
+        )
 
     # Priority 8: Investor / market signals (short queries for these sites)
     yc_url = _format_source_url(SOURCES["yc_companies"], qv)
     if yc_url:
-        targets.append({
-            "url": yc_url,
-            "source_type": "investor",
-            "browser_profile": "lite",
-            "prompt_names": ["market_pull"],
-            "phase": "listing",
-            "priority": 8,
-        })
+        targets.append(
+            {
+                "url": yc_url,
+                "source_type": "investor",
+                "browser_profile": "lite",
+                "prompt_names": ["market_pull"],
+                "phase": "listing",
+                "priority": 8,
+            }
+        )
     ss_url = _format_source_url(SOURCES["stackshare"], qv)
     if ss_url:
-        targets.append({
-            "url": ss_url,
-            "source_type": "comparison",
-            "browser_profile": "lite",
-            "prompt_names": ["migration", "market_pull"],
-            "phase": "listing",
-            "priority": 8,
-        })
+        targets.append(
+            {
+                "url": ss_url,
+                "source_type": "comparison",
+                "browser_profile": "lite",
+                "prompt_names": ["migration", "market_pull"],
+                "phase": "listing",
+                "priority": 8,
+            }
+        )
 
     # sort by priority, limit to budget * 2 listing targets
     targets.sort(key=lambda t: t["priority"])
-    limited = targets[:budget * 2]
+    limited = targets[: budget * 2]
 
     logger.info("Generated %d source targets for topic='%s' vertical='%s'", len(limited), topic, v)
     return limited
@@ -617,13 +653,61 @@ def _build_query_variants(topic: str) -> dict[str, str]:
 
     # Extract short form: prioritize tool names and specific nouns
     stop_words = {
-        "how", "to", "for", "the", "a", "an", "with", "and", "or", "in",
-        "on", "of", "that", "is", "are", "can", "do", "does", "should",
-        "would", "i", "we", "my", "our", "build", "make", "create", "find",
-        "want", "need", "looking", "something", "improve", "better", "help",
-        "helps", "thing", "things", "tool", "tools", "way", "using",
-        "like", "just", "really", "very", "good", "best", "new",
-        "people", "teams", "team", "company", "companies", "someone",
+        "how",
+        "to",
+        "for",
+        "the",
+        "a",
+        "an",
+        "with",
+        "and",
+        "or",
+        "in",
+        "on",
+        "of",
+        "that",
+        "is",
+        "are",
+        "can",
+        "do",
+        "does",
+        "should",
+        "would",
+        "i",
+        "we",
+        "my",
+        "our",
+        "build",
+        "make",
+        "create",
+        "find",
+        "want",
+        "need",
+        "looking",
+        "something",
+        "improve",
+        "better",
+        "help",
+        "helps",
+        "thing",
+        "things",
+        "tool",
+        "tools",
+        "way",
+        "using",
+        "like",
+        "just",
+        "really",
+        "very",
+        "good",
+        "best",
+        "new",
+        "people",
+        "teams",
+        "team",
+        "company",
+        "companies",
+        "someone",
     }
     # Prefer capitalized words (proper nouns / tool names) first
     all_words = re.findall(r"[a-zA-Z0-9/]+", topic)
@@ -640,6 +724,7 @@ def _build_query_variants(topic: str) -> dict[str, str]:
     tool = None
     try:
         from app.core.vertical_config import get_tool_terms
+
         tool_terms = get_tool_terms(topic)
         matches = [t for t in tool_terms if t.lower() in topic.lower()]
         if matches:

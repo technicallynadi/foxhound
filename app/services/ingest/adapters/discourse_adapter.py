@@ -47,8 +47,7 @@ async def fetch_discourse_signals(
     target_forums = forums or DISCOURSE_FORUMS
 
     tasks = [
-        _search_forum(forum, topic, limit_per_forum=max(5, limit // len(target_forums)))
-        for forum in target_forums
+        _search_forum(forum, topic, limit_per_forum=max(5, limit // len(target_forums))) for forum in target_forums
     ]
     results = await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -123,28 +122,31 @@ async def _search_forum(
             except (ValueError, TypeError):
                 created = None
 
-        signals.append({
-            "source_id": f"discourse_{forum_name.lower()}_{post.get('id', '')}",
-            "url": url,
-            "title": topic_info.get("title", ""),
-            "text": text[:1000],
-            "author": post.get("username", ""),
-            "created_at": created,
-            "score": topic_info.get("like_count", 0),
-            "num_comments": topic_info.get("reply_count", 0),
-            "view_count": topic_info.get("views", 0),
-            "source": f"discourse_{forum_name.lower()}",
-            "source_type": "discourse",
-            "source_platform": f"discourse:{forum_name}",
-            "community": forum_name,
-            "forum_url": base_url,
-        })
+        signals.append(
+            {
+                "source_id": f"discourse_{forum_name.lower()}_{post.get('id', '')}",
+                "url": url,
+                "title": topic_info.get("title", ""),
+                "text": text[:1000],
+                "author": post.get("username", ""),
+                "created_at": created,
+                "score": topic_info.get("like_count", 0),
+                "num_comments": topic_info.get("reply_count", 0),
+                "view_count": topic_info.get("views", 0),
+                "source": f"discourse_{forum_name.lower()}",
+                "source_type": "discourse",
+                "source_platform": f"discourse:{forum_name}",
+                "community": forum_name,
+                "forum_url": base_url,
+            }
+        )
 
     return signals
 
 
 def _strip_html(text: str) -> str:
     import re
+
     text = re.sub(r"<[^>]+>", " ", text)
     text = re.sub(r"&[a-z]+;", " ", text)
     text = re.sub(r"\s+", " ", text)

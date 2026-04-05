@@ -18,9 +18,7 @@ from app.services.ingest.tinyfish_adapter import _get_client
 logger = logging.getLogger(__name__)
 
 
-async def fetch_careers_page(
-    company_name: str, company_url: str | None
-) -> dict[str, Any] | None:
+async def fetch_careers_page(company_name: str, company_url: str | None) -> dict[str, Any] | None:
     """Scrape a company's careers page for hiring signals.
 
     Returns dict with open_roles, technologies, top_departments, hiring_velocity
@@ -69,9 +67,7 @@ async def fetch_careers_page(
         return None
 
 
-async def fetch_about_page(
-    company_name: str, company_url: str | None
-) -> dict[str, Any] | None:
+async def fetch_about_page(company_name: str, company_url: str | None) -> dict[str, Any] | None:
     """Scrape a company's about page for company details.
 
     Returns dict with mission, founded, size, locations, funding, notable_facts
@@ -121,9 +117,7 @@ async def fetch_about_page(
         return None
 
 
-async def load_posting_data(
-    db: AsyncSession, job_id: str
-) -> dict[str, Any] | None:
+async def load_posting_data(db: AsyncSession, job_id: str) -> dict[str, Any] | None:
     """Load job posting data from the DB. Free — no TinyFish call needed.
 
     Returns dict with title, company, description, tech_stack, requirements,

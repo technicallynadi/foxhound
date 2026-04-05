@@ -14,6 +14,7 @@ def _discover():
 # get_profile
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_get_profile(db, sample_profile):
     result = await execute_tool(db, sample_profile.user_id, "get_profile", {})
@@ -32,6 +33,7 @@ async def test_get_profile_missing(db):
 # search_jobs
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_search_jobs(db, user_id, sample_jobs):
     result = await execute_tool(db, user_id, "search_jobs", {"query": "engineer"})
@@ -47,6 +49,7 @@ async def test_search_jobs_no_results(db, user_id, sample_jobs):
 # ---------------------------------------------------------------------------
 # get_matches
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_get_matches(db, user_id, sample_matches):
@@ -70,6 +73,7 @@ async def test_get_matches_no_user(db):
 # get_applications
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_get_applications_empty(db, user_id):
     result = await execute_tool(db, user_id, "get_applications", {})
@@ -80,12 +84,18 @@ async def test_get_applications_empty(db, user_id):
 # update_preferences
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_update_preferences(db, sample_profile):
-    result = await execute_tool(db, sample_profile.user_id, "update_preferences", {
-        "remote_preference": "remote",
-        "salary_floor": 200000,
-    })
+    result = await execute_tool(
+        db,
+        sample_profile.user_id,
+        "update_preferences",
+        {
+            "remote_preference": "remote",
+            "salary_floor": 200000,
+        },
+    )
     assert len(result["changes"]) == 2
     assert any("remote" in c for c in result["changes"])
     assert any("200,000" in c for c in result["changes"])
@@ -106,6 +116,7 @@ async def test_update_preferences_no_profile(db):
 # ---------------------------------------------------------------------------
 # Unknown tool
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_unknown_tool(db, user_id):

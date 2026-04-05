@@ -16,10 +16,7 @@ def build_linkedin_search_url(company: str, title: str) -> str:
         https://www.linkedin.com/search/results/people/?keywords=Engineering+Manager+Stripe
     """
     keywords = f"{title} {company}".strip()
-    return (
-        f"https://www.linkedin.com/search/results/people/"
-        f"?keywords={quote_plus(keywords)}"
-    )
+    return f"https://www.linkedin.com/search/results/people/?keywords={quote_plus(keywords)}"
 
 
 def build_google_search_url(company: str, title: str) -> str:

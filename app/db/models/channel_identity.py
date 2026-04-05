@@ -12,9 +12,7 @@ TZDateTime = DateTime(timezone=True)
 
 class ChannelIdentity(Base):
     __tablename__ = "channel_identities"
-    __table_args__ = (
-        UniqueConstraint("channel", "external_id", name="uq_channel_external"),
-    )
+    __table_args__ = (UniqueConstraint("channel", "external_id", name="uq_channel_external"),)
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
     user_id: Mapped[str] = mapped_column(String, index=True)
@@ -23,9 +21,7 @@ class ChannelIdentity(Base):
     verified: Mapped[bool] = mapped_column(Boolean, default=False)
     display_name: Mapped[str | None] = mapped_column(String, nullable=True)
 
-    created_at: Mapped[datetime] = mapped_column(
-        TZDateTime, default=lambda: datetime.now(UTC)
-    )
+    created_at: Mapped[datetime] = mapped_column(TZDateTime, default=lambda: datetime.now(UTC))
     updated_at: Mapped[datetime] = mapped_column(
         TZDateTime,
         default=lambda: datetime.now(UTC),

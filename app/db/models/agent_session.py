@@ -20,12 +20,8 @@ class AgentSession(Base):
     user_id: Mapped[str] = mapped_column(String, index=True)
     channel: Mapped[str] = mapped_column(String, default="web")
 
-    created_at: Mapped[datetime] = mapped_column(
-        TZDateTime, default=lambda: datetime.now(UTC)
-    )
-    last_message_at: Mapped[datetime] = mapped_column(
-        TZDateTime, default=lambda: datetime.now(UTC)
-    )
+    created_at: Mapped[datetime] = mapped_column(TZDateTime, default=lambda: datetime.now(UTC))
+    last_message_at: Mapped[datetime] = mapped_column(TZDateTime, default=lambda: datetime.now(UTC))
 
 
 class AgentMessage(Base):
@@ -48,6 +44,4 @@ class AgentMessage(Base):
     # Which channel originated this message
     channel: Mapped[str] = mapped_column(String, default="web")
 
-    created_at: Mapped[datetime] = mapped_column(
-        TZDateTime, default=lambda: datetime.now(UTC)
-    )
+    created_at: Mapped[datetime] = mapped_column(TZDateTime, default=lambda: datetime.now(UTC))

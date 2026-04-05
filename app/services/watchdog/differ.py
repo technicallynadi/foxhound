@@ -47,16 +47,8 @@ def summarize_diff(old_text: str, new_text: str) -> str:
 
     diff_lines = list(unified_diff(old_lines, new_lines, lineterm=""))
 
-    added = [
-        line[2:]
-        for line in diff_lines
-        if line.startswith("+ ") and not line.startswith("+++")
-    ]
-    removed = [
-        line[2:]
-        for line in diff_lines
-        if line.startswith("- ") and not line.startswith("---")
-    ]
+    added = [line[2:] for line in diff_lines if line.startswith("+ ") and not line.startswith("+++")]
+    removed = [line[2:] for line in diff_lines if line.startswith("- ") and not line.startswith("---")]
 
     if not added and not removed:
         return "Minor formatting changes detected."
@@ -92,9 +84,7 @@ def _detect_patterns(added: list[str], removed: list[str]) -> str | None:
     old_years = re.findall(r"(\d+)\+?\s*years?", removed_lower)
     new_years = re.findall(r"(\d+)\+?\s*years?", added_lower)
     if old_years and new_years and old_years != new_years:
-        patterns.append(
-            f"Experience requirement changed ({old_years[0]}y -> {new_years[0]}y)"
-        )
+        patterns.append(f"Experience requirement changed ({old_years[0]}y -> {new_years[0]}y)")
 
     # Salary changed
     old_salary = re.findall(r"\$[\d,]+k?", removed_lower)

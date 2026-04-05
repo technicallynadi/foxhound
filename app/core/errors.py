@@ -38,6 +38,7 @@ def foxhound_error_handler(request, exc: FoxhoundError) -> JSONResponse:
     }
     if exc.debug_context:
         from app.core.config import settings
+
         if settings.ENVIRONMENT != "production":
             body["debug_context"] = exc.debug_context
     if exc.retry_after_seconds is not None:
@@ -46,6 +47,7 @@ def foxhound_error_handler(request, exc: FoxhoundError) -> JSONResponse:
 
 
 # Common error factories
+
 
 def not_found(resource: str, resource_id: str) -> FoxhoundError:
     return FoxhoundError(

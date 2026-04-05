@@ -18,9 +18,7 @@ class NotificationDestination(Base):
     audience_type: Mapped[str] = mapped_column(String, default="human", index=True)
     destination_config_json: Mapped[str] = mapped_column(Text, default="{}")
     active: Mapped[bool] = mapped_column(Boolean, default=True)
-    created_at: Mapped[datetime] = mapped_column(
-        TZDateTime, default=lambda: datetime.now(UTC)
-    )
+    created_at: Mapped[datetime] = mapped_column(TZDateTime, default=lambda: datetime.now(UTC))
     updated_at: Mapped[datetime] = mapped_column(
         TZDateTime,
         default=lambda: datetime.now(UTC),

@@ -60,9 +60,7 @@ class JobListing(Base):
     ghost_checked_at: Mapped[datetime | None] = mapped_column(TZDateTime, nullable=True)
     repost_count: Mapped[int] = mapped_column(Integer, default=0)
 
-    discovered_at: Mapped[datetime] = mapped_column(
-        TZDateTime, default=lambda: datetime.now(UTC)
-    )
+    discovered_at: Mapped[datetime] = mapped_column(TZDateTime, default=lambda: datetime.now(UTC))
     updated_at: Mapped[datetime] = mapped_column(
         TZDateTime,
         default=lambda: datetime.now(UTC),

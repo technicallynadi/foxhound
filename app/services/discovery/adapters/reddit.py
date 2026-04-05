@@ -63,15 +63,17 @@ async def search_reddit(
 
     for child in data.get("data", {}).get("children", []):
         post = child.get("data", {})
-        posts.append({
-            "title": post.get("title", ""),
-            "body": (post.get("selftext") or "")[:2000],
-            "url": f"https://www.reddit.com{post.get('permalink', '')}",
-            "subreddit": post.get("subreddit", ""),
-            "score": post.get("score", 0),
-            "num_comments": post.get("num_comments", 0),
-            "created_utc": post.get("created_utc", 0),
-        })
+        posts.append(
+            {
+                "title": post.get("title", ""),
+                "body": (post.get("selftext") or "")[:2000],
+                "url": f"https://www.reddit.com{post.get('permalink', '')}",
+                "subreddit": post.get("subreddit", ""),
+                "score": post.get("score", 0),
+                "num_comments": post.get("num_comments", 0),
+                "created_utc": post.get("created_utc", 0),
+            }
+        )
 
     return posts
 
@@ -110,11 +112,13 @@ async def get_post_comments(
             comment = child.get("data", {})
             body = comment.get("body", "")
             if body and body != "[deleted]" and body != "[removed]":
-                comments.append({
-                    "body": body[:1000],
-                    "score": comment.get("score", 0),
-                    "author": comment.get("author", ""),
-                })
+                comments.append(
+                    {
+                        "body": body[:1000],
+                        "score": comment.get("score", 0),
+                        "author": comment.get("author", ""),
+                    }
+                )
 
     return comments
 
@@ -157,10 +161,7 @@ async def search_company_interviews(company_name: str) -> dict[str, Any]:
 
     # Fetch comments for top 3 posts
     if top_posts:
-        comment_tasks = [
-            get_post_comments(p["url"], limit=5)
-            for p in top_posts[:3]
-        ]
+        comment_tasks = [get_post_comments(p["url"], limit=5) for p in top_posts[:3]]
         comment_results = await asyncio.gather(*comment_tasks, return_exceptions=True)
         for i, comments in enumerate(comment_results):
             if isinstance(comments, list) and i < len(top_posts):

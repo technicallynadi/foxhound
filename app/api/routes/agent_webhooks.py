@@ -202,7 +202,9 @@ async def sms_webhook(request: Request, db: AsyncSession = Depends(get_db)):
         user_id = await resolve_user(db, "sms", from_number)
 
     if not user_id:
-        return _twiml_response("Foxhound: Unknown number. Link your phone in Foxhound settings or reply: link YOUR_CODE")
+        return _twiml_response(
+            "Foxhound: Unknown number. Link your phone in Foxhound settings or reply: link YOUR_CODE"
+        )
 
     result = await agent.respond(db=db, user_id=user_id, message=text, channel="sms")
     return _twiml_response(result["response"][:1500])
@@ -224,6 +226,7 @@ async def generate_link_code_endpoint(
 
     from app.services.auth_service import get_current_user
     from app.services.channel.linking import generate_link_code
+
     security = HTTPBearer(auto_error=False)
     credentials = await security(request)
     if not credentials:
@@ -238,9 +241,7 @@ async def generate_link_code_endpoint(
 # ---------------------------------------------------------------------------
 
 
-async def _handle_link(
-    db: AsyncSession, channel: str, external_id: str, code: str, display_channel: str
-) -> dict:
+async def _handle_link(db: AsyncSession, channel: str, external_id: str, code: str, display_channel: str) -> dict:
     """Handle a 'link CODE' message from any channel."""
     user_id = redeem_link_code(code)
     if not user_id:

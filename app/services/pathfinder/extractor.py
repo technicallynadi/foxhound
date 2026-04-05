@@ -76,6 +76,7 @@ async def extract_manager_signals(
         text = response.content[0].text.strip()
 
         from app.services.pathfinder.json_parser import extract_json
+
         result = extract_json(text)
         if not result or not isinstance(result, dict):
             logger.warning("Pathfinder extraction: could not parse JSON from response")
@@ -83,8 +84,10 @@ async def extract_manager_signals(
 
         logger.info(
             "Pathfinder extraction for %s @ %s — dept=%s, title=%s, confidence=%s",
-            job_title, company,
-            result.get("department"), result.get("likely_title"),
+            job_title,
+            company,
+            result.get("department"),
+            result.get("likely_title"),
             result.get("confidence"),
         )
         return result
@@ -134,9 +137,7 @@ def _fallback_extraction(
     }
 
     seniority_key = (seniority or "mid").lower()
-    manager_seniority, likely_title = seniority_map.get(
-        seniority_key, ("manager", f"{department} Manager")
-    )
+    manager_seniority, likely_title = seniority_map.get(seniority_key, ("manager", f"{department} Manager"))
 
     return {
         "department": department,

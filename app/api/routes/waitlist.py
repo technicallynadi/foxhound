@@ -40,9 +40,7 @@ async def join_waitlist(body: WaitlistRequest, req: Request):
 
     await init_db()
     async with async_session() as session:
-        existing = await session.execute(
-            select(WaitlistEntry).where(WaitlistEntry.email == body.email)
-        )
+        existing = await session.execute(select(WaitlistEntry).where(WaitlistEntry.email == body.email))
         if existing.scalar_one_or_none():
             return {"status": "already_registered", "message": "You're already on the list."}
 

@@ -18,24 +18,49 @@ logger = logging.getLogger(__name__)
 
 # Seniority levels in order
 _SENIORITY_MAP = {
-    "intern": 0, "trainee": 0,
-    "junior": 1, "associate": 1, "entry": 1, "jr": 1,
-    "mid": 2, "intermediate": 2,
-    "senior": 3, "sr": 3, "lead": 3,
-    "staff": 4, "principal": 4,
-    "architect": 5, "distinguished": 5, "fellow": 5,
-    "director": 6, "head": 6, "vp": 7, "cto": 8, "ceo": 8,
-    "manager": 4, "engineering manager": 5,
+    "intern": 0,
+    "trainee": 0,
+    "junior": 1,
+    "associate": 1,
+    "entry": 1,
+    "jr": 1,
+    "mid": 2,
+    "intermediate": 2,
+    "senior": 3,
+    "sr": 3,
+    "lead": 3,
+    "staff": 4,
+    "principal": 4,
+    "architect": 5,
+    "distinguished": 5,
+    "fellow": 5,
+    "director": 6,
+    "head": 6,
+    "vp": 7,
+    "cto": 8,
+    "ceo": 8,
+    "manager": 4,
+    "engineering manager": 5,
 }
 
 _COMPANY_TIERS = {
     # FAANG/Big Tech
-    "google": "enterprise", "meta": "enterprise", "apple": "enterprise",
-    "amazon": "enterprise", "microsoft": "enterprise", "netflix": "enterprise",
+    "google": "enterprise",
+    "meta": "enterprise",
+    "apple": "enterprise",
+    "amazon": "enterprise",
+    "microsoft": "enterprise",
+    "netflix": "enterprise",
     # Growth/Late-stage
-    "stripe": "growth", "airbnb": "growth", "databricks": "growth",
-    "shopify": "growth", "coinbase": "growth", "figma": "growth",
-    "notion": "growth", "ramp": "growth", "anthropic": "growth",
+    "stripe": "growth",
+    "airbnb": "growth",
+    "databricks": "growth",
+    "shopify": "growth",
+    "coinbase": "growth",
+    "figma": "growth",
+    "notion": "growth",
+    "ramp": "growth",
+    "anthropic": "growth",
     # Default detection by keywords
 }
 
@@ -72,16 +97,18 @@ def build_trajectory(profile) -> dict[str, Any]:
         tier = _detect_company_tier(company)
         track = _detect_track(title)
 
-        roles.append({
-            "title": exp.get("title", ""),
-            "company": company,
-            "level": level,
-            "level_num": _SENIORITY_MAP.get(level, 2),
-            "tier": tier,
-            "track": track,
-            "start": start,
-            "end": end,
-        })
+        roles.append(
+            {
+                "title": exp.get("title", ""),
+                "company": company,
+                "level": level,
+                "level_num": _SENIORITY_MAP.get(level, 2),
+                "tier": tier,
+                "track": track,
+                "start": start,
+                "end": end,
+            }
+        )
 
     # Sort by start date (most recent first)
     roles.sort(key=lambda r: r["start"] or "", reverse=True)
@@ -156,17 +183,30 @@ def _detect_seniority(title: str) -> str:
 
     # Check explicit seniority keywords
     for keyword, level_name in [
-        ("cto", "cto"), ("ceo", "ceo"), ("vp ", "vp"), ("vice president", "vp"),
-        ("director", "director"), ("head of", "head"),
-        ("distinguished", "distinguished"), ("fellow", "fellow"),
-        ("principal", "principal"), ("staff", "staff"),
+        ("cto", "cto"),
+        ("ceo", "ceo"),
+        ("vp ", "vp"),
+        ("vice president", "vp"),
+        ("director", "director"),
+        ("head of", "head"),
+        ("distinguished", "distinguished"),
+        ("fellow", "fellow"),
+        ("principal", "principal"),
+        ("staff", "staff"),
         ("architect", "architect"),
-        ("engineering manager", "engineering manager"), ("manager", "manager"),
-        ("senior", "senior"), ("sr.", "senior"), ("sr ", "senior"),
+        ("engineering manager", "engineering manager"),
+        ("manager", "manager"),
+        ("senior", "senior"),
+        ("sr.", "senior"),
+        ("sr ", "senior"),
         ("lead", "lead"),
-        ("junior", "junior"), ("jr.", "junior"), ("jr ", "junior"),
-        ("associate", "associate"), ("entry", "entry"),
-        ("intern", "intern"), ("trainee", "trainee"),
+        ("junior", "junior"),
+        ("jr.", "junior"),
+        ("jr ", "junior"),
+        ("associate", "associate"),
+        ("entry", "entry"),
+        ("intern", "intern"),
+        ("trainee", "trainee"),
     ]:
         if keyword in title_lower:
             return level_name
@@ -197,9 +237,7 @@ def _detect_track(title: str) -> str:
     return "ic"
 
 
-def _predict_next_move(
-    current_level: int, arc: str, track: str, roles: list[dict]
-) -> dict[str, str]:
+def _predict_next_move(current_level: int, arc: str, track: str, roles: list[dict]) -> dict[str, str]:
     """Predict the logical next career move."""
     level_names = {
         0: "Intern/Entry",
@@ -219,7 +257,9 @@ def _predict_next_move(
             return {
                 "level": level_names.get(next_level, "Next level"),
                 "suggestion": f"Target {level_names.get(next_level, 'next level')} IC roles",
-                "alt": f"Consider pivoting to {level_names.get(current_level, '')} management" if current_level >= 3 else None,
+                "alt": f"Consider pivoting to {level_names.get(current_level, '')} management"
+                if current_level >= 3
+                else None,
             }
         else:
             return {
@@ -251,11 +291,35 @@ def _categorize_skills(skills: list[str]) -> dict[str, list[str]]:
         "other": [],
     }
 
-    lang_kw = {"python", "javascript", "typescript", "java", "go", "rust", "c++", "ruby", "swift", "kotlin", "php", "scala"}
+    lang_kw = {
+        "python",
+        "javascript",
+        "typescript",
+        "java",
+        "go",
+        "rust",
+        "c++",
+        "ruby",
+        "swift",
+        "kotlin",
+        "php",
+        "scala",
+    }
     fe_kw = {"react", "vue", "angular", "nextjs", "next.js", "css", "html", "tailwind", "svelte"}
     be_kw = {"django", "flask", "fastapi", "express", "node", "spring", "rails", "graphql", "rest", "grpc"}
     infra_kw = {"aws", "gcp", "azure", "docker", "kubernetes", "terraform", "ci/cd", "linux", "nginx"}
-    data_kw = {"sql", "postgresql", "mongodb", "redis", "elasticsearch", "kafka", "spark", "ml", "pytorch", "tensorflow"}
+    data_kw = {
+        "sql",
+        "postgresql",
+        "mongodb",
+        "redis",
+        "elasticsearch",
+        "kafka",
+        "spark",
+        "ml",
+        "pytorch",
+        "tensorflow",
+    }
 
     for skill in skills:
         s = skill.lower().strip()
@@ -276,9 +340,7 @@ def _categorize_skills(skills: list[str]) -> dict[str, list[str]]:
     return {k: v for k, v in categories.items() if v}
 
 
-def _build_summary(
-    current: dict | None, arc: str, track: str, next_move: dict, role_count: int
-) -> str:
+def _build_summary(current: dict | None, arc: str, track: str, next_move: dict, role_count: int) -> str:
     """Build a human-readable trajectory summary."""
     if not current:
         return "Insufficient experience data."

@@ -23,12 +23,14 @@ def mutate_prompt(base_prompt: str, mutations: list[str]) -> list[dict]:
     """Generate prompt variations from a list of mutation descriptions."""
     variants = []
     for i, mutation in enumerate(mutations):
-        variants.append({
-            "_variant_id": f"prompt_v{i}",
-            "base_prompt": base_prompt[:100] + "...",
-            "mutation": mutation,
-            "prompt": f"{base_prompt}\n\nAdditional instruction: {mutation}",
-        })
+        variants.append(
+            {
+                "_variant_id": f"prompt_v{i}",
+                "base_prompt": base_prompt[:100] + "...",
+                "mutation": mutation,
+                "prompt": f"{base_prompt}\n\nAdditional instruction: {mutation}",
+            }
+        )
     return variants
 
 
@@ -42,11 +44,13 @@ def mutate_feature_set(base_features: list[str], n_variants: int = 3) -> list[di
             n_drop = random.randint(1, min(2, len(features) - 2))
             for _ in range(n_drop):
                 features.pop(random.randint(0, len(features) - 1))
-        variants.append({
-            "_variant_id": f"features_v{i}",
-            "features": features,
-            "dropped": list(set(base_features) - set(features)),
-        })
+        variants.append(
+            {
+                "_variant_id": f"features_v{i}",
+                "features": features,
+                "dropped": list(set(base_features) - set(features)),
+            }
+        )
     return variants
 
 

@@ -80,9 +80,22 @@ def update_answer_bank(profile: UserProfile, field_label: str, answer: str) -> N
     # Determine the key pattern
     text = field_label.lower().strip()
     key = None
-    for pattern in ["salary", "compensation", "pay", "start date", "notice period",
-                     "visa", "authorization", "sponsorship", "criminal", "disability",
-                     "gender", "race", "ethnicity", "veteran"]:
+    for pattern in [
+        "salary",
+        "compensation",
+        "pay",
+        "start date",
+        "notice period",
+        "visa",
+        "authorization",
+        "sponsorship",
+        "criminal",
+        "disability",
+        "gender",
+        "race",
+        "ethnicity",
+        "veteran",
+    ]:
         if pattern in text:
             key = pattern
             break

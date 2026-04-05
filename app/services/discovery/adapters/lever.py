@@ -20,18 +20,37 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_COMPANIES: list[tuple[str, str]] = [
     # Tier 1 — high volume
-    ("netflix", "Netflix"), ("spotify", "Spotify"), ("shopify", "Shopify"),
-    ("atlassian", "Atlassian"), ("palantir", "Palantir"), ("coinbase", "Coinbase"),
-    ("anduril", "Anduril"), ("nerdwallet", "NerdWallet"), ("upwork", "Upwork"),
-    ("wealthsimple", "Wealthsimple"), ("carta", "Carta"), ("gusto", "Gusto"),
-    ("samsara", "Samsara"), ("postman", "Postman"), ("elastic", "Elastic"),
+    ("netflix", "Netflix"),
+    ("spotify", "Spotify"),
+    ("shopify", "Shopify"),
+    ("atlassian", "Atlassian"),
+    ("palantir", "Palantir"),
+    ("coinbase", "Coinbase"),
+    ("anduril", "Anduril"),
+    ("nerdwallet", "NerdWallet"),
+    ("upwork", "Upwork"),
+    ("wealthsimple", "Wealthsimple"),
+    ("carta", "Carta"),
+    ("gusto", "Gusto"),
+    ("samsara", "Samsara"),
+    ("postman", "Postman"),
+    ("elastic", "Elastic"),
     # Tier 2 — strong eng brands
-    ("sentry", "Sentry"), ("launchdarkly", "LaunchDarkly"), ("mux", "Mux"),
-    ("metabase", "Metabase"), ("contentful", "Contentful"), ("sourcegraph", "Sourcegraph"),
-    ("gitpod", "Gitpod"), ("semgrep", "Semgrep"), ("temporal", "Temporal"),
-    ("superblocks", "Superblocks"), ("risecalendar", "Rise Calendar"),
+    ("sentry", "Sentry"),
+    ("launchdarkly", "LaunchDarkly"),
+    ("mux", "Mux"),
+    ("metabase", "Metabase"),
+    ("contentful", "Contentful"),
+    ("sourcegraph", "Sourcegraph"),
+    ("gitpod", "Gitpod"),
+    ("semgrep", "Semgrep"),
+    ("temporal", "Temporal"),
+    ("superblocks", "Superblocks"),
+    ("risecalendar", "Rise Calendar"),
     # Tier 3 — smaller / niche
-    ("twitch", "Twitch"), ("coursera", "Coursera"), ("grammarly", "Grammarly"),
+    ("twitch", "Twitch"),
+    ("coursera", "Coursera"),
+    ("grammarly", "Grammarly"),
     ("webflow", "Webflow"),
 ]
 
@@ -90,23 +109,25 @@ class LeverAdapter:
                 description_parts.append(lst.get("text", ""))
                 description_parts.append(lst.get("content", ""))
 
-            listings.append({
-                "external_id": posting.get("id", ""),
-                "title": posting.get("text", ""),
-                "company": display_name,
-                "company_url": f"https://jobs.lever.co/{slug}",
-                "description": "\n".join(filter(None, description_parts)),
-                "description_html": posting.get("description", ""),
-                "location": location,
-                "remote_type": _infer_remote(location),
-                "apply_url": apply_url,
-                "ats_type": ats_type,
-                "auto_apply_supported": is_auto_apply_supported(ats_type),
-                "source": "lever",
-                "source_url": posting.get("hostedUrl", ""),
-                "posted_at": None,  # Lever doesn't expose post date in public API
-                "dedup_hash": compute_dedup_hash(slug, posting.get("text", ""), location),
-            })
+            listings.append(
+                {
+                    "external_id": posting.get("id", ""),
+                    "title": posting.get("text", ""),
+                    "company": display_name,
+                    "company_url": f"https://jobs.lever.co/{slug}",
+                    "description": "\n".join(filter(None, description_parts)),
+                    "description_html": posting.get("description", ""),
+                    "location": location,
+                    "remote_type": _infer_remote(location),
+                    "apply_url": apply_url,
+                    "ats_type": ats_type,
+                    "auto_apply_supported": is_auto_apply_supported(ats_type),
+                    "source": "lever",
+                    "source_url": posting.get("hostedUrl", ""),
+                    "posted_at": None,  # Lever doesn't expose post date in public API
+                    "dedup_hash": compute_dedup_hash(slug, posting.get("text", ""), location),
+                }
+            )
 
         return listings
 

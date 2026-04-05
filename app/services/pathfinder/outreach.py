@@ -84,15 +84,17 @@ async def draft_outreach(
         contact_lines = []
         for c in contacts_found[:5]:
             line = f"- {c.get('name', 'Unknown')} — {c.get('title', '')}"
-            if c.get('connection_angle'):
+            if c.get("connection_angle"):
                 line += f" (connection: {c['connection_angle']})"
             contact_lines.append(line)
         parts.append(f"\nCONTACTS FOUND AT {company.upper()} (from LinkedIn):\n" + "\n".join(contact_lines))
-    parts.extend([
-        f"\nCANDIDATE NAME: {user_name}",
-        f"CANDIDATE SUMMARY: {user_summary or 'Not provided'}",
-        f"\nOVERLAP/CONNECTION POINTS: {overlap_summary}",
-    ])
+    parts.extend(
+        [
+            f"\nCANDIDATE NAME: {user_name}",
+            f"CANDIDATE SUMMARY: {user_summary or 'Not provided'}",
+            f"\nOVERLAP/CONNECTION POINTS: {overlap_summary}",
+        ]
+    )
     user_content = "\n".join(parts)
 
     try:
@@ -108,6 +110,7 @@ async def draft_outreach(
         text = response.content[0].text.strip()
 
         from app.services.pathfinder.json_parser import extract_json
+
         result = extract_json(text)
         if not result or not isinstance(result, dict):
             logger.warning("Pathfinder outreach: could not parse JSON from response")
@@ -121,7 +124,9 @@ async def draft_outreach(
 
         logger.info(
             "Pathfinder outreach drafted for %s @ %s — hooks=%s",
-            job_title, company, result.get("personalization_hooks", []),
+            job_title,
+            company,
+            result.get("personalization_hooks", []),
         )
         return result
 

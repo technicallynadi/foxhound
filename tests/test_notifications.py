@@ -16,6 +16,7 @@ from app.services.apply.notifications import (
 # Channel resolution
 # ---------------------------------------------------------------------------
 
+
 def test_get_user_channels_no_webhooks():
     """No webhook URLs configured → no channels."""
     profile = type("P", (), {"notify_channels_json": '["slack"]'})()
@@ -40,12 +41,17 @@ def test_get_user_channels_default():
 # New match alert
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_new_match_alert_no_channels():
-    profile = type("P", (), {
-        "notify_channels_json": '["email"]',
-        "autopilot_threshold": 80,
-    })()
+    profile = type(
+        "P",
+        (),
+        {
+            "notify_channels_json": '["email"]',
+            "autopilot_threshold": 80,
+        },
+    )()
     with patch("app.services.apply.notifications.settings") as mock_settings:
         mock_settings.slack_webhook_url = ""
         mock_settings.discord_webhook_url = ""
@@ -57,6 +63,7 @@ async def test_new_match_alert_no_channels():
 # ---------------------------------------------------------------------------
 # Follow-up messages
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_followup_day3_no_channels():

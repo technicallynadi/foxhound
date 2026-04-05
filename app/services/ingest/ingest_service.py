@@ -17,9 +17,14 @@ SOURCE_FAMILY_REGISTRY = {
         "page_type": "reddit",
         "max_candidates": 6,
         "domains": (
-            "reddit.com", "news.ycombinator.com", "lobste.rs",
-            "indiehackers.com", "lemmy.ml", "lemmy.world",
-            "x.com", "twitter.com",
+            "reddit.com",
+            "news.ycombinator.com",
+            "lobste.rs",
+            "indiehackers.com",
+            "lemmy.ml",
+            "lemmy.world",
+            "x.com",
+            "twitter.com",
         ),
         "evidence_class": "operator_practice",
     },
@@ -30,9 +35,15 @@ SOURCE_FAMILY_REGISTRY = {
         "domains": (
             "biggerpockets.com",
             # Discourse-powered dev tool forums
-            "community.fly.io", "forum.obsidian.md", "community.render.com",
-            "forum.cursor.com", "community.cloudflare.com", "community.grafana.com",
-            "forum.gitlab.com", "discuss.hashicorp.com", "discuss.kubernetes.io",
+            "community.fly.io",
+            "forum.obsidian.md",
+            "community.render.com",
+            "forum.cursor.com",
+            "community.cloudflare.com",
+            "community.grafana.com",
+            "forum.gitlab.com",
+            "discuss.hashicorp.com",
+            "discuss.kubernetes.io",
             "meta.discourse.org",
         ),
         "evidence_class": "operator_practice",
@@ -49,8 +60,13 @@ SOURCE_FAMILY_REGISTRY = {
         "page_type": "review",
         "max_candidates": 5,
         "domains": (
-            "g2.com", "capterra.com", "trustradius.com", "alternativeto.net",
-            "producthunt.com", "saasworthy.com", "stackshare.io",
+            "g2.com",
+            "capterra.com",
+            "trustradius.com",
+            "alternativeto.net",
+            "producthunt.com",
+            "saasworthy.com",
+            "stackshare.io",
         ),
         "evidence_class": "market_pull",
     },
@@ -66,11 +82,15 @@ SOURCE_FAMILY_REGISTRY = {
         "page_type": "blog",
         "max_candidates": 4,
         "domains": (
-            "dev.to", "hashnode.com", "medium.com",
+            "dev.to",
+            "hashnode.com",
+            "medium.com",
             # Developer newsletters
             "substack.com",
             # Company engineering blogs
-            "netflixtechblog.com", "eng.uber.com", "engineering.atspotify.com",
+            "netflixtechblog.com",
+            "eng.uber.com",
+            "engineering.atspotify.com",
         ),
         "evidence_class": "workflow",
     },
@@ -79,8 +99,10 @@ SOURCE_FAMILY_REGISTRY = {
         "page_type": "blog",
         "max_candidates": 3,
         "domains": (
-            "ycombinator.com", "wellfound.com",
-            "review.firstround.com", "a16z.com",
+            "ycombinator.com",
+            "wellfound.com",
+            "review.firstround.com",
+            "a16z.com",
         ),
         "evidence_class": "market_pull",
     },
@@ -137,6 +159,7 @@ async def ingest_topic(
         fallback_sources = sources or ["reddit", "github"]
         if "reddit" in fallback_sources:
             from app.services.ingest.reddit_adapter import fetch_reddit_posts
+
             posts = await fetch_reddit_posts(topic)
             for post in posts:
                 raw_docs.append(_to_raw_document(post, "reddit", topic))
@@ -146,6 +169,7 @@ async def ingest_topic(
                 fetch_github_discussions,
                 fetch_github_issues,
             )
+
             issues = await fetch_github_issues(topic)
             for issue in issues:
                 raw_docs.append(_to_raw_document(issue, "github", topic))
@@ -158,6 +182,7 @@ async def ingest_topic(
     # TinyFish reads the top URLs in depth (detailed quotes, workarounds)
     if has_tinyfish and not sources:
         import time as _time
+
         phase_start = _time.monotonic()
 
         vertical, _, _, _ = resolve_vertical(topic)
@@ -181,19 +206,50 @@ async def ingest_topic(
             text_lower = text.lower()
 
             # Detect signal type from content keywords
-            has_workaround = any(w in text_lower for w in [
-                "workaround", "hack", "instead", "we use", "i just", "ended up",
-                "switched to", "wrote a script", "built a", "manual", "spreadsheet",
-                "self-hosted", "open source alternative",
-            ])
-            has_request = any(w in text_lower for w in [
-                "wish", "would be nice", "feature request", "should have",
-                "looking for", "need a tool", "anyone know",
-            ])
-            has_failure = any(w in text_lower for w in [
-                "broken", "doesn't work", "failed", "crash", "unreliable",
-                "too expensive", "bill shock", "pricing", "cost",
-            ])
+            has_workaround = any(
+                w in text_lower
+                for w in [
+                    "workaround",
+                    "hack",
+                    "instead",
+                    "we use",
+                    "i just",
+                    "ended up",
+                    "switched to",
+                    "wrote a script",
+                    "built a",
+                    "manual",
+                    "spreadsheet",
+                    "self-hosted",
+                    "open source alternative",
+                ]
+            )
+            has_request = any(
+                w in text_lower
+                for w in [
+                    "wish",
+                    "would be nice",
+                    "feature request",
+                    "should have",
+                    "looking for",
+                    "need a tool",
+                    "anyone know",
+                ]
+            )
+            has_failure = any(
+                w in text_lower
+                for w in [
+                    "broken",
+                    "doesn't work",
+                    "failed",
+                    "crash",
+                    "unreliable",
+                    "too expensive",
+                    "bill shock",
+                    "pricing",
+                    "cost",
+                ]
+            )
 
             # Use title as breakpoint if text is mostly comments
             title = sig.get("title", "")
@@ -209,7 +265,13 @@ async def ingest_topic(
                 "text": text,
                 "pain_excerpt": text[:500],
                 "title": title,
-                "signal_type": "workaround" if has_workaround else "request" if has_request else "incumbent_failure" if has_failure else "pain",
+                "signal_type": "workaround"
+                if has_workaround
+                else "request"
+                if has_request
+                else "incumbent_failure"
+                if has_failure
+                else "pain",
                 "tools_mentioned": sig.get("tools_mentioned", []) or sig.get("tags", []),
                 "breakpoint": breakpoint_text,
                 "has_pain_signal": True,
@@ -231,7 +293,8 @@ async def ingest_topic(
         # Save discovered URLs for future cache
         discovered_for_save = [
             {"url": sig.get("url", ""), "page_type": sig.get("source_type", ""), "title": sig.get("title", "")}
-            for sig in api_signals if sig.get("url")
+            for sig in api_signals
+            if sig.get("url")
         ]
         await _save_discovered_sources(discovered_for_save, raw_docs, topic, vertical)
 
@@ -241,6 +304,7 @@ async def ingest_topic(
         # Phase 3: User-provided URLs (parallel) — skipped in quick scan
         if review_urls and not is_quick:
             from app.services.ingest.tinyfish_adapter import fetch_reviews
+
             review_tasks = [fetch_reviews(url, topic) for url in review_urls]
             review_results = await asyncio.gather(*review_tasks, return_exceptions=True)
             for i, result in enumerate(review_results):
@@ -252,6 +316,7 @@ async def ingest_topic(
 
         if discussion_urls and not is_quick:
             from app.services.ingest.tinyfish_adapter import fetch_forum_signals
+
             disc_tasks = [fetch_forum_signals(url, topic) for url in discussion_urls]
             disc_results = await asyncio.gather(*disc_tasks, return_exceptions=True)
             for i, result in enumerate(disc_results):
@@ -267,6 +332,7 @@ async def ingest_topic(
 # =============================================================================
 # Phase 1 helpers
 # =============================================================================
+
 
 async def _discover_via_search(topic: str) -> list[dict]:
     """Single Google search for high-quality pages. Uses best query from analyzer."""
@@ -335,57 +401,69 @@ def _generate_github_urls(topic: str) -> list[dict]:
     topic_encoded = topic.replace(" ", "+")
 
     # General topic search on GitHub
-    urls.append({
-        "url": f"https://github.com/search?q={topic_encoded}&type=repositories&sort=stars",
-        "page_type": "github",
-        "title": f"GitHub repos: {topic}",
-        "source": "github_search",
-        "evidence_class": "market_pull",
-    })
-    urls.append({
-        "url": f"https://github.com/search?q={topic_encoded}&type=issues&sort=comments",
-        "page_type": "github",
-        "title": f"GitHub issues: {topic}",
-        "source": "github_search",
-        "evidence_class": "reliability",
-    })
+    urls.append(
+        {
+            "url": f"https://github.com/search?q={topic_encoded}&type=repositories&sort=stars",
+            "page_type": "github",
+            "title": f"GitHub repos: {topic}",
+            "source": "github_search",
+            "evidence_class": "market_pull",
+        }
+    )
+    urls.append(
+        {
+            "url": f"https://github.com/search?q={topic_encoded}&type=issues&sort=comments",
+            "page_type": "github",
+            "title": f"GitHub issues: {topic}",
+            "source": "github_search",
+            "evidence_class": "reliability",
+        }
+    )
 
     # Tool-specific searches
     for tool in all_tools[:2]:
         tool_encoded = tool.replace(" ", "+")
-        urls.append({
-            "url": f"https://github.com/search?q={tool_encoded}+bug+OR+feature+request&type=issues&sort=comments",
-            "page_type": "github",
-            "title": f"GitHub issues: {tool}",
-            "source": "github_search",
-            "evidence_class": "request",
-        })
+        urls.append(
+            {
+                "url": f"https://github.com/search?q={tool_encoded}+bug+OR+feature+request&type=issues&sort=comments",
+                "page_type": "github",
+                "title": f"GitHub issues: {tool}",
+                "source": "github_search",
+                "evidence_class": "request",
+            }
+        )
         # Migration signals — people switching tools
-        urls.append({
-            "url": f"https://github.com/search?q={tool_encoded}+migrate+OR+switch+OR+alternative&type=issues&sort=comments",
-            "page_type": "github",
-            "title": f"GitHub migration: {tool}",
-            "source": "github_search",
-            "evidence_class": "migration",
-        })
+        urls.append(
+            {
+                "url": f"https://github.com/search?q={tool_encoded}+migrate+OR+switch+OR+alternative&type=issues&sort=comments",
+                "page_type": "github",
+                "title": f"GitHub migration: {tool}",
+                "source": "github_search",
+                "evidence_class": "migration",
+            }
+        )
 
     # Breaking changes — signals tool friction
-    urls.append({
-        "url": f"https://github.com/search?q={topic_encoded}+BREAKING+CHANGE&type=commits&sort=committer-date",
-        "page_type": "github",
-        "title": f"GitHub breaking changes: {topic}",
-        "source": "github_search",
-        "evidence_class": "reliability",
-    })
+    urls.append(
+        {
+            "url": f"https://github.com/search?q={topic_encoded}+BREAKING+CHANGE&type=commits&sort=committer-date",
+            "page_type": "github",
+            "title": f"GitHub breaking changes: {topic}",
+            "source": "github_search",
+            "evidence_class": "reliability",
+        }
+    )
 
     # Discussions
-    urls.append({
-        "url": f"https://github.com/search?q={topic_encoded}&type=discussions&sort=top",
-        "page_type": "github",
-        "title": f"GitHub discussions: {topic}",
-        "source": "github_search",
-        "evidence_class": "operator_practice",
-    })
+    urls.append(
+        {
+            "url": f"https://github.com/search?q={topic_encoded}&type=discussions&sort=top",
+            "page_type": "github",
+            "title": f"GitHub discussions: {topic}",
+            "source": "github_search",
+            "evidence_class": "operator_practice",
+        }
+    )
 
     return urls
 
@@ -409,28 +487,32 @@ def build_source_family_candidates(
         slug = community.strip().replace(" ", "")
         if not slug or len(slug) > 24 or slug.lower() == topic.replace(" ", "").lower():
             continue
-        families["community"].append({
-            "url": f"https://www.reddit.com/r/{slug}/search/?q={encoded_query}&restrict_sr=1&sort=top",
-            "title": f"Reddit community search: {community}",
-            "page_type": "reddit",
-            "reason": f"Community-targeted search for {community}",
-            "source": "community_registry",
-            "source_family": "community",
-            "site_key": f"reddit:{slug.lower()}",
-            "evidence_class": SOURCE_FAMILY_REGISTRY["community"]["evidence_class"],
-        })
+        families["community"].append(
+            {
+                "url": f"https://www.reddit.com/r/{slug}/search/?q={encoded_query}&restrict_sr=1&sort=top",
+                "title": f"Reddit community search: {community}",
+                "page_type": "reddit",
+                "reason": f"Community-targeted search for {community}",
+                "source": "community_registry",
+                "source_family": "community",
+                "site_key": f"reddit:{slug.lower()}",
+                "evidence_class": SOURCE_FAMILY_REGISTRY["community"]["evidence_class"],
+            }
+        )
 
     if vertical == "property_management" and routing_confidence >= 0.7:
-        families["forums"].append({
-            "url": f"https://www.biggerpockets.com/search?utf8=%E2%9C%93&term={topic.replace(' ', '+')}",
-            "title": "BiggerPockets search",
-            "page_type": "forum",
-            "reason": "Property-management forum search",
-            "source": "forum_registry",
-            "source_family": "forums",
-            "site_key": "biggerpockets",
-            "evidence_class": SOURCE_FAMILY_REGISTRY["forums"]["evidence_class"],
-        })
+        families["forums"].append(
+            {
+                "url": f"https://www.biggerpockets.com/search?utf8=%E2%9C%93&term={topic.replace(' ', '+')}",
+                "title": "BiggerPockets search",
+                "page_type": "forum",
+                "reason": "Property-management forum search",
+                "source": "forum_registry",
+                "source_family": "forums",
+                "site_key": "biggerpockets",
+                "evidence_class": SOURCE_FAMILY_REGISTRY["forums"]["evidence_class"],
+            }
+        )
 
     yaml_seeds = get_seed_urls(topic)
     for urls in yaml_seeds.values():
@@ -438,16 +520,18 @@ def build_source_family_candidates(
         for url in seed_list[:2]:
             domain = urlparse(url).netloc.lower().replace("www.", "")
             family = _family_from_domain(domain) or "reviews"
-            families[family].append({
-                "url": url,
-                "title": f"Seed source: {domain}",
-                "page_type": SOURCE_FAMILY_REGISTRY.get(family, {}).get("page_type", "workflow"),
-                "reason": "Vertical seed source",
-                "source": "seed_registry",
-                "source_family": family,
-                "site_key": domain,
-                "evidence_class": SOURCE_FAMILY_REGISTRY.get(family, {}).get("evidence_class"),
-            })
+            families[family].append(
+                {
+                    "url": url,
+                    "title": f"Seed source: {domain}",
+                    "page_type": SOURCE_FAMILY_REGISTRY.get(family, {}).get("page_type", "workflow"),
+                    "reason": "Vertical seed source",
+                    "source": "seed_registry",
+                    "source_family": family,
+                    "site_key": domain,
+                    "evidence_class": SOURCE_FAMILY_REGISTRY.get(family, {}).get("evidence_class"),
+                }
+            )
 
     for item in _generate_github_urls(topic)[:4]:
         item["source_family"] = "code"
@@ -456,16 +540,18 @@ def build_source_family_candidates(
 
     workflow_terms = profile.get("verbs", [])[:2] + profile.get("tools_mentioned", [])[:2]
     if workflow_terms:
-        families["workflow"].append({
-            "url": f"https://www.google.com/search?q={topic.replace(' ', '+')}+workflow",
-            "title": f"Workflow search: {topic}",
-            "page_type": "workflow",
-            "reason": "Workflow-oriented practitioner search",
-            "source": "workflow_registry",
-            "source_family": "workflow",
-            "site_key": "workflow-search",
-            "evidence_class": SOURCE_FAMILY_REGISTRY["workflow"]["evidence_class"],
-        })
+        families["workflow"].append(
+            {
+                "url": f"https://www.google.com/search?q={topic.replace(' ', '+')}+workflow",
+                "title": f"Workflow search: {topic}",
+                "page_type": "workflow",
+                "reason": "Workflow-oriented practitioner search",
+                "source": "workflow_registry",
+                "source_family": "workflow",
+                "site_key": "workflow-search",
+                "evidence_class": SOURCE_FAMILY_REGISTRY["workflow"]["evidence_class"],
+            }
+        )
 
     return {family: _dedupe_family_candidates(items, family) for family, items in families.items()}
 
@@ -476,14 +562,26 @@ def build_source_family_candidates(
 
 # Map TinyFish-assigned page_types to worker types
 PAGE_TYPE_TO_WORKER = {
-    "forum": "forum", "reddit": "forum", "stackoverflow": "forum",
-    "discourse": "forum", "lobsters": "forum", "indiehackers": "forum", "twitter": "forum",
-    "review": "review", "directory": "review", "product": "review",
-    "producthunt": "review", "feature_board": "review",
-    "comparison": "comparison", "alternatives": "comparison",
+    "forum": "forum",
+    "reddit": "forum",
+    "stackoverflow": "forum",
+    "discourse": "forum",
+    "lobsters": "forum",
+    "indiehackers": "forum",
+    "twitter": "forum",
+    "review": "review",
+    "directory": "review",
+    "product": "review",
+    "producthunt": "review",
+    "feature_board": "review",
+    "comparison": "comparison",
+    "alternatives": "comparison",
     "github": "github",
-    "workflow": "workflow", "docs": "workflow", "blog": "workflow",
-    "newsletter": "workflow", "engineering_blog": "workflow",
+    "workflow": "workflow",
+    "docs": "workflow",
+    "blog": "workflow",
+    "newsletter": "workflow",
+    "engineering_blog": "workflow",
 }
 
 WORKER_CONFIG = {
@@ -521,7 +619,10 @@ def _classify_urls(urls: list[dict]) -> dict[str, list[dict]]:
 
 
 async def _dispatch_workers(
-    urls: list[dict], topic: str, budget: int, vertical: str | None,
+    urls: list[dict],
+    topic: str,
+    budget: int,
+    vertical: str | None,
     event_callback=None,
     allowed_workers: set[str] | None = None,
 ) -> list[dict]:
@@ -594,11 +695,13 @@ def prepare_urls_for_dispatch(
 
 def _should_skip_extraction_url(url: str) -> bool:
     lowered = url.lower()
-    return any([
-        "google.com/search?" in lowered,
-        "reddit.com/" in lowered and "/search/" in lowered,
-        "github.com/search?" in lowered,
-    ])
+    return any(
+        [
+            "google.com/search?" in lowered,
+            "reddit.com/" in lowered and "/search/" in lowered,
+            "github.com/search?" in lowered,
+        ]
+    )
 
 
 from app.services.tinyfish_concurrency import TINYFISH_SEMAPHORE as _TINYFISH_SEMAPHORE
@@ -638,14 +741,11 @@ async def _run_worker(source_type: str, urls: list[dict], topic: str, event_call
             goal = goal_template.format(url=url, topic=topic)
         except KeyError:
             goal = goal_template.format(url=url)
-        goal = (
-            f"Research query: {topic}\n"
-            f"Only extract content that is relevant to this query.\n\n"
-            f"{goal}"
-        )
+        goal = f"Research query: {topic}\nOnly extract content that is relevant to this query.\n\n{goal}"
         async with _TINYFISH_SEMAPHORE:
             return await _run_extraction(
-                url=url, goal=goal,
+                url=url,
+                goal=goal,
                 extraction_type=config["extraction_type"],
                 topic=topic,
                 event_callback=event_callback,
@@ -664,13 +764,15 @@ async def _run_worker(source_type: str, urls: list[dict], topic: str, event_call
         if len(all_items) >= config["max_items"]:
             break
 
-    all_items = all_items[:config["max_items"]]
+    all_items = all_items[: config["max_items"]]
     print(f"  Worker [{source_type}] extracted {len(all_items)} items from {len(urls)} URLs (parallel)", flush=True)
     return all_items
 
 
 async def _get_cached_sources_by_type(
-    vertical: str | None, source_type: str, limit: int = 10,
+    vertical: str | None,
+    source_type: str,
+    limit: int = 10,
 ) -> list[dict]:
     """Get cached URLs for a specific source type and vertical."""
     try:
@@ -737,13 +839,15 @@ async def _get_cached_sources(topic: str, limit: int = 15) -> list[dict]:
 
             cached = []
             for row in rows:
-                cached.append({
-                    "url": row.url,
-                    "page_type": row.page_type,
-                    "title": row.title or "",
-                    "source": "cached",
-                    "evidence_class": getattr(row, "evidence_class", None),
-                })
+                cached.append(
+                    {
+                        "url": row.url,
+                        "page_type": row.page_type,
+                        "title": row.title or "",
+                        "source": "cached",
+                        "evidence_class": getattr(row, "evidence_class", None),
+                    }
+                )
 
             if cached:
                 logger.info("Found %d cached sources for '%s' (vertical=%s)", len(cached), topic, vertical)
@@ -826,21 +930,23 @@ async def get_learned_sources(
                 failure_count=row.failure_count or 0,
             )
             learned_score = round((historical_quality * 0.75) + (topic_fit * 1.5), 3)
-            learned.append({
-                "url": row.url,
-                "page_type": row.page_type,
-                "title": row.title or "",
-                "source": "learned",
-                "source_class": row.source_class,
-                "reason": row.reason or "",
-                "search_query": row.search_query or "",
-                "evidence_class": getattr(row, "evidence_class", None),
-                "last_signal_count": row.last_signal_count,
-                "quality_score": historical_quality,
-                "learned_score": learned_score,
-                "success_count": row.success_count or 0,
-                "failure_count": row.failure_count or 0,
-            })
+            learned.append(
+                {
+                    "url": row.url,
+                    "page_type": row.page_type,
+                    "title": row.title or "",
+                    "source": "learned",
+                    "source_class": row.source_class,
+                    "reason": row.reason or "",
+                    "search_query": row.search_query or "",
+                    "evidence_class": getattr(row, "evidence_class", None),
+                    "last_signal_count": row.last_signal_count,
+                    "quality_score": historical_quality,
+                    "learned_score": learned_score,
+                    "success_count": row.success_count or 0,
+                    "failure_count": row.failure_count or 0,
+                }
+            )
 
         learned.sort(
             key=lambda item: (
@@ -899,9 +1005,7 @@ async def _save_discovered_sources(
                 failure = 0 if signal_count > 0 else 1
 
                 # Check if URL already exists
-                existing = await session.execute(
-                    select(DiscoveredSource).where(DiscoveredSource.url == url)
-                )
+                existing = await session.execute(select(DiscoveredSource).where(DiscoveredSource.url == url))
                 row = existing.scalar_one_or_none()
 
                 if row:
@@ -926,33 +1030,37 @@ async def _save_discovered_sources(
                         failure_count=row.failure_count or 0,
                     )
                 else:
-                    session.add(DiscoveredSource(
-                        id=str(uuid.uuid4()),
-                        url=url,
-                        domain=domain,
-                        page_type=page.get("page_type", "unknown"),
-                        source_class=source_class,
-                        title=page.get("title", ""),
-                        vertical=vertical,
-                        query=topic,
-                        keywords=keywords,
-                        reason=page.get("reason", ""),
-                        search_query=page.get("search_query", ""),
-                        evidence_class=evidence_class if "evidence_class" in DiscoveredSource.__table__.columns else None,
-                        times_used=1,
-                        last_signal_count=signal_count,
-                        total_signal_count=signal_count,
-                        success_count=success,
-                        failure_count=failure,
-                        quality_score=_compute_source_quality(
-                            signal_count=signal_count,
+                    session.add(
+                        DiscoveredSource(
+                            id=str(uuid.uuid4()),
+                            url=url,
+                            domain=domain,
+                            page_type=page.get("page_type", "unknown"),
+                            source_class=source_class,
+                            title=page.get("title", ""),
+                            vertical=vertical,
+                            query=topic,
+                            keywords=keywords,
+                            reason=page.get("reason", ""),
+                            search_query=page.get("search_query", ""),
+                            evidence_class=evidence_class
+                            if "evidence_class" in DiscoveredSource.__table__.columns
+                            else None,
                             times_used=1,
+                            last_signal_count=signal_count,
+                            total_signal_count=signal_count,
                             success_count=success,
                             failure_count=failure,
-                        ),
-                        last_used_at=now,
-                        discovered_at=now,
-                    ))
+                            quality_score=_compute_source_quality(
+                                signal_count=signal_count,
+                                times_used=1,
+                                success_count=success,
+                                failure_count=failure,
+                            ),
+                            last_used_at=now,
+                            discovered_at=now,
+                        )
+                    )
                     inserted += 1
 
             await session.commit()
@@ -973,12 +1081,16 @@ async def _save_discovered_sources(
 
 # Priority by page_type (from TinyFish classification, not hardcoded domains)
 PAGE_TYPE_PRIORITY = {
-    "forum": 1, "reddit": 1,
+    "forum": 1,
+    "reddit": 1,
     "stackoverflow": 2,
     "github": 2,
-    "comparison": 3, "alternatives": 3,
+    "comparison": 3,
+    "alternatives": 3,
     "workflow": 3,
-    "review": 4, "directory": 4, "product": 4,
+    "review": 4,
+    "directory": 4,
+    "product": 4,
 }
 
 
@@ -1038,7 +1150,10 @@ def _dedupe_family_candidates(items: list[dict], family: str) -> list[dict]:
 
 
 def _to_raw_document(
-    item: dict, source: str, topic: str, source_type: str | None = None,
+    item: dict,
+    source: str,
+    topic: str,
+    source_type: str | None = None,
 ) -> dict:
     source_id = item.get("source_id", str(uuid.uuid4()))
     doc_id = f"{source}_{source_id}"
@@ -1048,16 +1163,19 @@ def _to_raw_document(
         created_at = datetime.fromtimestamp(created_at, tz=UTC).isoformat()
 
     metadata = {
-        k: v for k, v in item.items()
+        k: v
+        for k, v in item.items()
         if k not in ("source_id", "url", "title", "text", "author", "created_at", "created_utc", "community")
     }
 
     explicit_evidence_class = item.get("evidence_class")
-    evidence_classes = list(dict.fromkeys(
-        ([explicit_evidence_class] if explicit_evidence_class else [])
-        + item.get("evidence_classes", [])
-        + classify_text_evidence_classes(item.get("text", ""))
-    ))
+    evidence_classes = list(
+        dict.fromkeys(
+            ([explicit_evidence_class] if explicit_evidence_class else [])
+            + item.get("evidence_classes", [])
+            + classify_text_evidence_classes(item.get("text", ""))
+        )
+    )
 
     return {
         "id": doc_id,

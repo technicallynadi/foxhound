@@ -27,6 +27,13 @@ def _mask_destination(channel: str, config: dict) -> dict:
     return {}
 
 
+def _require_user_id(user_id: str) -> str:
+    normalized = str(user_id or "").strip()
+    if not normalized:
+        raise ValueError("user_id is required")
+    return normalized
+
+
 def _to_response(row: NotificationDestination) -> dict:
     config = _load_json(row.destination_config_json, {})
     return {
@@ -43,6 +50,7 @@ def _to_response(row: NotificationDestination) -> dict:
 
 
 async def create_notification_destination(request: dict) -> dict:
+    user_id = _require_user_id(str(request.get("user_id") or ""))
     channel = request["channel"]
     raw = request.get("value", "").strip()
     audience_type = (request.get("audience_type") or "human").strip() or "human"
@@ -55,7 +63,7 @@ async def create_notification_destination(request: dict) -> dict:
 
     row = NotificationDestination(
         id=f"dest_{uuid.uuid4().hex[:10]}",
-        user_id=request.get("user_id"),
+        user_id=user_id,
         label=(request.get("label") or f"{channel} destination").strip()[:120],
         channel=channel,
         audience_type=audience_type,
@@ -71,13 +79,16 @@ async def create_notification_destination(request: dict) -> dict:
     return _to_response(row)
 
 
-async def list_notification_destinations(active_only: bool = False, user_id: str | None = None) -> list[dict]:
+async def list_notification_destinations(active_only: bool = False, user_id: str = "") -> list[dict]:
+    scoped_user_id = _require_user_id(user_id)
     async with async_session() as session:
-        stmt = select(NotificationDestination).order_by(NotificationDestination.updated_at.desc())
+        stmt = (
+            select(NotificationDestination)
+            .where(NotificationDestination.user_id == scoped_user_id)
+            .order_by(NotificationDestination.updated_at.desc())
+        )
         if active_only:
             stmt = stmt.where(NotificationDestination.active.is_(True))
-        if user_id:
-            stmt = stmt.where(NotificationDestination.user_id == user_id)
         result = await session.execute(stmt)
         rows = result.scalars().all()
     return [_to_response(row) for row in rows]

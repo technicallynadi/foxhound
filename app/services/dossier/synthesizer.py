@@ -218,18 +218,28 @@ async def synthesize_dossier(
     except json.JSONDecodeError as e:
         logger.warning("Dossier synthesis JSON parse failed for %s: %s", company_name, e)
         return _fallback_synthesis(
-            company_name, posting_data, team_contacts,
-            company_data=company_data, careers_data=careers_data,
-            glassdoor_data=glassdoor_data, reddit_interviews=reddit_interviews,
-            reddit_culture=reddit_culture, levels_fyi=levels_fyi,
+            company_name,
+            posting_data,
+            team_contacts,
+            company_data=company_data,
+            careers_data=careers_data,
+            glassdoor_data=glassdoor_data,
+            reddit_interviews=reddit_interviews,
+            reddit_culture=reddit_culture,
+            levels_fyi=levels_fyi,
         )
     except Exception as e:
         logger.warning("Dossier synthesis API failed for %s: %s", company_name, str(e)[:200])
         return _fallback_synthesis(
-            company_name, posting_data, team_contacts,
-            company_data=company_data, careers_data=careers_data,
-            glassdoor_data=glassdoor_data, reddit_interviews=reddit_interviews,
-            reddit_culture=reddit_culture, levels_fyi=levels_fyi,
+            company_name,
+            posting_data,
+            team_contacts,
+            company_data=company_data,
+            careers_data=careers_data,
+            glassdoor_data=glassdoor_data,
+            reddit_interviews=reddit_interviews,
+            reddit_culture=reddit_culture,
+            levels_fyi=levels_fyi,
         )
 
 
@@ -276,8 +286,7 @@ def _fallback_synthesis(
             summary_parts.append(f"{company_name}: {', '.join(details)}.")
     if not summary_parts:
         summary_parts.append(
-            f"{company_name} is hiring for {title}. "
-            f"Review the job posting and company activity for more context."
+            f"{company_name} is hiring for {title}. Review the job posting and company activity for more context."
         )
     executive_summary = " ".join(summary_parts)
 
@@ -344,7 +353,8 @@ def _fallback_synthesis(
         },
         "interview_prep": {
             "key_themes": (
-                [f"Deep knowledge of {', '.join(tech_stack[:5])}"] if tech_stack
+                [f"Deep knowledge of {', '.join(tech_stack[:5])}"]
+                if tech_stack
                 else ["Review the job requirements and match your experience"]
             ),
             "likely_questions": [
@@ -352,9 +362,7 @@ def _fallback_synthesis(
                 "What relevant experience do you bring?",
                 "Describe a challenging project you've worked on recently.",
             ],
-            "talking_points": [
-                f"Research {company_name} thoroughly before the interview"
-            ],
+            "talking_points": [f"Research {company_name} thoroughly before the interview"],
             "technical_focus": tech_stack[:5] if tech_stack else [],
         },
         "overall_assessment": (

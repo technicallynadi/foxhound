@@ -42,9 +42,7 @@ def verify_slack(body: bytes, timestamp: str, signature: str) -> bool:
         return False
 
     basestring = f"v0:{timestamp}:{body.decode('utf-8')}"
-    computed = "v0=" + hmac.new(
-        secret.encode(), basestring.encode(), hashlib.sha256
-    ).hexdigest()
+    computed = "v0=" + hmac.new(secret.encode(), basestring.encode(), hashlib.sha256).hexdigest()
 
     return hmac.compare_digest(computed, signature)
 
@@ -77,6 +75,7 @@ def verify_discord(body: bytes, signature: str, timestamp: str) -> bool:
         # cryptography not installed — fall back to nacl
         try:
             from nacl.signing import VerifyKey
+
             vk = VerifyKey(bytes.fromhex(public_key_hex))
             vk.verify(timestamp.encode() + body, bytes.fromhex(signature))
             return True
@@ -110,8 +109,6 @@ def verify_twilio(url: str, params: dict[str, str], signature: str) -> bool:
     for key in sorted(params.keys()):
         data += key + params[key]
 
-    computed = base64.b64encode(
-        hmac.new(auth_token.encode(), data.encode(), hashlib.sha1).digest()
-    ).decode()
+    computed = base64.b64encode(hmac.new(auth_token.encode(), data.encode(), hashlib.sha1).digest()).decode()
 
     return hmac.compare_digest(computed, signature)

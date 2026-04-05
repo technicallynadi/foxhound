@@ -41,11 +41,11 @@ class GreenhouseSubmitter(ATSApiSubmitter):
             except httpx.HTTPStatusError as e:
                 logger.warning(
                     "Greenhouse API %d for %s/%s",
-                    e.response.status_code, url_info.board_token, url_info.job_id,
+                    e.response.status_code,
+                    url_info.board_token,
+                    url_info.job_id,
                 )
-                raise ApiSubmitFallbackError(
-                    f"Greenhouse API returned {e.response.status_code}"
-                ) from e
+                raise ApiSubmitFallbackError(f"Greenhouse API returned {e.response.status_code}") from e
             except httpx.RequestError as e:
                 raise ApiSubmitFallbackError(f"Greenhouse API request failed: {e}") from e
 
@@ -109,17 +109,22 @@ class GreenhouseSubmitter(ATSApiSubmitter):
                 else:
                     options.append(str(v))
 
-            fields.append(FormField(
-                label=label,
-                field_type=normalized_type,
-                required=required,
-                options=options,
-                field_name=field_name,
-            ))
+            fields.append(
+                FormField(
+                    label=label,
+                    field_type=normalized_type,
+                    required=required,
+                    options=options,
+                    field_name=field_name,
+                )
+            )
 
         logger.info(
             "Greenhouse API schema: %s/%s — %d fields (%d custom questions)",
-            url_info.board_token, url_info.job_id, len(fields), len(questions),
+            url_info.board_token,
+            url_info.job_id,
+            len(fields),
+            len(questions),
         )
 
         return ScanResult(
@@ -183,7 +188,8 @@ class GreenhouseSubmitter(ATSApiSubmitter):
         if resp.status_code == 200:
             logger.info(
                 "Greenhouse API submit SUCCESS: %s/%s",
-                url_info.board_token, url_info.job_id,
+                url_info.board_token,
+                url_info.job_id,
             )
             return ApiSubmitResult(
                 status="submitted",
@@ -205,8 +211,8 @@ class GreenhouseSubmitter(ATSApiSubmitter):
             return ApiSubmitResult(status="rate_limited", error="Rate limited by Greenhouse")
 
         logger.warning(
-            "Greenhouse submit %d: %s", resp.status_code, resp.text[:300],
+            "Greenhouse submit %d: %s",
+            resp.status_code,
+            resp.text[:300],
         )
-        raise ApiSubmitFallbackError(
-            f"Greenhouse API returned {resp.status_code}: {resp.text[:200]}"
-        )
+        raise ApiSubmitFallbackError(f"Greenhouse API returned {resp.status_code}: {resp.text[:200]}")

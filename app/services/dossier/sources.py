@@ -25,9 +25,7 @@ RETRY_DELAY = 3
 # ---------------------------------------------------------------------------
 
 
-async def fetch_company_page(
-    company_name: str, company_url: str | None
-) -> dict[str, Any] | None:
+async def fetch_company_page(company_name: str, company_url: str | None) -> dict[str, Any] | None:
     """Scrape a company's about page for overview data.
 
     Returns dict with mission, founded, size, locations, funding, products
@@ -53,9 +51,7 @@ async def fetch_company_page(
 # ---------------------------------------------------------------------------
 
 
-async def fetch_careers_page(
-    company_name: str, company_url: str | None
-) -> dict[str, Any] | None:
+async def fetch_careers_page(company_name: str, company_url: str | None) -> dict[str, Any] | None:
     """Scrape a company's careers page for hiring signals.
 
     Returns dict with open_roles, top_departments, hiring_velocity
@@ -155,9 +151,7 @@ async def fetch_glassdoor(company_name: str) -> dict[str, Any] | None:
             goal=goal,
             url=start_url,
             browser_profile=BrowserProfile.STEALTH,
-            proxy_config=ProxyConfig(
-                enabled=True, country_code=ProxyCountryCode.US
-            ),
+            proxy_config=ProxyConfig(enabled=True, country_code=ProxyCountryCode.US),
         )
 
         if result.status == RunStatus.COMPLETED and result.result:
@@ -181,10 +175,7 @@ async def fetch_reddit_interviews(company_name: str) -> dict[str, Any] | None:
 
     Returns dict with posts list or None on failure.
     """
-    start_url = (
-        f"https://www.google.com/search?q=site:reddit.com+{company_name}"
-        f"+interview+experience"
-    )
+    start_url = f"https://www.google.com/search?q=site:reddit.com+{company_name}+interview+experience"
 
     goal = (
         f"Find Reddit posts about interview experiences at {company_name}. "
@@ -205,10 +196,7 @@ async def fetch_reddit_culture(company_name: str) -> dict[str, Any] | None:
 
     Returns dict with posts list or None on failure.
     """
-    start_url = (
-        f"https://www.google.com/search?q=site:reddit.com+{company_name}"
-        f"+work+culture+OR+wlb+OR+%22work+life%22"
-    )
+    start_url = f"https://www.google.com/search?q=site:reddit.com+{company_name}+work+culture+OR+wlb+OR+%22work+life%22"
 
     goal = (
         f"Find Reddit posts about working at {company_name}. "
@@ -224,16 +212,13 @@ async def fetch_reddit_culture(company_name: str) -> dict[str, Any] | None:
 # ---------------------------------------------------------------------------
 
 
-async def fetch_engineering_blog(
-    company_name: str, company_url: str | None
-) -> dict[str, Any] | None:
+async def fetch_engineering_blog(company_name: str, company_url: str | None) -> dict[str, Any] | None:
     """Search for the company's engineering blog or recent tech articles.
 
     Returns dict with blog URL and posts list or None on failure.
     """
     start_url = (
-        f"https://www.google.com/search?q=%22{company_name.replace(' ', '+')}%22"
-        f"+company+linkedin+OR+about+OR+blog"
+        f"https://www.google.com/search?q=%22{company_name.replace(' ', '+')}%22+company+linkedin+OR+about+OR+blog"
     )
 
     goal = (
@@ -251,9 +236,7 @@ async def fetch_engineering_blog(
 # ---------------------------------------------------------------------------
 
 
-async def fetch_levels_fyi(
-    company_name: str, job_title: str | None = None
-) -> dict[str, Any] | None:
+async def fetch_levels_fyi(company_name: str, job_title: str | None = None) -> dict[str, Any] | None:
     """Scrape levels.fyi for compensation data at the company.
 
     Returns dict with salary ranges, levels, and total comp or None on failure.
@@ -315,9 +298,7 @@ async def _run_source(
             goal=goal,
             url=start_url,
             browser_profile=BrowserProfile.STEALTH,
-            proxy_config=ProxyConfig(
-                enabled=True, country_code=ProxyCountryCode.US
-            ),
+            proxy_config=ProxyConfig(enabled=True, country_code=ProxyCountryCode.US),
         )
 
         if result.status == RunStatus.COMPLETED and result.result:

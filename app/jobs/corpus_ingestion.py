@@ -92,22 +92,12 @@ def _normalize_extracted_items(items: list, source_label: str, source_url: str) 
         if not isinstance(item, dict):
             continue
 
-        title = (
-            item.get("title")
-            or item.get("name")
-            or item.get("product_name")
-            or item.get("tool")
-            or ""
-        ).strip()
+        title = (item.get("title") or item.get("name") or item.get("product_name") or item.get("tool") or "").strip()
         if not title or len(title) < 2:
             continue
 
         summary = (
-            item.get("summary")
-            or item.get("description")
-            or item.get("snippet")
-            or item.get("tagline")
-            or ""
+            item.get("summary") or item.get("description") or item.get("snippet") or item.get("tagline") or ""
         ).strip()
 
         tags = []
@@ -127,17 +117,19 @@ def _normalize_extracted_items(items: list, source_label: str, source_url: str) 
 
         item_url = item.get("url") or item.get("link") or item.get("source_url") or source_url
 
-        solutions.append({
-            "title": title,
-            "summary": summary or None,
-            "tags": tags[:10],
-            "category": category,
-            "workflow_hints": workflow_hints[:5],
-            "source": source_label,
-            "source_url": item_url,
-            "form_factor": item.get("form_factor"),
-            "sector": item.get("sector") or category,
-        })
+        solutions.append(
+            {
+                "title": title,
+                "summary": summary or None,
+                "tags": tags[:10],
+                "category": category,
+                "workflow_hints": workflow_hints[:5],
+                "source": source_label,
+                "source_url": item_url,
+                "form_factor": item.get("form_factor"),
+                "sector": item.get("sector") or category,
+            }
+        )
 
     # dedupe by title
     seen = set()

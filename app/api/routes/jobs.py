@@ -43,7 +43,7 @@ async def list_jobs(
         .join(JobListing, JobMatch.job_id == JobListing.id)
         .where(
             JobMatch.user_id == user_id,
-            JobMatch.disqualified is False,
+            JobMatch.disqualified.is_(False),
             JobMatch.match_score >= min_score,
             JobListing.status == "active",
         )
@@ -62,7 +62,7 @@ async def list_jobs(
         .join(JobListing, JobMatch.job_id == JobListing.id)
         .where(
             JobMatch.user_id == user_id,
-            JobMatch.disqualified is False,
+            JobMatch.disqualified.is_(False),
             JobMatch.match_score >= min_score,
             JobListing.status == "active",
         )
@@ -71,20 +71,22 @@ async def list_jobs(
 
     items = []
     for match, job in rows:
-        items.append({
-            "job": _serialize_job(job),
-            "match_score": match.match_score,
-            "scoring_breakdown": {
-                "title": match.title_score,
-                "skills": match.skills_score,
-                "experience": match.experience_score,
-                "location": match.location_score,
-                "salary": match.salary_score,
-                "recency": match.recency_score,
-            },
-            "auto_apply_supported": bool(job.auto_apply_supported),
-            "user_action": match.user_action,
-        })
+        items.append(
+            {
+                "job": _serialize_job(job),
+                "match_score": match.match_score,
+                "scoring_breakdown": {
+                    "title": match.title_score,
+                    "skills": match.skills_score,
+                    "experience": match.experience_score,
+                    "location": match.location_score,
+                    "salary": match.salary_score,
+                    "recency": match.recency_score,
+                },
+                "auto_apply_supported": bool(job.auto_apply_supported),
+                "user_action": match.user_action,
+            }
+        )
 
     return {
         "items": items,
@@ -129,15 +131,12 @@ async def public_job_feed(
                 .join(JobListing, JobMatch.job_id == JobListing.id)
                 .where(
                     JobMatch.user_id == user_id,
-                    JobMatch.disqualified is False,
+                    JobMatch.disqualified.is_(False),
                     JobListing.status == "active",
                 )
             )
             if search:
-                query = query.where(
-                    JobListing.title.ilike(f"%{search}%")
-                    | JobListing.company.ilike(f"%{search}%")
-                )
+                query = query.where(JobListing.title.ilike(f"%{search}%") | JobListing.company.ilike(f"%{search}%"))
             query = query.order_by(JobMatch.match_score.desc()).offset(offset).limit(per_page)
 
             result = await db.execute(query)
@@ -150,7 +149,7 @@ async def public_job_feed(
                     .join(JobListing, JobMatch.job_id == JobListing.id)
                     .where(
                         JobMatch.user_id == user_id,
-                        JobMatch.disqualified is False,
+                        JobMatch.disqualified.is_(False),
                         JobListing.status == "active",
                     )
                 )
@@ -170,15 +169,16 @@ async def public_job_feed(
     stmt = select(JobListing).where(JobListing.status == "active")
 
     if search:
-        stmt = stmt.where(
-            JobListing.title.ilike(f"%{search}%")
-            | JobListing.company.ilike(f"%{search}%")
-        )
+        stmt = stmt.where(JobListing.title.ilike(f"%{search}%") | JobListing.company.ilike(f"%{search}%"))
 
     count_stmt = select(func.count(JobListing.id)).where(JobListing.status == "active")
     total = (await db.execute(count_stmt)).scalar() or 0
 
-    stmt = stmt.order_by(JobListing.posted_at.desc().nullslast(), JobListing.discovered_at.desc()).offset(offset).limit(per_page)
+    stmt = (
+        stmt.order_by(JobListing.posted_at.desc().nullslast(), JobListing.discovered_at.desc())
+        .offset(offset)
+        .limit(per_page)
+    )
     result = await db.execute(stmt)
     jobs = [_serialize_job(j) for j in result.scalars()]
 
@@ -188,13 +188,13 @@ async def public_job_feed(
 @router.get("/public/stats")
 async def public_stats(db: AsyncSession = Depends(get_db)):
     """Public stats for the landing page. No authentication required."""
-    total_jobs = (await db.execute(
-        select(func.count(JobListing.id)).where(JobListing.status == "active")
-    )).scalar() or 0
+    total_jobs = (
+        await db.execute(select(func.count(JobListing.id)).where(JobListing.status == "active"))
+    ).scalar() or 0
 
-    total_companies = (await db.execute(
-        select(func.count(func.distinct(JobListing.company))).where(JobListing.status == "active")
-    )).scalar() or 0
+    total_companies = (
+        await db.execute(select(func.count(func.distinct(JobListing.company))).where(JobListing.status == "active"))
+    ).scalar() or 0
 
     ats_counts = {}
     ats_result = await db.execute(
@@ -226,11 +226,7 @@ async def get_job(
         raise HTTPException(404, "Job not found")
 
     # Get match if exists
-    match_result = await db.execute(
-        select(JobMatch).where(
-            JobMatch.job_id == job_id, JobMatch.user_id == user_id
-        )
-    )
+    match_result = await db.execute(select(JobMatch).where(JobMatch.job_id == job_id, JobMatch.user_id == user_id))
     match = match_result.scalar_one_or_none()
 
     return {
@@ -244,7 +240,9 @@ async def get_job(
                 "location": match.location_score,
                 "salary": match.salary_score,
                 "recency": match.recency_score,
-            } if match else None,
+            }
+            if match
+            else None,
             "disqualified": bool(match.disqualified) if match else None,
             "disqualify_reason": match.disqualify_reason if match else None,
         },
@@ -259,11 +257,7 @@ async def dismiss_job(
 ):
     """Dismiss a job from the feed."""
     user_id = user["user_id"]
-    result = await db.execute(
-        select(JobMatch).where(
-            JobMatch.job_id == job_id, JobMatch.user_id == user_id
-        )
-    )
+    result = await db.execute(select(JobMatch).where(JobMatch.job_id == job_id, JobMatch.user_id == user_id))
     match = result.scalar_one_or_none()
     if not match:
         raise HTTPException(404, "Match not found")
@@ -281,11 +275,7 @@ async def save_job(
 ):
     """Save a job for later."""
     user_id = user["user_id"]
-    result = await db.execute(
-        select(JobMatch).where(
-            JobMatch.job_id == job_id, JobMatch.user_id == user_id
-        )
-    )
+    result = await db.execute(select(JobMatch).where(JobMatch.job_id == job_id, JobMatch.user_id == user_id))
     match = result.scalar_one_or_none()
     if not match:
         raise HTTPException(404, "Match not found")
@@ -307,11 +297,7 @@ async def job_feedback(
     if body.feedback not in ("thumbs_up", "thumbs_down"):
         raise HTTPException(400, "feedback must be 'thumbs_up' or 'thumbs_down'")
 
-    result = await db.execute(
-        select(JobMatch).where(
-            JobMatch.job_id == job_id, JobMatch.user_id == user_id
-        )
-    )
+    result = await db.execute(select(JobMatch).where(JobMatch.job_id == job_id, JobMatch.user_id == user_id))
     match = result.scalar_one_or_none()
     if not match:
         raise HTTPException(404, "Match not found")

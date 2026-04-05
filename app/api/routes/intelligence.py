@@ -106,9 +106,7 @@ async def interview_prep(
     if context and context.get("job_id"):
         payload["job_id"] = context["job_id"]
 
-    result = await interview_prep_search(
-        db, user["user_id"], payload
-    )
+    result = await interview_prep_search(db, user["user_id"], payload)
     return _augment_result("interview", result, context)
 
 
@@ -131,9 +129,7 @@ async def company_brief(
     if context and context.get("job_id"):
         payload["job_id"] = context["job_id"]
 
-    result = await recon_company(
-        db, user["user_id"], payload
-    )
+    result = await recon_company(db, user["user_id"], payload)
     return _augment_result("brief", result, context)
 
 
@@ -148,6 +144,7 @@ async def people_research(
 ):
     """Start people research in background. Returns immediately."""
     import asyncio
+
     user_id = user["user_id"]
 
     context = await _load_application_context(db, user_id, body.application_id)
@@ -159,6 +156,7 @@ async def people_research(
     logger.info("People research requested: company=%s role=%s", company_name, role_context)
 
     from app.services.activity.logger import log_activity
+
     await log_activity(
         user_id=user_id,
         event_type="people_research_started",
@@ -168,9 +166,14 @@ async def people_research(
     )
 
     job_id = context.get("job_id") if context else None
-    asyncio.create_task(_run_people_research_background(
-        user_id, company_name, role_context, job_id,
-    ))
+    asyncio.create_task(
+        _run_people_research_background(
+            user_id,
+            company_name,
+            role_context,
+            job_id,
+        )
+    )
 
     return {
         "status": "started",
@@ -180,7 +183,10 @@ async def people_research(
 
 
 async def _run_people_research_background(
-    user_id: str, company_name: str, role_context: str, job_id: str | None,
+    user_id: str,
+    company_name: str,
+    role_context: str,
+    job_id: str | None,
 ) -> None:
     """Run people research in background and notify when done."""
     try:
@@ -198,13 +204,15 @@ async def _run_people_research_background(
 
             if result.get("error"):
                 network_only = await run_network(
-                    db, user_id,
+                    db,
+                    user_id,
                     {"company_name": company_name, "role_context": role_context},
                 )
                 result = network_only
             else:
                 network_result = await run_network(
-                    db, user_id,
+                    db,
+                    user_id,
                     {"company_name": company_name, "role_context": role_context},
                 )
                 if network_result.get("contacts"):
@@ -248,10 +256,18 @@ async def discover_jobs(
 ):
     """Start job discovery in background. Returns immediately."""
     import asyncio
+
     user_id = user["user_id"]
-    logger.info("Discovery requested: query=%s role=%s location=%s industry=%s", body.query, body.role, body.location, body.industry)
+    logger.info(
+        "Discovery requested: query=%s role=%s location=%s industry=%s",
+        body.query,
+        body.role,
+        body.location,
+        body.industry,
+    )
 
     from app.services.activity.logger import log_activity
+
     await log_activity(
         user_id=user_id,
         event_type="discovery_started",
@@ -260,9 +276,16 @@ async def discover_jobs(
         metadata={"query": body.query, "role": body.role, "location": body.location, "industry": body.industry},
     )
 
-    asyncio.create_task(_run_discovery_background(
-        user_id, body.query, body.role, body.location, body.industry, body.application_id,
-    ))
+    asyncio.create_task(
+        _run_discovery_background(
+            user_id,
+            body.query,
+            body.role,
+            body.location,
+            body.industry,
+            body.application_id,
+        )
+    )
 
     return {
         "status": "started",
@@ -272,7 +295,12 @@ async def discover_jobs(
 
 
 async def _run_discovery_background(
-    user_id: str, query: str, role: str, location: str, industry: str, application_id: str | None,
+    user_id: str,
+    query: str,
+    role: str,
+    location: str,
+    industry: str,
+    application_id: str | None,
 ) -> None:
     """Run job discovery in background and notify when done."""
     try:
@@ -282,7 +310,8 @@ async def _run_discovery_background(
 
         async with async_session() as db:
             result = await run_discover(
-                db, user_id,
+                db,
+                user_id,
                 {"query": query, "role": role, "location": location, "industry": industry},
             )
 

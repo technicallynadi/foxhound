@@ -8,6 +8,7 @@ from app.services.matching.scorer import SKILL_ALIASES, MatchScorer
 # Skill alias normalization
 # ---------------------------------------------------------------------------
 
+
 def test_skill_aliases():
     assert SKILL_ALIASES.get("k8s") == "kubernetes"
     assert SKILL_ALIASES.get("js") == "javascript"
@@ -18,6 +19,7 @@ def test_skill_aliases():
 # ---------------------------------------------------------------------------
 # Scorer integration (with DB fixtures)
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_score_jobs_for_user(db, sample_profile, sample_jobs):

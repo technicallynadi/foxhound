@@ -10,6 +10,7 @@ from app.services.storage.supabase_storage import download_file, get_public_url,
 # Upload
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_upload_file_success():
     mock_resp = MagicMock()
@@ -56,6 +57,7 @@ async def test_upload_file_conflict_retries_with_put():
 # Download
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_download_file():
     mock_resp = MagicMock()
@@ -77,6 +79,7 @@ async def test_download_file():
 # ---------------------------------------------------------------------------
 # Public URL
 # ---------------------------------------------------------------------------
+
 
 def test_get_public_url():
     with patch("app.services.storage.supabase_storage.settings") as mock_settings:

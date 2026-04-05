@@ -74,8 +74,32 @@ async def fetch_all_signals(
     # Filter by relevance — drop signals that don't mention any topic keywords
     topic_words = set(topic.lower().split())
     # Remove stop words
-    stop = {"the", "a", "an", "for", "with", "and", "or", "in", "on", "of", "to", "is", "are",
-            "too", "how", "do", "does", "what", "why", "i", "we", "my", "our", "not"}
+    stop = {
+        "the",
+        "a",
+        "an",
+        "for",
+        "with",
+        "and",
+        "or",
+        "in",
+        "on",
+        "of",
+        "to",
+        "is",
+        "are",
+        "too",
+        "how",
+        "do",
+        "does",
+        "what",
+        "why",
+        "i",
+        "we",
+        "my",
+        "our",
+        "not",
+    }
     topic_words -= stop
     if len(topic_words) < 2:
         topic_words = set(topic.lower().split()[:3])
@@ -116,6 +140,7 @@ async def _tinyfish_enrich_top_signals(
     TinyFish reads the actual page and extracts detailed quotes and breakpoints.
     """
     from app.core.config import settings
+
     if not settings.tinyfish_api_key:
         return []
 
@@ -158,7 +183,8 @@ async def _tinyfish_enrich_top_signals(
 
         try:
             items = await _run_extraction(
-                url=url, goal=goal,
+                url=url,
+                goal=goal,
                 extraction_type="signals",
                 topic=topic,
                 max_retries=1,

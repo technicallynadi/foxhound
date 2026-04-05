@@ -31,8 +31,7 @@ async def build_system_prompt(db: AsyncSession, user_id: str, channel: str = "we
         parts.append(_answer_bank(profile))
     else:
         parts.append(
-            "\nThe user has not set up their profile yet. "
-            "Encourage them to upload their resume to get started."
+            "\nThe user has not set up their profile yet. Encourage them to upload their resume to get started."
         )
 
     # Channel hint
@@ -66,7 +65,7 @@ def _identity() -> str:
         "\n"
         "If asked to do something outside your capabilities:\n"
         "\"I handle job search and applications on Foxhound. For [thing], I'd suggest [brief redirect]. "
-        "Want me to search for jobs or check your applications?\"\n"
+        'Want me to search for jobs or check your applications?"\n'
         "\n"
         "Communication style:\n"
         "- Be concise. No filler. Lead with the action or result.\n"
@@ -196,8 +195,9 @@ async def _active_applications(db: AsyncSession, user_id: str) -> str:
         if app.status == "waiting_user_input":
             # Count pending questions
             q_result = await db.execute(
-                select(ApplicationQuestion)
-                .where(ApplicationQuestion.application_id == app.id, ApplicationQuestion.status == "pending")
+                select(ApplicationQuestion).where(
+                    ApplicationQuestion.application_id == app.id, ApplicationQuestion.status == "pending"
+                )
             )
             count = len(list(q_result.scalars().all()))
             if count:

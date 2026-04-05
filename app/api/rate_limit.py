@@ -96,10 +96,7 @@ def rate_limit_user_or_device(
         if len(user_window) >= max_user_requests:
             raise HTTPException(
                 status_code=429,
-                detail=(
-                    f"Rate limit exceeded: {max_user_requests} requests per {window_seconds}s "
-                    "for this account."
-                ),
+                detail=(f"Rate limit exceeded: {max_user_requests} requests per {window_seconds}s for this account."),
             )
 
         device_id = (request.headers.get(device_header) or "").strip()
@@ -110,10 +107,7 @@ def rate_limit_user_or_device(
         if len(device_window) >= device_limit:
             raise HTTPException(
                 status_code=429,
-                detail=(
-                    f"Rate limit exceeded: {device_limit} requests per {window_seconds}s "
-                    "for this device."
-                ),
+                detail=(f"Rate limit exceeded: {device_limit} requests per {window_seconds}s for this device."),
             )
 
         user_window.append(now)

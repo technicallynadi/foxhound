@@ -95,15 +95,18 @@ class ReconEngine:
 
             # Stream posting data immediately (already loaded, free)
             yield _sse_event("status", {"phase": "starting", "sources": ["posting"]})
-            yield _sse_event("posting", {
-                "title": posting_data.get("title"),
-                "company": company_name,
-                "location": posting_data.get("location"),
-                "remote_type": posting_data.get("remote_type"),
-                "seniority": posting_data.get("seniority"),
-                "salary_min": posting_data.get("salary_min"),
-                "salary_max": posting_data.get("salary_max"),
-            })
+            yield _sse_event(
+                "posting",
+                {
+                    "title": posting_data.get("title"),
+                    "company": company_name,
+                    "location": posting_data.get("location"),
+                    "remote_type": posting_data.get("remote_type"),
+                    "seniority": posting_data.get("seniority"),
+                    "salary_min": posting_data.get("salary_min"),
+                    "salary_max": posting_data.get("salary_max"),
+                },
+            )
 
             # Quick brief — LLM only, no TinyFish (instant)
             # For deep research, the cascade calls TinyFish directly
@@ -115,9 +118,7 @@ class ReconEngine:
 
             # Synthesize from job posting data (instant, free)
             yield _sse_event("status", {"phase": "synthesizing"})
-            synthesis = await synthesize_dossier(
-                company_name, careers_data, company_data, posting_data
-            )
+            synthesis = await synthesize_dossier(company_name, careers_data, company_data, posting_data)
             yield _sse_event("synthesis", synthesis)
 
             # Cache the dossier
@@ -146,11 +147,14 @@ class ReconEngine:
                 # If it's a unique constraint violation, the cache was already written
                 await self.db.rollback()
 
-            yield _sse_event("done", {
-                "dossier_id": dossier_id,
-                "cached": False,
-                "duration_ms": duration_ms,
-            })
+            yield _sse_event(
+                "done",
+                {
+                    "dossier_id": dossier_id,
+                    "cached": False,
+                    "duration_ms": duration_ms,
+                },
+            )
 
     async def run_sync(self) -> dict[str, Any]:
         """Collect all results synchronously (for agent tool use).

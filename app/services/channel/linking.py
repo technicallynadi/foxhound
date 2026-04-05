@@ -44,15 +44,13 @@ def redeem_link_code(code: str) -> str | None:
     return user_id
 
 
-async def resolve_user(
-    db: AsyncSession, channel: str, external_id: str
-) -> str | None:
+async def resolve_user(db: AsyncSession, channel: str, external_id: str) -> str | None:
     """Resolve a Foxhound user_id from a channel + external identity."""
     result = await db.execute(
         select(ChannelIdentity).where(
             ChannelIdentity.channel == channel,
             ChannelIdentity.external_id == external_id,
-            ChannelIdentity.verified is True,
+            ChannelIdentity.verified.is_(True),
         )
     )
     identity = result.scalar_one_or_none()
@@ -66,9 +64,7 @@ async def resolve_by_phone(db: AsyncSession, phone: str) -> str | None:
     if not normalized.startswith("+"):
         normalized = "+" + normalized
 
-    result = await db.execute(
-        select(UserProfile).where(UserProfile.phone == normalized)
-    )
+    result = await db.execute(select(UserProfile).where(UserProfile.phone == normalized))
     profile = result.scalar_one_or_none()
     if not profile:
         return None

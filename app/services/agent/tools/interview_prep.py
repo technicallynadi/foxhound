@@ -66,18 +66,14 @@ async def interview_prep_search(db: AsyncSession, user_id: str, params: dict) ->
 
     # Get role from job listing if provided
     if job_id and not role:
-        job_result = await db.execute(
-            select(JobListing).where(JobListing.id == job_id)
-        )
+        job_result = await db.execute(select(JobListing).where(JobListing.id == job_id))
         job = job_result.scalar_one_or_none()
         if job:
             role = job.title or ""
 
     # Load user profile to tailor interview search
 
-    profile_result = await db.execute(
-        select(UserProfile).where(UserProfile.user_id == user_id)
-    )
+    profile_result = await db.execute(select(UserProfile).where(UserProfile.user_id == user_id))
     profile = profile_result.scalar_one_or_none()
 
     # Determine interview type from profile
@@ -253,12 +249,14 @@ async def interview_prep_search(db: AsyncSession, user_id: str, params: dict) ->
         if not title or key in seen_courses:
             continue
         seen_courses.add(key)
-        courses.append({
-            "title": title,
-            "provider": str(course.get("provider", "")).strip() or "Course platform",
-            "url": url,
-            "reason": str(course.get("reason", "")).strip(),
-        })
+        courses.append(
+            {
+                "title": title,
+                "provider": str(course.get("provider", "")).strip() or "Course platform",
+                "url": url,
+                "reason": str(course.get("reason", "")).strip(),
+            }
+        )
 
     # Build structured response
     response: dict = {
@@ -276,9 +274,7 @@ async def interview_prep_search(db: AsyncSession, user_id: str, params: dict) ->
             entry = f"**{post['title']}** (score: {post['score']}, r/{post['subreddit']})\n{post['body'][:500]}"
             comments = post.get("top_comments", [])
             if comments:
-                entry += "\nTop comments:\n" + "\n".join(
-                    f"- {c['body'][:300]}" for c in comments[:3]
-                )
+                entry += "\nTop comments:\n" + "\n".join(f"- {c['body'][:300]}" for c in comments[:3])
             reddit_summary.append(entry)
         response["reddit"] = "\n\n---\n\n".join(reddit_summary)
         successful["reddit_api"] = True

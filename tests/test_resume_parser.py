@@ -11,6 +11,7 @@ from app.services.resume.parser import ParsedProfile, ResumeParser
 # ParsedProfile defaults
 # ---------------------------------------------------------------------------
 
+
 def test_parsed_profile_defaults():
     p = ParsedProfile()
     assert p.first_name == ""
@@ -21,8 +22,10 @@ def test_parsed_profile_defaults():
 
 def test_parsed_profile_with_values():
     p = ParsedProfile(
-        first_name="Jane", last_name="Doe",
-        skills=["Python", "React"], inferred_seniority="senior",
+        first_name="Jane",
+        last_name="Doe",
+        skills=["Python", "React"],
+        inferred_seniority="senior",
         inferred_years_experience=8,
     )
     assert p.first_name == "Jane"
@@ -34,12 +37,17 @@ def test_parsed_profile_with_values():
 # PDF text extraction (mocked pdfplumber)
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_extract_text_single_page():
     """Mock _extract_text to test the parser's text extraction path."""
     parser = ResumeParser()
-    with patch.object(parser, "_extract_text", new_callable=AsyncMock,
-                      return_value="Jane Doe — Software Engineer\nSkills: Python, FastAPI"):
+    with patch.object(
+        parser,
+        "_extract_text",
+        new_callable=AsyncMock,
+        return_value="Jane Doe — Software Engineer\nSkills: Python, FastAPI",
+    ):
         text = await parser._extract_text(b"fake-pdf-bytes")
     assert "Jane Doe" in text
     assert "Python" in text
@@ -48,8 +56,9 @@ async def test_extract_text_single_page():
 @pytest.mark.asyncio
 async def test_extract_text_multi_page():
     parser = ResumeParser()
-    with patch.object(parser, "_extract_text", new_callable=AsyncMock,
-                      return_value="Page One Content\nPage Two Content"):
+    with patch.object(
+        parser, "_extract_text", new_callable=AsyncMock, return_value="Page One Content\nPage Two Content"
+    ):
         text = await parser._extract_text(b"fake-pdf-bytes")
     assert "Page One" in text
     assert "Page Two" in text
@@ -67,6 +76,7 @@ async def test_extract_text_empty_pdf():
 # LLM extraction (mocked — call _llm_extract directly with text)
 # ---------------------------------------------------------------------------
 
+
 def _make_llm_response(data: dict) -> MagicMock:
     resp = MagicMock()
     resp.content = [MagicMock(text=json.dumps(data))]
@@ -74,15 +84,20 @@ def _make_llm_response(data: dict) -> MagicMock:
 
 
 _FULL_RESPONSE = {
-    "first_name": "Jane", "last_name": "Doe", "email": "jane@example.com",
-    "phone": "+15551234567", "linkedin_url": "https://linkedin.com/in/janedoe",
-    "portfolio_url": "", "location": "San Francisco, CA",
+    "first_name": "Jane",
+    "last_name": "Doe",
+    "email": "jane@example.com",
+    "phone": "+15551234567",
+    "linkedin_url": "https://linkedin.com/in/janedoe",
+    "portfolio_url": "",
+    "location": "San Francisco, CA",
     "summary": "Senior Python engineer with 8 years of experience.",
     "skills": ["Python", "FastAPI", "React", "PostgreSQL"],
     "experience": [{"company": "Stripe", "title": "Senior Engineer"}],
     "education": [{"institution": "MIT", "degree": "BS CS"}],
     "certifications": [],
-    "inferred_seniority": "senior", "inferred_years_experience": 8,
+    "inferred_seniority": "senior",
+    "inferred_years_experience": 8,
     "inferred_target_titles": ["Staff Engineer", "Senior Engineer"],
 }
 
@@ -105,13 +120,25 @@ async def test_llm_extract_happy_path():
 
 @pytest.mark.asyncio
 async def test_llm_extract_strips_markdown_fences():
-    raw_json = json.dumps({
-        "first_name": "Bob", "last_name": "Smith", "email": "b@b.com",
-        "phone": "", "linkedin_url": "", "portfolio_url": "", "location": "",
-        "summary": "", "skills": [], "experience": [], "education": [],
-        "certifications": [], "inferred_seniority": "mid",
-        "inferred_years_experience": 0, "inferred_target_titles": [],
-    })
+    raw_json = json.dumps(
+        {
+            "first_name": "Bob",
+            "last_name": "Smith",
+            "email": "b@b.com",
+            "phone": "",
+            "linkedin_url": "",
+            "portfolio_url": "",
+            "location": "",
+            "summary": "",
+            "skills": [],
+            "experience": [],
+            "education": [],
+            "certifications": [],
+            "inferred_seniority": "mid",
+            "inferred_years_experience": 0,
+            "inferred_target_titles": [],
+        }
+    )
     mock_response = MagicMock()
     mock_response.content = [MagicMock(text=f"```json\n{raw_json}\n```")]
 
@@ -161,6 +188,7 @@ async def test_llm_extract_missing_fields_use_defaults():
 # ---------------------------------------------------------------------------
 # Full parse flow (mocked extract + LLM)
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_parse_empty_pdf_raises():

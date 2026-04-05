@@ -28,9 +28,11 @@ _handlers: dict[str, list[Callable[[FoxhoundEvent], Coroutine]]] = {}
 
 def on_event(event_name: str):
     """Decorator to register an async handler for an event."""
+
     def decorator(fn: Callable[[FoxhoundEvent], Coroutine]):
         _handlers.setdefault(event_name, []).append(fn)
         return fn
+
     return decorator
 
 

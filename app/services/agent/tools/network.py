@@ -62,9 +62,7 @@ async def network_map(db: AsyncSession, user_id: str, params: dict) -> dict:
         return {"error": "missing_company", "message": "Please specify a company name."}
 
     # Load user profile for matching context — then close session before TinyFish
-    result = await db.execute(
-        select(UserProfile).where(UserProfile.user_id == user_id)
-    )
+    result = await db.execute(select(UserProfile).where(UserProfile.user_id == user_id))
     profile = result.scalar_one_or_none()
     if not profile:
         return {"error": "no_profile", "message": "Set up your profile first."}
@@ -88,7 +86,7 @@ async def network_map(db: AsyncSession, user_id: str, params: dict) -> dict:
     ". ".join(matching_context) if matching_context else "No prior context available."
 
     _CONTACT_SCHEMA = (
-        'Return as JSON array: '
+        "Return as JSON array: "
         '[{"name": "...", "title": "...", "linkedin_url": "...", '
         '"connection_angle": "...", "relevance": "high/medium/low"}]'
     )
@@ -101,8 +99,7 @@ async def network_map(db: AsyncSession, user_id: str, params: dict) -> dict:
             "url": f"https://www.google.com/search?q=site:linkedin.com+{company.replace(' ', '+')}+{department}+manager+OR+lead+OR+director",
             "goal": (
                 f"Find LinkedIn profiles of managers and senior people related to {department} at {company}. "
-                "Click into 3-4 profiles. For each, extract name, title, and profile URL. "
-                + _CONTACT_SCHEMA
+                "Click into 3-4 profiles. For each, extract name, title, and profile URL. " + _CONTACT_SCHEMA
             ),
         },
     ]
@@ -115,6 +112,7 @@ async def network_map(db: AsyncSession, user_id: str, params: dict) -> dict:
 
     # Run TinyFish searches in parallel with global semaphore
     from app.services.tinyfish_concurrency import TINYFISH_SEMAPHORE
+
     all_contacts = []
 
     async def _run_search(search: dict) -> list[dict]:
@@ -182,21 +180,25 @@ async def network_map(db: AsyncSession, user_id: str, params: dict) -> dict:
     # Cache contacts to DB with a fresh session (internal cache, not shown in feed)
     try:
         from app.db.session import async_session as _async_session
+
         async with _async_session() as cache_db:
             from uuid import uuid4
 
             from app.db.models.agent_activity import AgentActivity
+
             contacts_list = result_data.get("contacts", [])
             names = [c.get("name", "") for c in contacts_list[:4] if c.get("name")]
             ", ".join(names) + ("..." if len(contacts_list) > 4 else "")
-            cache_db.add(AgentActivity(
-                id=str(uuid4()),
-                user_id=user_id,
-                event_type="_network_cache",
-                title=f"network_map:{company}",
-                description=json.dumps(contacts_list),
-                metadata_json=json.dumps({"company": company, "count": len(unique), "_internal": True}),
-            ))
+            cache_db.add(
+                AgentActivity(
+                    id=str(uuid4()),
+                    user_id=user_id,
+                    event_type="_network_cache",
+                    title=f"network_map:{company}",
+                    description=json.dumps(contacts_list),
+                    metadata_json=json.dumps({"company": company, "count": len(unique), "_internal": True}),
+                )
+            )
             await cache_db.commit()
         logger.info("Network map: cached %d contacts for %s", len(unique), company)
     except Exception as e:
@@ -215,11 +217,13 @@ def _parse_contacts(raw: str) -> list[dict]:
             return [c for c in data if isinstance(c, dict) and c.get("name")]
         if isinstance(data, dict):
             if data.get("result"):
-                return _parse_contacts(data["result"] if isinstance(data["result"], str) else json.dumps(data["result"]))
+                return _parse_contacts(
+                    data["result"] if isinstance(data["result"], str) else json.dumps(data["result"])
+                )
     except json.JSONDecodeError:
         pass
 
-    match = re.search(r'\[[\s\S]*\]', raw)
+    match = re.search(r"\[[\s\S]*\]", raw)
     if match:
         try:
             data = json.loads(match.group(0))
