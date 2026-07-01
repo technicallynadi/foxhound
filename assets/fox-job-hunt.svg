@@ -86,10 +86,10 @@
     <path d="M210 225 Q196 239 183 231 M210 225 Q224 239 237 231" fill="none" stroke="#2A2230" stroke-width="2.4" stroke-linecap="round"/>
 
     <g class="pulse">
-      <rect x="152" y="288" width="124" height="28" rx="14" fill="#8B5CF6"/>
-      <rect x="152" y="288" width="124" height="28" rx="14" fill="none" stroke="#A78BFA" stroke-opacity="0.6"/>
-      <circle cx="173" cy="302" r="5" fill="#EDE7FA"/>
-      <text x="222" y="306" text-anchor="middle" fill="#F5F2FF" font-size="12.5" font-weight="700" letter-spacing=".4">OPEN TO WORK</text>
+      <rect x="144" y="288" width="142" height="28" rx="14" fill="#8B5CF6"/>
+      <rect x="144" y="288" width="142" height="28" rx="14" fill="none" stroke="#A78BFA" stroke-opacity="0.6"/>
+      <circle cx="164" cy="302" r="4.5" fill="#EDE7FA"/>
+      <text x="178" y="306" fill="#F5F2FF" font-size="12" font-weight="700" letter-spacing=".3">OPEN TO WORK</text>
     </g>
 
     <g>
