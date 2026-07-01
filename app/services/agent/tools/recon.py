@@ -31,6 +31,7 @@ logger = logging.getLogger(__name__)
     },
     permissions=["read"],
     side_effects=False,
+    returns_untrusted_content=True,
     cost_estimate="medium",
 )
 async def recon_company(db: AsyncSession, user_id: str, params: dict) -> dict:

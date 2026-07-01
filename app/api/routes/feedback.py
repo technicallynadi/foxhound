@@ -57,6 +57,7 @@ async def record_events(batch: BatchEventRequest, user: dict = Depends(get_curre
         async with async_session() as session:
             for event in valid_events:
                 row = InteractionEvent(
+                    user_id=user["user_id"],
                     session_id=event.session_id,
                     opportunity_id=event.opportunity_id,
                     event_type=event.event_type,

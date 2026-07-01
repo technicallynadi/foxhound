@@ -91,6 +91,32 @@ async def test_guard_skips_read_tools(db, user_id):
     await guard.check(db, user_id, "get_applications", {})
 
 
+@pytest.mark.asyncio
+async def test_guard_requires_confirmation_after_untrusted_content(db, sample_profile):
+    """A submit action taken after ingesting untrusted web content must be confirmed.
+
+    Defends against indirect prompt injection: a scraped job post can't silently
+    steer the agent into applying on the user's behalf.
+    """
+    guard = ToolGuard()
+    with pytest.raises(ToolBlocked) as exc:
+        await guard.check(
+            db,
+            sample_profile.user_id,
+            "apply_to_job",
+            {"job_id": "x"},
+            from_untrusted_context=True,
+        )
+    assert exc.value.code == "confirmation_required"
+
+
+@pytest.mark.asyncio
+async def test_guard_allows_read_tools_after_untrusted_content(db, user_id):
+    """Untrusted context only gates side-effecting submits, not read-only tools."""
+    guard = ToolGuard()
+    await guard.check(db, user_id, "search_jobs", {"query": "x"}, from_untrusted_context=True)
+
+
 # ---------------------------------------------------------------------------
 # Budget
 # ---------------------------------------------------------------------------

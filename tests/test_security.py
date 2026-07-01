@@ -156,3 +156,62 @@ def test_debug_context_hidden_in_production():
 
     body = response.body.decode()
     assert "should_not_leak" not in body
+
+
+# ---------------------------------------------------------------------------
+# Object-level ownership helper
+# ---------------------------------------------------------------------------
+
+
+def test_assert_owner_raises_on_mismatch():
+    """assert_owner raises 404 when the row belongs to another user."""
+    from fastapi import HTTPException
+
+    from app.api.ownership import assert_owner
+
+    with pytest.raises(HTTPException) as exc_info:
+        assert_owner("owner-123", "attacker-456")
+    assert exc_info.value.status_code == 404
+
+
+def test_assert_owner_passes_on_match():
+    """assert_owner is a no-op when the row belongs to the current user."""
+    from app.api.ownership import assert_owner
+
+    assert assert_owner("user-123", "user-123") is None
+
+
+# ---------------------------------------------------------------------------
+# Feedback events persist the authenticated user_id, not the client body
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_feedback_persists_token_user_id(db, user_id):
+    """Recorded interaction events use the authenticated user_id from the token."""
+    from sqlalchemy import select
+
+    from app.db.models.interaction_event import InteractionEvent
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.post(
+            "/v1/feedback/events",
+            json={
+                "events": [
+                    {
+                        "session_id": "spoofed-session",
+                        "opportunity_id": "opp-1",
+                        "event_type": "click",
+                    }
+                ]
+            },
+        )
+    assert resp.status_code == 200
+    assert resp.json()["recorded"] == 1
+
+    result = await db.execute(select(InteractionEvent).where(InteractionEvent.user_id == user_id))
+    rows = result.scalars().all()
+    assert len(rows) == 1
+    assert rows[0].user_id == user_id
+    assert rows[0].session_id == "spoofed-session"

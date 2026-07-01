@@ -29,6 +29,7 @@ from app.services.agent.registry import (
     discover_tools,
     execute_tool,
     get_tool_definitions,
+    get_tool_spec,
 )
 from app.services.agent.system_prompt import build_system_prompt
 
@@ -36,6 +37,17 @@ logger = logging.getLogger(__name__)
 
 MAX_HISTORY_MESSAGES = 20
 SESSION_REUSE_SECONDS = 7200  # 2 hours
+
+
+def _fence_tool_output(result_json: str) -> str:
+    """Wrap tool output the model consumes in an untrusted-data boundary.
+
+    Tool results can contain attacker-influenceable web content (scraped job
+    posts, company/interview research). Fencing it — plus the standing rule in
+    the system prompt — tells the model to treat it as data, never as
+    instructions, which blunts indirect prompt injection.
+    """
+    return f"<tool_output>\n{result_json}\n</tool_output>"
 
 
 class FoxhoundAgent:
@@ -121,6 +133,8 @@ class FoxhoundAgent:
         # 4. Tool_use loop
         tool_calls_log: list[dict] = []
         tool_results_log: list[dict] = []
+        # Flips True once a tool returns untrusted web content this request.
+        untrusted_context = False
 
         while budget.can_continue():
             response = await self.client.messages.create(
@@ -187,13 +201,21 @@ class FoxhoundAgent:
 
                 # Pre-execution guard
                 try:
-                    await self._guard.check(db, user_id, tool_name, tool_input)
+                    await self._guard.check(
+                        db, user_id, tool_name, tool_input, from_untrusted_context=untrusted_context
+                    )
                 except ToolBlocked as blocked:
                     result = blocked.to_dict()
                     logger.info("Tool blocked: %s — %s", tool_name, blocked.code)
                 else:
                     # Execute tool (scoped to this user_id)
                     result = await execute_tool(db, user_id, tool_name, tool_input)
+
+                # Once a tool returns attacker-influenceable web content, later
+                # side-effecting actions this request require user confirmation.
+                spec = get_tool_spec(tool_name)
+                if spec and spec.returns_untrusted_content:
+                    untrusted_context = True
 
                 duration_ms = int((time.monotonic() - t0) * 1000)
                 budget.record_tool_call(tool_name, duration_ms)
@@ -219,7 +241,7 @@ class FoxhoundAgent:
                     {
                         "type": "tool_result",
                         "tool_use_id": block.id,
-                        "content": result_json,
+                        "content": _fence_tool_output(result_json),
                     }
                 )
 
@@ -280,6 +302,8 @@ class FoxhoundAgent:
         system = await build_system_prompt(db, user_id, channel)
         messages = self._history_to_messages(history)
         full_response = ""
+        # Flips True once a tool returns untrusted web content this request.
+        untrusted_context = False
 
         # If history is corrupt, create a fresh session (avoids reloading broken history)
         try:
@@ -339,11 +363,17 @@ class FoxhoundAgent:
                 yield f"event: tool_call_start\ndata: {json.dumps({'tool_name': block.name, 'tool_input': block.input})}\n\n"
 
                 try:
-                    await self._guard.check(db, user_id, block.name, block.input)
+                    await self._guard.check(
+                        db, user_id, block.name, block.input, from_untrusted_context=untrusted_context
+                    )
                 except ToolBlocked as blocked:
                     result = blocked.to_dict()
                 else:
                     result = await execute_tool(db, user_id, block.name, block.input)
+
+                spec = get_tool_spec(block.name)
+                if spec and spec.returns_untrusted_content:
+                    untrusted_context = True
 
                 logger.info("Stream tool result: %s → %s", block.name, json.dumps(result)[:200])
                 budget.record_tool_call(block.name)
@@ -389,7 +419,7 @@ class FoxhoundAgent:
                     {
                         "type": "tool_result",
                         "tool_use_id": block.id,
-                        "content": result_json,
+                        "content": _fence_tool_output(result_json),
                     }
                 )
 
@@ -607,7 +637,7 @@ class FoxhoundAgent:
                         {
                             "type": "tool_result",
                             "tool_use_id": tr.tool_use_id,
-                            "content": tr.tool_result_json or tr.content,
+                            "content": _fence_tool_output(tr.tool_result_json or tr.content),
                         }
                     )
                     i += 1

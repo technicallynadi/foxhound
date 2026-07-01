@@ -28,13 +28,23 @@ def validate_apply_url(url: str) -> bool:
 
     Returns True if the URL is safe for TinyFish to navigate to.
     Blocks: private IPs, non-HTTPS, non-allowlisted domains.
+
+    TOCTOU limitation: this validator resolves DNS at check time, but the
+    TinyFish browser re-resolves the host at navigation time and follows
+    redirects the validator never sees. A host that resolved to a public
+    address here can point at an internal one by the time the browser
+    connects, and a public page can 3xx-redirect into the private network.
+    The DNS-rebind guard below only narrows the window — it does not close
+    it. Network-level egress-proxy IP filtering (deny RFC1918/link-local at
+    the proxy) is the real backstop and should be configured in infra;
+    this function is defence-in-depth, not the sole control.
     """
     try:
         parsed = urlparse(url)
     except Exception:
         return False
 
-    # Must be HTTPS
+    # Must be HTTPS (no http:// downgrade — that path is rejected here).
     if parsed.scheme != "https":
         return False
 
@@ -68,6 +78,58 @@ def validate_apply_url(url: str) -> bool:
             return False
 
     return True
+
+
+def is_public_http_url(url: str) -> bool:
+    """Validate that a URL is a public http(s) URL safe to navigate to.
+
+    Unlike ``validate_apply_url`` this does NOT require the ATS allowlist —
+    any public host is allowed. It is the less-restrictive guard used by the
+    ingest path, where TinyFish drives a browser to arbitrary URLs sourced
+    from LLM/search output.
+
+    Returns True only when the URL is safe. Rejects:
+    - non-http(s) schemes (e.g. ftp://, file://)
+    - hosts that are IP literals in private/loopback/link-local/reserved ranges
+    - hosts whose resolved A/AAAA records are private/reserved (rebind guard)
+
+    Shares the private-IP and DNS-resolution helpers with ``validate_apply_url``.
+    The same TOCTOU caveat applies: egress-proxy IP filtering is the real
+    backstop; this is defence-in-depth.
+    """
+    try:
+        parsed = urlparse(url)
+    except Exception:
+        return False
+
+    if parsed.scheme not in ("http", "https"):
+        return False
+
+    host = (parsed.hostname or "").strip().lower().rstrip(".")
+    if not host:
+        return False
+
+    # Block private/reserved literal hosts (IPv4 + IPv6).
+    if _is_private_or_reserved_ip(host):
+        return False
+
+    # Best-effort DNS rebinding guard: if DNS resolves and any address is
+    # non-public, reject. If DNS cannot be resolved, allow the public host.
+    for ip_text in _resolve_host_ips(host):
+        if _is_private_or_reserved_ip(ip_text):
+            return False
+
+    return True
+
+
+def assert_public_http_url(url: str) -> None:
+    """Raise ``ValueError`` if ``url`` is not a public http(s) URL.
+
+    Convenience wrapper around ``is_public_http_url`` for call sites that
+    want to fail fast before any network/browser call.
+    """
+    if not is_public_http_url(url):
+        raise ValueError(f"Refusing to navigate to non-public or unsafe URL: {url!r}")
 
 
 def _resolve_host_ips(host: str) -> set[str]:

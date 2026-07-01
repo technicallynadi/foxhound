@@ -45,11 +45,32 @@ class ToolGuard:
         user_id: str,
         tool_name: str,
         params: dict,
+        *,
+        from_untrusted_context: bool = False,
     ) -> None:
-        """Run all applicable guards. Raises ToolBlocked if any fail."""
+        """Run all applicable guards. Raises ToolBlocked if any fail.
+
+        ``from_untrusted_context`` is True when the agent has already ingested
+        attacker-influenceable web content earlier in this request (a tool whose
+        spec sets ``returns_untrusted_content``). A side-effecting apply/submit
+        action taken in that state may have been steered by indirect prompt
+        injection, so it is blocked pending an explicit user confirmation rather
+        than executed automatically.
+        """
         spec = get_tool_spec(tool_name)
         if not spec:
             return
+
+        # Block irreversible submissions that follow untrusted web content until
+        # the user confirms — defeats scraped-content prompt injection.
+        is_submitting_action = spec.side_effects and ({"apply", "write"} & set(spec.permissions))
+        if from_untrusted_context and is_submitting_action:
+            raise ToolBlocked(
+                "confirmation_required",
+                "This action was requested after reading external web content, which can carry "
+                "hidden instructions. Confirm directly with the user before submitting on their behalf.",
+                "Ask the user to confirm the specific job/company before applying.",
+            )
 
         # Only guard tools with side effects or apply permission
         if "apply" in spec.permissions:

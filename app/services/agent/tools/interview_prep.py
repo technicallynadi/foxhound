@@ -53,6 +53,7 @@ logger = logging.getLogger(__name__)
     },
     permissions=["read"],
     side_effects=True,
+    returns_untrusted_content=True,
     cost_estimate="high",
 )
 async def interview_prep_search(db: AsyncSession, user_id: str, params: dict) -> dict:
