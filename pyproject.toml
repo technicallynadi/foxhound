@@ -26,6 +26,7 @@ ml = [
     "torch>=2.4",
 ]
 dev = [
+    "aiosqlite",
     "pytest",
     "pytest-asyncio",
     "ruff",
