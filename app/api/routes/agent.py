@@ -78,6 +78,7 @@ async def agent_sync(
     body: AgentRequest,
     user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    _rl: None = Depends(rate_limit("agent", 30, 60)),  # 30 messages/min
 ):
     """Non-streaming response. Used by Slack/Discord/SMS adapters."""
     user_id = user["user_id"]

@@ -12,6 +12,7 @@ Endpoints:
     GET  /_foxhound/health    — Same
 """
 
+import hmac
 import io
 import json
 import os
@@ -29,8 +30,63 @@ app_process = None
 files_received = False
 
 
+def _extract_bearer(auth_header: str) -> str:
+    """Return the token from an 'Authorization: Bearer <token>' header, else ''."""
+    if not auth_header:
+        return ""
+    parts = auth_header.split(" ", 1)
+    if len(parts) == 2 and parts[0].lower() == "bearer":
+        return parts[1].strip()
+    return ""
+
+
+def _is_authorized(headers) -> bool:
+    """Constant-time check of the shared upload token.
+
+    Fails closed: if SANDBOX_UPLOAD_TOKEN is unset/empty, no request is allowed.
+    Accepts the token via 'Authorization: Bearer <token>' or 'X-Sandbox-Token'.
+    """
+    expected = os.environ.get("SANDBOX_UPLOAD_TOKEN", "")
+    if not expected:
+        return False
+    presented = _extract_bearer(headers.get("Authorization", "")) or headers.get("X-Sandbox-Token", "")
+    if not presented:
+        return False
+    return hmac.compare_digest(presented, expected)
+
+
+def _safe_extract(tar: tarfile.TarFile, dest: str) -> None:
+    """Extract a tarball into dest, rejecting path traversal and links.
+
+    Raises ValueError on any member that resolves outside dest or that is a
+    symlink/hardlink, before writing anything to disk.
+    """
+    dest_real = os.path.realpath(dest)
+    for member in tar.getmembers():
+        if member.issym() or member.islnk():
+            raise ValueError(f"unsafe link member in archive: {member.name}")
+        if os.path.isabs(member.name):
+            raise ValueError(f"absolute path member in archive: {member.name}")
+        target = os.path.realpath(os.path.join(dest_real, member.name))
+        if target != dest_real and not target.startswith(dest_real + os.sep):
+            raise ValueError(f"path traversal in archive: {member.name}")
+
+    # Python 3.12+ data filter is a defense-in-depth backstop on top of the
+    # explicit validation above (which also keeps this safe on 3.11).
+    try:
+        tar.extractall(path=dest, filter="data")
+    except TypeError:
+        tar.extractall(path=dest)
+
+
 class UploadHandler(BaseHTTPRequestHandler):
     def do_POST(self):
+        if self.path in ("/upload", "/_foxhound/upload", "/env", "/_foxhound/env"):
+            if not _is_authorized(self.headers):
+                self._drain_body()
+                self._respond(403, {"error": "Forbidden"})
+                return
+
         if self.path in ("/upload", "/_foxhound/upload"):
             self._handle_upload()
         elif self.path in ("/env", "/_foxhound/env"):
@@ -54,7 +110,7 @@ class UploadHandler(BaseHTTPRequestHandler):
         try:
             buf = io.BytesIO(body)
             with tarfile.open(fileobj=buf, mode="r:gz") as tar:
-                tar.extractall(path=APP_DIR)
+                _safe_extract(tar, APP_DIR)
 
             files_received = True
             print("[upload] Files extracted successfully")
@@ -65,8 +121,16 @@ class UploadHandler(BaseHTTPRequestHandler):
                 print("[upload] Installing project requirements...")
                 try:
                     subprocess.run(
-                        [sys.executable, "-m", "pip", "install", "-r", req_path,
-                         "--quiet", "--no-warn-script-location"],
+                        [
+                            sys.executable,
+                            "-m",
+                            "pip",
+                            "install",
+                            "-r",
+                            req_path,
+                            "--quiet",
+                            "--no-warn-script-location",
+                        ],
                         cwd=APP_DIR,
                         timeout=120,
                         check=False,
@@ -81,6 +145,9 @@ class UploadHandler(BaseHTTPRequestHandler):
 
             self._respond(200, {"status": "ok", "files_received": True})
 
+        except ValueError as e:
+            print(f"[upload] Rejected unsafe archive: {e}")
+            self._respond(400, {"error": "Unsafe archive"})
         except Exception as e:
             print(f"[upload] Extract failed: {e}")
             self._respond(500, {"error": str(e)})
@@ -101,11 +168,20 @@ class UploadHandler(BaseHTTPRequestHandler):
             self._respond(400, {"error": str(e)})
 
     def _handle_health(self):
-        self._respond(200, {
-            "status": "ok",
-            "files_received": files_received,
-            "app_running": app_process is not None and app_process.poll() is None,
-        })
+        self._respond(
+            200,
+            {
+                "status": "ok",
+                "files_received": files_received,
+                "app_running": app_process is not None and app_process.poll() is None,
+            },
+        )
+
+    def _drain_body(self):
+        """Consume any request body so the connection can be reused/closed cleanly."""
+        content_length = int(self.headers.get("Content-Length", 0))
+        if content_length > 0:
+            self.rfile.read(content_length)
 
     def _respond(self, code: int, body: dict):
         self.send_response(code)
@@ -138,8 +214,15 @@ def _start_app():
     if os.path.exists(main_py):
         # FastAPI / uvicorn
         cmd = [
-            sys.executable, "-m", "uvicorn", "main:app",
-            "--host", "0.0.0.0", "--port", str(APP_PORT), "--reload",
+            sys.executable,
+            "-m",
+            "uvicorn",
+            "main:app",
+            "--host",
+            "0.0.0.0",
+            "--port",
+            str(APP_PORT),
+            "--reload",
         ]
     elif os.path.exists(app_py):
         # Generic Python app
@@ -157,8 +240,15 @@ def _start_app():
                 if "FastAPI" in content or "app = " in content:
                     module = fname.replace(".py", "")
                     cmd = [
-                        sys.executable, "-m", "uvicorn", f"{module}:app",
-                        "--host", "0.0.0.0", "--port", str(APP_PORT), "--reload",
+                        sys.executable,
+                        "-m",
+                        "uvicorn",
+                        f"{module}:app",
+                        "--host",
+                        "0.0.0.0",
+                        "--port",
+                        str(APP_PORT),
+                        "--reload",
                     ]
                     break
         else:

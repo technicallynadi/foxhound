@@ -18,6 +18,8 @@ import { createWriteStream, writeFileSync, mkdirSync, existsSync } from "node:fs
 import { execSync, spawn } from "node:child_process";
 import { pipeline } from "node:stream/promises";
 import { createGunzip } from "node:zlib";
+import { resolve as resolvePath, sep as pathSep } from "node:path";
+import { timingSafeEqual } from "node:crypto";
 import { extract } from "tar";
 
 const UPLOAD_PORT = 9090;
@@ -29,6 +31,43 @@ let viteProcess = null;
 let filesReceived = false;
 
 /**
+ * Constant-time check of the shared upload token.
+ *
+ * Fails closed: if SANDBOX_UPLOAD_TOKEN is unset/empty, no request is allowed.
+ * Accepts the token via "Authorization: Bearer <token>" or "X-Sandbox-Token".
+ */
+function isAuthorized(req) {
+  const expected = process.env.SANDBOX_UPLOAD_TOKEN || "";
+  if (!expected) return false;
+
+  const authHeader = req.headers["authorization"] || "";
+  const bearer = /^Bearer\s+(.+)$/i.exec(authHeader);
+  const presented = (bearer ? bearer[1] : req.headers["x-sandbox-token"] || "").trim();
+  if (!presented) return false;
+
+  const a = Buffer.from(presented);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
+}
+
+/**
+ * Reject tar entries whose resolved path escapes APP_DIR, or that are links.
+ * Returning false from tar's filter skips the entry; we throw so the whole
+ * upload aborts on any unsafe member.
+ */
+function isSafeEntry(entryPath, entry) {
+  if (entry.type === "SymbolicLink" || entry.type === "Link") {
+    throw new Error(`unsafe link entry in archive: ${entryPath}`);
+  }
+  const target = resolvePath(APP_DIR, entryPath);
+  if (target !== APP_DIR && !target.startsWith(APP_DIR + pathSep)) {
+    throw new Error(`path traversal in archive: ${entryPath}`);
+  }
+  return true;
+}
+
+/**
  * Extract uploaded tarball into the app source directory.
  */
 async function handleUpload(req, res) {
@@ -38,11 +77,12 @@ async function handleUpload(req, res) {
   mkdirSync(SRC_DIR, { recursive: true });
 
   try {
-    // Pipe request body through gunzip and tar extract
+    // Pipe request body through gunzip and tar extract.
+    // filter rejects path-traversal entries and symlinks/hardlinks.
     await pipeline(
       req,
       createGunzip(),
-      extract({ cwd: APP_DIR, strip: 0 })
+      extract({ cwd: APP_DIR, strip: 0, filter: isSafeEntry })
     );
 
     filesReceived = true;
@@ -147,11 +187,19 @@ const server = createServer((req, res) => {
 
   // Upload endpoints (internal + Fly proxy paths)
   if ((url === "/upload" || url === "/_foxhound/upload") && method === "POST") {
+    if (!isAuthorized(req)) {
+      res.writeHead(403, { "Content-Type": "application/json" });
+      return res.end(JSON.stringify({ error: "Forbidden" }));
+    }
     return handleUpload(req, res);
   }
 
   // Env endpoints
   if ((url === "/env" || url === "/_foxhound/env") && method === "POST") {
+    if (!isAuthorized(req)) {
+      res.writeHead(403, { "Content-Type": "application/json" });
+      return res.end(JSON.stringify({ error: "Forbidden" }));
+    }
     return handleEnv(req, res);
   }
 

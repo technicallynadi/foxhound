@@ -36,6 +36,11 @@ class ToolSpec:
     side_effects: bool = False
     requires_confirmation: bool = False
     cost_estimate: str = "low"  # "free" | "low" | "medium" | "high"
+    # True for tools that return attacker-influenceable content (scraped web pages,
+    # job descriptions, company/network research). Their output is untrusted and can
+    # carry indirect prompt-injection, so the agent loop treats it as data-only and
+    # requires confirmation before any side-effecting action taken in its wake.
+    returns_untrusted_content: bool = False
 
 
 # Global registry
@@ -50,6 +55,7 @@ def tool(
     side_effects: bool = False,
     requires_confirmation: bool = False,
     cost_estimate: str = "low",
+    returns_untrusted_content: bool = False,
 ):
     """Decorator to register a function as an agent tool.
 
@@ -74,6 +80,7 @@ def tool(
             side_effects=side_effects,
             requires_confirmation=requires_confirmation,
             cost_estimate=cost_estimate,
+            returns_untrusted_content=returns_untrusted_content,
         )
         _registry[name] = spec
 

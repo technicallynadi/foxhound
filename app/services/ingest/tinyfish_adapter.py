@@ -9,6 +9,7 @@ from hashlib import md5
 from tinyfish import AsyncTinyFish
 
 from app.core.config import settings
+from app.services.agent.utils.url_validator import assert_public_http_url
 from app.services.ingest.extraction_cache import cache_extraction, get_cached_extraction
 from app.services.ingest.tinyfish_errors import TinyFishErrorType, classify_error, is_retryable
 
@@ -678,6 +679,7 @@ async def fetch_discussions(url: str, topic: str | None = None) -> list[dict]:
 
 async def fetch_with_goal(url: str, goal: str) -> dict:
     """Run a custom TinyFish extraction with a caller-defined goal."""
+    assert_public_http_url(url)
     client = _get_client()
     try:
         async with client:
@@ -701,6 +703,11 @@ async def batch_extract(urls_and_goals: list[tuple[str, str]]) -> list[dict]:
         return []
 
     async def _stream_one(url: str, goal: str) -> dict:
+        try:
+            assert_public_http_url(url)
+        except ValueError as e:
+            logger.warning("TinyFish batch skipping unsafe URL %s: %s", url, e)
+            return {"url": url, "status": "error", "result": None}
         client = _get_client()
         try:
             async with client:
@@ -1175,6 +1182,7 @@ async def stream_extraction(url: str, goal: str):
 
     Yields SSE events as they arrive.
     """
+    assert_public_http_url(url)
     client = _get_client()
     events = []
     try:
@@ -1248,6 +1256,9 @@ async def _run_extraction(
     import json as _json
 
     from app.services.ingest.extraction_cache import cache_extraction, get_cached_extraction
+
+    # Reject non-public / unsafe URLs before any cache lookup or network call.
+    assert_public_http_url(url)
 
     # Check extraction cache first — avoids re-crawling already-seen URLs
     cached = get_cached_extraction(url, extraction_type)
@@ -2004,6 +2015,9 @@ async def run_focused_extraction(
     and returns results reliably (unlike the SSE streaming path)."""
     from app.services.ingest.extraction_parser import parse_signal_result, parse_url_discovery_result
     from app.services.ingest.extraction_prompts import get_prompt
+
+    # Reject non-public / unsafe URLs before any cache lookup or browser call.
+    assert_public_http_url(url)
 
     goal = get_prompt(prompt_name, topic)
 

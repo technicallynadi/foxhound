@@ -63,9 +63,15 @@ import os as _os
 from starlette.middleware.cors import CORSMiddleware
 
 _cors_origins = _os.environ.get("FOXHOUND_CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(",")
+_cors_origins = [o.strip() for o in _cors_origins if o.strip()]
+if not _cors_origins or "*" in _cors_origins:
+    raise RuntimeError(
+        "FOXHOUND_CORS_ORIGINS must list explicit origins; '*' is unsafe with allow_credentials "
+        "and rejected by browsers."
+    )
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[o.strip() for o in _cors_origins],
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

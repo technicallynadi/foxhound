@@ -14,6 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.rate_limit import rate_limit
 from app.db.session import get_db
 from app.services.auth_service import get_current_user
 
@@ -67,6 +68,7 @@ async def deep_scan_url(
     body: GhostCheckRequest,
     request: Request,
     user: dict = Depends(get_current_user),
+    _rl: None = Depends(rate_limit("ghost_deep_scan", 10, 60)),  # 10 scans/min per user
 ):
     """Deep scan: runs TinyFish agents for deeper ghost signals.
 
