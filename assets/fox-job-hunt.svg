@@ -1,0 +1,107 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 360" width="760" height="360" role="img" aria-labelledby="t d" font-family="'Segoe UI',Helvetica,Arial,sans-serif">
+  <title id="t">Foxhound — a fox on the hunt for a job</title>
+  <desc id="d">A cartoon fox scans a scrolling job board with a magnifying glass, wearing an "open to work" badge.</desc>
+  <defs>
+    <linearGradient id="card" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFF7EC"/>
+      <stop offset="1" stop-color="#FFE8D0"/>
+    </linearGradient>
+    <clipPath id="listClip"><rect x="432" y="120" width="256" height="150"/></clipPath>
+    <style>
+      .bob{animation:bob 3.4s ease-in-out infinite}
+      .blink{animation:blink 4.2s infinite;transform-box:fill-box;transform-origin:center}
+      .pulse{animation:pulse 2.6s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
+      .scroll{animation:scroll 12s linear infinite}
+      .beam{animation:beam 1.4s linear infinite}
+      .live{animation:live 1.8s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
+      .dot{animation:blinkdot 1.5s infinite}.b{animation-delay:.25s}.c{animation-delay:.5s}
+      @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+      @keyframes blink{0%,92%,100%{transform:scaleY(1)}96%{transform:scaleY(.12)}}
+      @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+      @keyframes scroll{0%{transform:translateY(0)}100%{transform:translateY(-170px)}}
+      @keyframes beam{to{stroke-dashoffset:-16}}
+      @keyframes live{0%,100%{opacity:.35;transform:scale(.8)}50%{opacity:1;transform:scale(1)}}
+      @keyframes blinkdot{0%,100%{opacity:.25}50%{opacity:1}}
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="760" height="360" rx="28" fill="url(#card)"/>
+  <ellipse cx="205" cy="338" rx="122" ry="15" fill="#EAD7BC" opacity=".55"/>
+
+  <g class="bob">
+    <g>
+      <path d="M250 250 C196 232 128 250 116 302 C152 304 206 300 258 284 Z" fill="#DB7526"/>
+      <path d="M116 302 C124 268 150 254 178 258 C160 276 150 294 150 302 Z" fill="#FCEFDD"/>
+      <animateTransform attributeName="transform" type="rotate" values="7 246 250;-9 246 250;7 246 250" dur="2.4s" repeatCount="indefinite"/>
+    </g>
+
+    <ellipse cx="208" cy="272" rx="96" ry="78" fill="#E27E28"/>
+    <ellipse cx="212" cy="294" rx="56" ry="52" fill="#FCEFDD"/>
+
+    <g>
+      <path d="M150 140 L126 56 L216 120 Z" fill="#E27E28"/>
+      <path d="M160 132 L148 82 L204 122 Z" fill="#FCEFDD"/>
+      <animateTransform attributeName="transform" type="rotate" values="0 172 122;-8 172 122;3 172 122;0 172 122" keyTimes="0;0.9;0.96;1" dur="5.5s" repeatCount="indefinite"/>
+    </g>
+    <g>
+      <path d="M268 140 L292 56 L202 120 Z" fill="#E27E28"/>
+      <path d="M258 132 L270 82 L214 122 Z" fill="#FCEFDD"/>
+      <animateTransform attributeName="transform" type="rotate" values="0 246 122;8 246 122;-3 246 122;0 246 122" keyTimes="0;0.9;0.96;1" dur="5.5s" repeatCount="indefinite"/>
+    </g>
+
+    <ellipse cx="209" cy="168" rx="87" ry="70" fill="#EE8B30"/>
+    <path d="M146 178 Q209 150 272 178 L238 236 Q209 255 180 236 Z" fill="#FCEFDD"/>
+
+    <g class="blink"><ellipse cx="176" cy="166" rx="12" ry="15" fill="#3A2E2A"/><circle cx="180" cy="160" r="4" fill="#fff"/></g>
+    <g class="blink"><ellipse cx="244" cy="166" rx="12" ry="15" fill="#3A2E2A"/><circle cx="248" cy="160" r="4" fill="#fff"/></g>
+
+    <path d="M200 206 Q210 201 220 206 Q216 220 210 225 Q204 220 200 206 Z" fill="#3A2E2A"/>
+    <path d="M210 225 Q196 239 183 231 M210 225 Q224 239 237 231" fill="none" stroke="#3A2E2A" stroke-width="2.4" stroke-linecap="round"/>
+
+    <g class="pulse">
+      <rect x="156" y="288" width="120" height="28" rx="14" fill="#2E9E5B"/>
+      <circle cx="176" cy="302" r="5" fill="#EAFBF0"/>
+      <text x="224" y="306" text-anchor="middle" fill="#EAFBF0" font-size="12.5" font-weight="700" letter-spacing=".4">OPEN TO WORK</text>
+    </g>
+
+    <g>
+      <ellipse cx="300" cy="214" rx="21" ry="17" fill="#FCEFDD"/>
+      <line x1="300" y1="206" x2="346" y2="168" stroke="#3A2E2A" stroke-width="9" stroke-linecap="round"/>
+      <circle cx="362" cy="150" r="26" fill="#CFE6F7" fill-opacity=".55" stroke="#4C6EA0" stroke-width="7"/>
+      <path d="M352 140 Q356 138 362 138" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round" opacity=".85"/>
+      <animateTransform attributeName="transform" type="rotate" values="-7 300 210;6 300 210;-7 300 210" dur="3.6s" repeatCount="indefinite"/>
+    </g>
+  </g>
+
+  <line x1="388" y1="150" x2="424" y2="150" stroke="#DB7526" stroke-width="3" stroke-linecap="round" stroke-dasharray="2 6" class="beam"/>
+
+  <rect x="426" y="76" width="282" height="232" rx="18" fill="#E9D8C0" opacity=".5"/>
+  <rect x="420" y="70" width="282" height="232" rx="18" fill="#FFFFFF" stroke="#EFE3D2" stroke-width="2"/>
+  <text x="442" y="104" fill="#3A2E2A" font-size="15" font-weight="700">opportunities</text>
+  <circle cx="676" cy="99" r="5" fill="#2E9E5B" class="live"/>
+  <line x1="442" y1="114" x2="686" y2="114" stroke="#F1E7D9" stroke-width="2"/>
+
+  <g clip-path="url(#listClip)">
+    <g class="scroll">
+      <g transform="translate(0,124)">
+        <rect x="436" y="0" width="252" height="28" rx="8" fill="#F5EFE6"/><text x="448" y="18" fill="#6B5E52" font-size="12">Senior software engineer</text><text x="678" y="18" text-anchor="end" fill="#A99B8C" font-size="11" font-weight="700">86%</text>
+        <rect x="436" y="34" width="252" height="28" rx="8" fill="#F5EFE6"/><text x="448" y="52" fill="#6B5E52" font-size="12">Product designer</text><text x="678" y="52" text-anchor="end" fill="#A99B8C" font-size="11" font-weight="700">78%</text>
+        <rect x="436" y="68" width="252" height="28" rx="8" fill="#F5EFE6"/><text x="448" y="86" fill="#6B5E52" font-size="12">Data scientist</text><text x="678" y="86" text-anchor="end" fill="#A99B8C" font-size="11" font-weight="700">91%</text>
+        <rect x="436" y="102" width="252" height="28" rx="8" fill="#F5EFE6"/><text x="448" y="120" fill="#6B5E52" font-size="12">DevOps engineer</text><text x="678" y="120" text-anchor="end" fill="#A99B8C" font-size="11" font-weight="700">82%</text>
+        <rect x="436" y="136" width="252" height="28" rx="8" fill="#E7F6EC" stroke="#B7E3C7" stroke-width="1.5"/><path d="M450 150 l4 4 l7 -8" fill="none" stroke="#2E9E5B" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><text x="470" y="154" fill="#227A46" font-size="12" font-weight="700">Staff frontend engineer</text><text x="678" y="154" text-anchor="end" fill="#2E9E5B" font-size="11" font-weight="700">98%</text>
+      </g>
+      <g transform="translate(0,294)">
+        <rect x="436" y="0" width="252" height="28" rx="8" fill="#F5EFE6"/><text x="448" y="18" fill="#6B5E52" font-size="12">Senior software engineer</text><text x="678" y="18" text-anchor="end" fill="#A99B8C" font-size="11" font-weight="700">86%</text>
+        <rect x="436" y="34" width="252" height="28" rx="8" fill="#F5EFE6"/><text x="448" y="52" fill="#6B5E52" font-size="12">Product designer</text><text x="678" y="52" text-anchor="end" fill="#A99B8C" font-size="11" font-weight="700">78%</text>
+        <rect x="436" y="68" width="252" height="28" rx="8" fill="#F5EFE6"/><text x="448" y="86" fill="#6B5E52" font-size="12">Data scientist</text><text x="678" y="86" text-anchor="end" fill="#A99B8C" font-size="11" font-weight="700">91%</text>
+        <rect x="436" y="102" width="252" height="28" rx="8" fill="#F5EFE6"/><text x="448" y="120" fill="#6B5E52" font-size="12">DevOps engineer</text><text x="678" y="120" text-anchor="end" fill="#A99B8C" font-size="11" font-weight="700">82%</text>
+        <rect x="436" y="136" width="252" height="28" rx="8" fill="#E7F6EC" stroke="#B7E3C7" stroke-width="1.5"/><path d="M450 150 l4 4 l7 -8" fill="none" stroke="#2E9E5B" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><text x="470" y="154" fill="#227A46" font-size="12" font-weight="700">Staff frontend engineer</text><text x="678" y="154" text-anchor="end" fill="#2E9E5B" font-size="11" font-weight="700">98%</text>
+      </g>
+    </g>
+  </g>
+
+  <text x="380" y="342" text-anchor="middle" fill="#9A8A79" font-size="14.5">on the hunt for the right role</text>
+  <circle cx="486" cy="338" r="2.4" fill="#9A8A79" class="dot"/>
+  <circle cx="496" cy="338" r="2.4" fill="#9A8A79" class="dot b"/>
+  <circle cx="506" cy="338" r="2.4" fill="#9A8A79" class="dot c"/>
+</svg>

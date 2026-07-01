@@ -1,5 +1,9 @@
 # Foxhound
 
+<p align="center">
+  <img src="assets/fox-job-hunt.svg" alt="A fox on the hunt for a job — scanning a job board with a magnifying glass while wearing an open-to-work badge" width="680">
+</p>
+
 **An autonomous AI career agent that finds jobs matching your résumé, applies to them for you, and tracks every application through to an offer.**
 
 Foxhound runs a personal agent for each user. It discovers roles across the open web, scores them against your profile, auto-fills and submits applications on ATS platforms (Greenhouse, Lever, Workday, …), researches companies before you apply, preps you for interviews, and keeps a live record of every application's status. You talk to it in plain language over the web app, Slack, Discord, or SMS.
