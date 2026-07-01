@@ -37,8 +37,8 @@ export default function LandingNav() {
         <Link href="/jobs" style={{ color: 'inherit' }}>Jobs</Link>
       </div>
 
-      <Link href="/login" className="btn-violet nav-cta-desktop">
-        Join Early Access →
+      <Link href="/jobs" className="btn-violet nav-cta-desktop">
+        Browse Jobs →
       </Link>
 
       <button
@@ -63,7 +63,7 @@ export default function LandingNav() {
           <Link href="/#how" onClick={() => setMenuOpen(false)} style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--t2)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>How it works</Link>
           <Link href="/#features" onClick={() => setMenuOpen(false)} style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--t2)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Features</Link>
           <Link href="/jobs" onClick={() => setMenuOpen(false)} style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--t2)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Jobs</Link>
-          <Link href="/login" onClick={() => setMenuOpen(false)} className="btn-violet" style={{ textAlign: 'center', marginTop: 8 }}>Join Early Access →</Link>
+          <Link href="/jobs" onClick={() => setMenuOpen(false)} className="btn-violet" style={{ textAlign: 'center', marginTop: 8 }}>Browse Jobs →</Link>
         </div>
       )}
     </nav>

@@ -758,7 +758,7 @@ export default function SettingsPage() {
               <div>
                 <div style={{ fontSize: 14, fontWeight: 500 }}>Plan</div>
                 <div style={{ fontSize: 13, color: 'var(--t3)', marginTop: 2 }}>
-                  {profileTier === 'free' ? 'Early Access — Free' : profileTier === 'pro' ? 'Pro' : profileTier.charAt(0).toUpperCase() + profileTier.slice(1)}
+                  {profileTier === 'free' ? 'Free' : profileTier === 'pro' ? 'Pro' : profileTier.charAt(0).toUpperCase() + profileTier.slice(1)}
                 </div>
               </div>
               <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--vl)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>

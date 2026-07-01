@@ -227,11 +227,11 @@ export default function LandingPage() {
               justifyContent: "center",
             }}
           >
-            <Link href="/login" className="btn-solid">
-              Join Early Access →
+            <Link href="/jobs" className="btn-solid">
+              Browse Jobs →
             </Link>
-            <Link href="/jobs" className="btn-ghost">
-              Browse Jobs
+            <Link href="/#how" className="btn-ghost">
+              How it works
             </Link>
           </div>
         </ScrollReveal>
@@ -247,7 +247,7 @@ export default function LandingPage() {
             textTransform: "uppercase",
           }}
         >
-          V.01 / Early Access
+          V.01
         </div>
       </section>
 
@@ -1387,11 +1387,11 @@ export default function LandingPage() {
               marginTop: 40,
             }}
           >
-            <Link href="/login" className="btn-solid">
-              Join Early Access →
+            <Link href="/jobs" className="btn-solid">
+              Browse Jobs →
             </Link>
-            <Link href="/jobs" className="btn-ghost">
-              Browse Jobs
+            <Link href="/#how" className="btn-ghost">
+              How it works
             </Link>
           </div>
         </ScrollReveal>

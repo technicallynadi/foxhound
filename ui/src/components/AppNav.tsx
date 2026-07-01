@@ -157,7 +157,7 @@ export default function AppNav() {
           </button>
         </div>
       ) : (
-        <Link href="/login" className="btn-violet nav-cta-desktop">Join Early Access</Link>
+        <Link href="/jobs" className="btn-violet nav-cta-desktop">Browse Jobs</Link>
       )}
 
       <button
@@ -210,7 +210,7 @@ export default function AppNav() {
               </button>
             </>
           ) : (
-            <Link href="/login" onClick={() => setMenuOpen(false)} className="btn-violet" style={{ textAlign: 'center', marginTop: 8 }}>Join Early Access</Link>
+            <Link href="/jobs" onClick={() => setMenuOpen(false)} className="btn-violet" style={{ textAlign: 'center', marginTop: 8 }}>Browse Jobs</Link>
           )}
         </div>
       )}

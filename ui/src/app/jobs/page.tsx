@@ -529,7 +529,7 @@ function JobDetailModal({ job, onClose, canApplyWithFoxhound }: { job: Job; onCl
                   ? "One click — Foxhound handles the form"
                   : "Foxhound will fill out and submit this application"
                 : "Add your resume so Foxhound can apply for you."
-              : "Join early access to get started"}
+              : "Browse every role freely — sign in when you want to apply"}
           </p>
         </div>
       </div>
@@ -599,14 +599,24 @@ export default function JobsPage() {
         headers["Authorization"] = `Bearer ${token}`;
       }
 
-      const res = await fetch(
-        `${API_BASE}/api/v1/jobs/public?page=${pageNum}&per_page=${PER_PAGE}`,
-        { headers },
-      );
-      if (res.ok) {
-        const data = await res.json();
-        newJobs = data.jobs || [];
-        total = data.total || 0;
+      // Try the configured backend first; fall back to the built-in Next.js
+      // route (live Remotive feed) when the backend/database is unavailable.
+      const query = `page=${pageNum}&per_page=${PER_PAGE}`;
+      const sources = API_BASE
+        ? [`${API_BASE}/api/v1/jobs/public?${query}`, `/api/v1/jobs/public?${query}`]
+        : [`/api/v1/jobs/public?${query}`];
+      for (const url of sources) {
+        try {
+          const res = await fetch(url, { headers });
+          if (!res.ok) continue;
+          const data = await res.json();
+          const list: Job[] = data.jobs || [];
+          newJobs = list;
+          total = data.total || 0;
+          if (list.length) break; // got results — stop; else try the fallback
+        } catch {
+          /* source unavailable — try the next one */
+        }
       }
 
       if (total) setTotalJobs(total);
