@@ -36,7 +36,7 @@ Thumbs.db
 # Data directory
 data/
 
-# Claude Code / IDE agents
+# Local agent & editor tooling
 .claude/
 .agents/
 ui/.agents/
