@@ -30,11 +30,22 @@ if not _is_sqlite:
             "statement_cache_size": 0,
         },
     )
-
 engine = create_async_engine(settings.DATABASE_URL, **_engine_kwargs)
 async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 Base = declarative_base()
+
+
+if _is_sqlite:
+
+    @event.listens_for(engine.sync_engine, "connect")
+    def _set_sqlite_pragmas(dbapi_conn, _conn_record) -> None:
+        # WAL lets readers and a writer coexist, removing the read→write lock
+        # upgrade that intermittently failed as "database is locked" under the
+        # test suite's concurrent access.
+        cursor = dbapi_conn.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.close()
 
 
 if not _is_sqlite:
